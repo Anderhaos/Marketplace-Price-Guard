@@ -1,0 +1,33 @@
+Marketplace Price Guard - start here
+
+How to open the app on Windows:
+
+1. Extract/unzip the archive first.
+   Do not run files directly from WinRAR/ZIP.
+
+2. Open the extracted project folder.
+
+3. Double-click run.bat.
+
+4. If Python is not installed, double-click:
+   install_python_and_run.bat
+
+5. Keep the black console window open.
+   If you close it, the site stops working.
+
+6. If the browser does not open automatically, go to:
+   http://127.0.0.1:8001
+
+7. Open "Маркетплейс и автоцикл".
+
+8. Choose a marketplace and paste the API token.
+   Wildberries is implemented now.
+   Ozon and Yandex Market are prepared as next adapters.
+
+9. Set auto-check interval and fix limit.
+
+Important:
+
+- This is a local version.
+- For 24/7 work, install the project on a VPS/server.
+- Do not publish .env or data/app.db.
