@@ -1,0 +1,100 @@
+{% extends 'guard/base.html' %}
+{% block title %}Товары — MP No Sale{% endblock %}
+{% block content %}
+<div class="grid dashboard-stats dashboard-stats--five">
+  <div class="card stat-card stat-card--control">
+    <div class="stat-label">Автоисправление</div>
+    <form method="post" action="{% url 'dashboard' %}{% if filter_name != 'all' %}?filter={{ filter_name }}{% endif %}" class="stat-auto-form">{% csrf_token %}
+      <input type="hidden" name="action" value="toggle_autocontrol">
+      <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
+      <label class="toggle stat-toggle">
+        <input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not account.token_ciphertext %}disabled{% endif %} onchange="this.form.submit()">
+        <span class="toggle-track" aria-hidden="true"></span>
+        <span class="value stat-toggle-value {% if account.enabled %}good{% else %}bad{% endif %}">{% if account.enabled %}Включено{% else %}Выключено{% endif %}</span>
+      </label>
+    </form>
+  </div>
+  <a class="card stat-card stat-card--filter{% if filter_name == 'all' %} is-active{% endif %}" href="{% url 'dashboard' %}?filter=all" aria-current="{% if filter_name == 'all' %}true{% else %}false{% endif %}">
+    <div class="stat-label">Товаров под контролем</div>
+    <div class="value">{{ count }}</div>
+  </a>
+  <a class="card stat-card stat-card--filter{% if filter_name == 'corrected' %} is-active{% endif %}" href="{% url 'dashboard' %}?filter=corrected" aria-current="{% if filter_name == 'corrected' %}true{% else %}false{% endif %}">
+    <div class="stat-label">Отменено скидок</div>
+    <div class="value">{{ corrected_count }}</div>
+  </a>
+  <a class="card stat-card stat-card--filter{% if filter_name == 'over_limit' %} is-active{% endif %}" href="{% url 'dashboard' %}?filter=over_limit" aria-current="{% if filter_name == 'over_limit' %}true{% else %}false{% endif %}">
+    <div class="stat-label">Выше предела</div>
+    <div class="value {% if over_limit_count %}bad{% else %}good{% endif %}">{{ over_limit_count }}</div>
+  </a>
+  <div class="card stat-card stat-card--limit">
+    <div class="stat-label">Предел скидок, %</div>
+    <form method="post" action="{% url 'dashboard' %}{% if filter_name != 'all' %}?filter={{ filter_name }}{% endif %}" class="stat-limit-form">{% csrf_token %}
+      <input type="hidden" name="action" value="apply_all">
+      <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
+      <input id="id_default_allowed_discount" type="number" name="default_allowed_discount" min="0" max="99" required value="{{ account.default_allowed_discount }}" aria-label="Общий предел скидки в процентах">
+      <button type="submit" {% if not account.token_ciphertext %}disabled title="Сначала подключите токен Wildberries"{% endif %}>Применить ко всем</button>
+    </form>
+  </div>
+</div>
+{% if not account.token_ciphertext %}<div class="card"><p>Подключите токен WB, чтобы начать мониторинг.</p><a class="button" href="{% url 'settings' %}">Подключить</a></div>{% endif %}
+
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Товары</h2>
+      {% if filter_name != 'all' %}<p class="filter-banner">Показан фильтр: <strong>{{ filter_label }}</strong> — {{ shown_count }} из {{ count }}</p>{% endif %}
+    </div>
+    <div class="actions">
+      <form method="post" action="{% url 'settings' %}">{% csrf_token %}<input type="hidden" name="action" value="check"><button class="secondary">Обновить товары</button></form>
+      <span class="status-pill {% if filter_name != 'all' %}good{% endif %}">{{ shown_count }} {% if filter_name != 'all' %}в фильтре{% else %}товаров{% endif %}</span>
+    </div>
+  </div>
+  {% if refresh_error %}<p class="refresh-status bad">{{ refresh_error }}</p>{% endif %}
+  {% if product_cards_missing %}<p class="refresh-status">Фото и названия загрузятся при следующем обновлении.</p>{% endif %}
+  <div class="products-grid">{% for product in products %}
+    <article class="product-card">
+      <div class="product-image">{% if product.photo_url %}<img src="{{ product.photo_url }}" alt="{{ product.title|default:product.vendor_code }}">{% else %}<span>WB</span>{% endif %}</div>
+      <div class="product-card-head"><div><h3>{{ product.title|default:product.vendor_code|default:'Товар Wildberries' }}</h3><p>Арт. {{ product.vendor_code|default:'—' }} · WB {{ product.nm_id }}</p></div><button class="info-button" type="button" title="История товара" data-history-url="{% url 'product_history_data' product.nm_id %}">i</button></div>
+      <div class="product-metrics product-metrics--prices">
+        <div><span>Цена со скидкой</span><strong class="price-main">{% if product.discounted_price %}{{ product.discounted_price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
+        <div><span>Цена до скидки</span><strong class="price-secondary">{% if product.price %}{{ product.price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
+      </div>
+      <form method="post" action="{% url 'product_rule' product.nm_id %}" class="product-rule">{% csrf_token %}
+        <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
+        <div class="product-discount-row">
+          <div class="wb-discount-pill {% if product.current_discount > product.allowed_discount %}bad{% else %}good{% endif %}" aria-label="Скидка Wildberries">{{ product.current_discount }}%</div>
+          <label class="toggle mini-toggle"><input type="checkbox" name="no_discount" {% if product.allowed_discount_override == 0 %}checked{% endif %} onchange="this.form.submit()"><span class="toggle-track" aria-hidden="true"></span><span>Без скидки</span></label>
+        </div>
+        <label class="card-limit"><span>Максимум, %</span><input aria-label="Максимальная скидка" type="number" name="allowed_discount" min="0" max="99" placeholder="{{ account.default_allowed_discount }}" value="{% if product.allowed_discount_override is not None and product.allowed_discount_override != 0 %}{{ product.allowed_discount_override }}{% endif %}"></label>
+        <button type="submit" class="apply-rule">Применить</button>
+      </form>
+      {% if product.current_discount > product.allowed_discount %}<p class="card-warning">Сейчас выше вашего предела {{ product.allowed_discount }}%</p>{% endif %}
+    </article>
+  {% empty %}<p class="muted">{% if filter_name != 'all' %}По этому фильтру товаров нет. <a href="{% url 'dashboard' %}?filter=all">Показать все</a>.{% else %}Товары появятся после первой проверки.{% endif %}</p>{% endfor %}</div>
+  {% if filter_name == 'all' and count > 500 %}<p class="muted">Показаны первые 500 товаров из {{ count }}.</p>{% endif %}
+</section>
+<dialog class="history-modal" id="product-history-modal"><div class="modal-head"><div><h2 id="history-title">История товара</h2><p class="muted" id="history-subtitle"></p></div><button class="modal-close" type="button" aria-label="Закрыть">×</button></div><div class="history-list" id="history-list"></div></dialog>
+<script>
+(() => {
+  const modal = document.getElementById('product-history-modal');
+  const title = document.getElementById('history-title');
+  const subtitle = document.getElementById('history-subtitle');
+  const list = document.getElementById('history-list');
+  const close = () => modal.close();
+  modal.querySelector('.modal-close').addEventListener('click', close);
+  modal.addEventListener('click', event => { if (event.target === modal) close(); });
+  document.querySelectorAll('[data-history-url]').forEach(button => button.addEventListener('click', async () => {
+    title.textContent = 'История товара'; subtitle.textContent = 'Загрузка…'; list.innerHTML = '';
+    modal.showModal();
+    try {
+      const response = await fetch(button.dataset.historyUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      if (!response.ok) throw new Error();
+      const data = await response.json(); title.textContent = data.title; subtitle.textContent = data.subtitle;
+      if (!data.events.length) { list.innerHTML = '<p class="muted">История этого товара пока пуста.</p>'; return; }
+      list.innerHTML = '';
+      data.events.forEach(event => { const item = document.createElement('article'); const time = document.createElement('time'); const kind = document.createElement('strong'); const message = document.createElement('p'); time.textContent = event.time; kind.textContent = event.kind; message.textContent = event.message; item.append(time, kind, message); list.append(item); });
+    } catch (_) { subtitle.textContent = ''; list.innerHTML = '<p class="bad">Не удалось загрузить историю. Повторите попытку.</p>'; }
+  }));
+})();
+</script>
+{% endblock %}

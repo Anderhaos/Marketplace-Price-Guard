@@ -1,0 +1,51 @@
+services:
+  web:
+    build: .
+    image: mpnosale-portal:local
+    env_file: portal.env
+    environment:
+      PORTAL_DATABASE_PATH: /data/portal.sqlite3
+    volumes:
+      - portal_data:/data
+    ports:
+      - "127.0.0.1:8891:8000"
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py configure_sqlite &&
+      python manage.py collectstatic --noinput &&
+      gunicorn portal.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health/', headers={'Host': 'mpnosale.svdev.pro', 'X-Forwarded-Proto': 'https'}), timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  worker:
+    image: mpnosale-portal:local
+    env_file: portal.env
+    environment:
+      PORTAL_DATABASE_PATH: /data/portal.sqlite3
+    volumes:
+      - portal_data:/data
+    command: python manage.py run_guard
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+  backup:
+    image: mpnosale-portal:local
+    env_file: portal.env
+    environment:
+      PORTAL_DATABASE_PATH: /data/portal.sqlite3
+    volumes:
+      - portal_data:/data:ro
+      - portal_backups:/backups
+    command: >-
+      sh -c "while true; do python manage.py backup_sqlite --directory /backups --keep 14; sleep 86400; done"
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  portal_data:
+  portal_backups:

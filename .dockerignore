@@ -1,0 +1,9 @@
+.git
+.venv
+.env
+portal.env
+data
+staticfiles
+__pycache__
+*.pyc
+Marketplace Price Guard

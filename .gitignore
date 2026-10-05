@@ -3,5 +3,8 @@ data/
 __pycache__/
 *.pyc
 *.zip
+.venv/
+staticfiles/
+portal.env
 .agents/
 .codex/

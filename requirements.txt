@@ -1,1 +1,4 @@
-﻿# Пока внешние зависимости не требуются. Используется стандартная библиотека Python.
+Django>=5.2,<6.0
+cryptography>=45,<47
+whitenoise>=6.8,<7
+gunicorn>=23,<24; platform_system != "Windows"

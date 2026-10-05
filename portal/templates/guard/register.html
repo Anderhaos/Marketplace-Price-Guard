@@ -1,0 +1,9 @@
+{% extends 'guard/base.html' %}
+{% block title %}Регистрация — MP No Sale{% endblock %}
+{% block content %}
+<div class="auth-wrap"><section class="card">
+  <span class="eyebrow">MP No Sale / новый аккаунт</span><h1>Регистрация селлера</h1>
+  <p class="lead">{% if email_verification_required %}Создайте аккаунт. Ссылку подтверждения отправим на email.{% else %}Создайте аккаунт по email. Подтверждение почты временно отключено.{% endif %}</p>
+  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button>Зарегистрироваться</button></form>
+</section></div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends 'guard/base.html' %}
+{% block title %}Настройки — MP No Sale{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <span class="eyebrow">MP No Sale / настройки</span>
+  <h1>Настройки селлера</h1>
+  <p class="lead">Подключение Wildberries и технические параметры проверок.</p>
+</section>
+<div class="settings-grid">
+  <section class="card">
+    <div class="section-head"><div><h2>Подключение Wildberries</h2><p>Один токен для доступа к данным магазина и управления скидками.</p></div></div>
+    {% if account.token_hint %}
+      <div class="notice token-summary">
+        <div><span class="status-pill good">Текущий токен сохранён</span> <span class="muted">{{ account.token_hint }}</span></div>
+        {% if token_permissions %}
+          <div class="token-permissions">
+            <span class="token-permissions-title">Права: {{ token_permissions.access }}</span>
+            {% for category in token_permissions.categories %}<span class="scope-chip">{{ category }}</span>{% endfor %}
+          </div>
+        {% else %}
+          <p class="field-help">Права этого токена определить не удалось. Вставьте новый токен Wildberries, если хотите обновить данные.</p>
+        {% endif %}
+      </div>
+    {% else %}<p class="notice">Токен ещё не подключён.</p>{% endif %}
+    <form method="post">
+      {% csrf_token %}<input type="hidden" name="action" value="token">
+      {{ token_form.non_field_errors }}
+      <div class="field token-field"><label for="{{ token_form.token.id_for_label }}">{{ token_form.token.label }}</label>{{ token_form.token }}{{ token_form.token.errors }}<p class="field-help">Вставьте полный токен целиком. Текущий токен остаётся рабочим, пока новый не пройдёт проверку. После успешного сохранения новый токен полностью заменит старый; удалять старый отдельно не нужно.</p></div>
+      <button>Проверить и сохранить токен</button>
+    </form>
+    <p class="field-help" style="margin-top:18px">После замены включите автоисправление на странице товаров.</p>
+  </section>
+  <section class="card">
+    <div class="section-head"><div><h2>Проверки</h2><p>Частота работы гварда и количество товаров в одной задаче Wildberries.</p></div></div>
+    <form method="post">
+      {% csrf_token %}<input type="hidden" name="action" value="settings">
+      {{ settings_form.non_field_errors }}
+      <div class="field"><label for="{{ settings_form.interval_minutes.id_for_label }}">{{ settings_form.interval_minutes.label }}</label>{{ settings_form.interval_minutes }}{{ settings_form.interval_minutes.errors }}</div>
+      <div class="field"><label for="{{ settings_form.max_fixes.id_for_label }}">{{ settings_form.max_fixes.label }}</label>{{ settings_form.max_fixes }}{{ settings_form.max_fixes.errors }}</div>
+      <button>Сохранить настройки</button>
+    </form>
+    <p class="field-help" style="margin-top:18px">Автоисправление и пределы скидок находятся на странице товаров.</p>
+  </section>
+</div>
+{% endblock %}
