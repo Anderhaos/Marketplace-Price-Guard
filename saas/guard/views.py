@@ -17,6 +17,8 @@ from django.utils.encoding import force_bytes
 from django.conf import settings
 
 from billing.access import guard_is_permitted
+from billing.trial import access_snapshot
+from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
 from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
 from .models import GuardAccount, GuardEvent, Product, Upload
@@ -210,6 +212,32 @@ def select_store(request, store_id):
 
 
 @login_required
+def connect_wb(request):
+    """First-run popup and settings share the same secure token verifier."""
+    if request.method != "POST":
+        return redirect("dashboard")
+    account = _account(request)
+    form = TokenForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Введите API-токен Wildberries.")
+        return redirect("dashboard")
+    try:
+        permissions, grant, started = connect_wb_token(account, form.cleaned_data["token"])
+    except ConnectError as error:
+        messages.error(request, str(error))
+        return redirect("dashboard")
+    if started:
+        messages.success(request, "Магазин подключён. Ваши 5 бесплатных дней начались.")
+    elif access_snapshot(request.user.pk)["active"]:
+        messages.success(request, "Токен проверен и сохранён.")
+    else:
+        messages.info(request, "Токен сохранён. Пробный период уже завершён — для мониторинга нужен активный доступ.")
+    if permissions["token_type"] == "base":
+        messages.info(request, "Базовый токен WB ограничен: для автоматической защиты нужен сервисный токен.")
+    return redirect("dashboard")
+
+
+@login_required
 def dashboard(request):
     account = _account(request)
     base_token = _account_token_type(account) == "base"
@@ -282,6 +310,9 @@ def dashboard(request):
         "pending_product_ids": pending_product_ids,
         "product_cards_missing": bool(active_products) and not any(product.title or product.photo_url for product in active_products),
         "refresh_error": "",
+        "onboarding_required": not bool(account.token_ciphertext),
+        "wb_token_form": TokenForm(),
+        "trial_status": access_snapshot(request.user.pk),
     })
 
 
@@ -291,35 +322,17 @@ def settings_view(request):
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "token":
-            if not guard_is_permitted(account):
-                messages.error(request, "Проверка API доступна после активации подписки и запуска интеграции.")
-                return redirect("settings")
             token_form = TokenForm(request.POST)
-            if token_form.is_valid():
-                token = token_form.cleaned_data["token"].strip()
-                try:
-                    WBClient(token).validate_token()
-                    ciphertext = encrypt_token(token)
-                    with transaction.atomic():
-                        pending_count = Upload.objects.filter(account=account, status="pending").update(
-                            status="unknown", details="Токен заменён до подтверждения результата WB."
-                        )
-                        if pending_count:
-                            GuardEvent.objects.create(
-                                account=account, kind="upload_unknown",
-                                message=f"Не удалось подтвердить {pending_count} загрузок WB: токен заменён.",
-                            )
-                        account.token_ciphertext = ciphertext
-                        account.token_hint = token[:4] + "…" + token[-4:] if len(token) >= 12 else "сохранён"
-                        account.enabled = False
-                        account.last_error = ""
-                        account.next_check_at = timezone.now()
-                        account.save(update_fields=["token_ciphertext", "token_hint", "enabled", "last_error", "next_check_at"])
-                    messages.success(request, "Доступ к товарам WB проверен, токен сохранён. Для автоисправления токену также нужны права записи.")
-                    return redirect("settings")
-                except (WBApiError, ValueError) as error:
-                    token_form.add_error("token", f"Проверка не прошла: {error}")
             settings_form = AccountSettingsForm(instance=account)
+            if token_form.is_valid():
+                try:
+                    permissions, grant, created = connect_wb_token(account, token_form.cleaned_data["token"])
+                    messages.success(request, "Токен проверен и сохранён.")
+                    if created:
+                        messages.success(request, "Начался пробный период: 5 дней.")
+                    return redirect("settings")
+                except ConnectError as error:
+                    token_form.add_error("token", str(error))
         elif action == "settings":
             settings_form = AccountSettingsForm(request.POST, instance=account)
             if settings_form.is_valid():
