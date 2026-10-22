@@ -74,6 +74,7 @@ class PushTests(TestCase):
             "https://localhost:443/",
             "https://user:pass@fcm.googleapis.com/",
             "https://fcm.googleapis.com:444/send",
+            "https://fcm.googleapis.com:invalid/send",
         ]:
             with self.subTest(endpoint=endpoint):
                 response = self.client.post(
