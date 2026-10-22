@@ -109,6 +109,74 @@
     @media(max-width:1100px){.dashboard-stats--five{grid-template-columns:repeat(3,minmax(0,1fr))}}
     @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-stats--five{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-grid{grid-template-columns:1fr}.header-inner{align-items:flex-start;flex-direction:column;padding-block:15px;gap:10px}.site-nav{justify-content:flex-start}.products-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:600px){.shell{width:min(100% - 24px,1200px)}main.shell{padding-top:18px}.page-hero,.card{border-radius:18px;padding:20px}.grid{gap:10px}.dashboard-stats--five{grid-template-columns:1fr}.grid .card{min-height:110px;padding:16px}.stat-card--limit .stat-limit-form{grid-template-columns:1fr}.value{font-size:22px}.site-nav{width:100%;flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px}.site-nav>a,.site-nav button{padding:7px 10px;font-size:13px}.brand{font-size:18px}.brand-product{font-size:11px}.limit-form .field{width:100%}.limit-form button{width:100%}.auth-wrap{margin:10px auto}.auth-wrap .card{padding:22px}.products-grid{grid-template-columns:1fr}.messages{right:12px;bottom:12px;width:calc(100vw - 24px)}}
+
+    /* NoSale v2 compact, low-noise UI (the owner-visible source of truth). */
+    body{font-size:14px;line-height:1.43}
+    .shell{width:min(1100px,calc(100% - 36px))}
+    .header-inner{min-height:54px;gap:16px}
+    .site-nav{gap:3px}
+    .site-nav>a,.site-nav button{font-size:12px;padding:7px 10px;min-height:34px}
+    .brand{font-size:17px;gap:8px}
+    .brand-product{font-size:10px;letter-spacing:.05em}
+    .brand-divider{height:17px}
+    .brand-mark,.brand-mark svg{width:21px;height:21px}
+    main.shell{padding-block:22px 44px}
+    .card,.page-hero{padding:17px 19px;border-radius:16px;margin-bottom:13px;box-shadow:0 14px 38px rgba(0,0,0,.2)}
+    h1{font-size:clamp(25px,3vw,34px);line-height:1.15;letter-spacing:-.025em;margin-bottom:9px}
+    h2{font-size:18px;margin-bottom:7px}
+    .lead{font-size:13px;line-height:1.5}
+    .page-hero{padding:19px 22px}
+    .section-head{align-items:center;margin-bottom:14px;gap:10px}
+    .section-head p,.field-help,.muted{font-size:12px}
+    button,.button{font-size:12px;min-height:34px;padding:7px 13px;font-weight:650}
+    input[type=number],input[type=email],input[type=password],input[type=text],textarea{font-size:13px;min-height:36px;padding:8px 10px}
+    .compact-context{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+    .compact-context strong{font-size:13px}
+    .compact-link{font-size:12px;margin-left:5px}
+    .trial-strip{font-size:11px;background:rgba(100,216,161,.09);border:1px solid rgba(100,216,161,.22);border-radius:20px;padding:5px 9px;color:var(--good)}
+    .trial-strip--expired{color:var(--bad);background:rgba(255,141,128,.07);border-color:rgba(255,141,128,.25)}
+    .compact-summary{display:grid;grid-template-columns:1.25fr repeat(3,.83fr) 1.45fr;gap:8px;margin-bottom:13px}
+    .summary-cell{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;text-decoration:none;color:var(--text)}
+    a.summary-cell:hover,a.summary-selected{border-color:rgba(255,90,31,.55);text-decoration:none;color:var(--text)}
+    .summary-label{font-size:11px;color:var(--muted)}
+    .summary-cell>strong{font-size:22px;font-weight:720;line-height:1.1;letter-spacing:-.02em}
+    .compact-switch{font-size:12px;gap:7px}
+    .compact-switch b{font-size:12px}
+    .compact-toggle-form{margin:0}
+    .compact-limit-form{display:flex;gap:5px;align-items:center}
+    .compact-limit-form input[type=number]{width:54px;min-width:0;min-height:32px;padding:4px 6px;font-size:12px}
+    .compact-limit-form button{padding:5px 9px;min-height:32px}
+    .actions{gap:7px}
+    .products-grid{gap:10px}
+    .product-card{padding:10px;border-radius:12px;gap:8px}
+    .product-image{aspect-ratio:1/1}
+    .product-card h3{font-size:13px}
+    .product-metrics{gap:6px;padding:6px 0}
+    .product-metrics--prices .price-main{font-size:14px}
+    .product-rule button.apply-rule{min-height:32px;font-size:12px}
+    .status-pill{font-size:11px;padding:4px 8px}
+    .settings-grid{gap:12px}
+    .site-footer{font-size:11px;padding:13px 0 20px}
+    .setup-backdrop-info{margin:25px auto;max-width:450px;text-align:center;color:var(--muted)}
+    .setup-backdrop-info h2{color:var(--text);font-size:21px}
+    .setup-dialog{width:min(620px,calc(100% - 24px));max-height:calc(100dvh - 40px);overflow:auto;padding:24px 28px;border:1px solid #363638;border-radius:18px;background:#161618;color:var(--text);box-shadow:0 32px 100px rgba(0,0,0,.7)}
+    .setup-dialog::backdrop{background:rgba(0,0,0,.76);backdrop-filter:blur(5px)}
+    .setup-dialog-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+    .setup-dialog-top .eyebrow{margin:0}
+    .setup-trial-pill{font-size:11px;color:var(--good);border:1px solid rgba(100,216,161,.24);padding:4px 8px;border-radius:20px;white-space:nowrap}
+    .setup-dialog h1{font-size:26px}
+    .setup-steps{margin:18px 0 8px;padding-left:23px;display:grid;gap:11px;font-size:13px;line-height:1.45}
+    .setup-steps li{padding-left:3px}
+    .setup-steps li::marker{color:var(--accent-strong);font-weight:700}
+    .setup-help{display:inline-block;font-size:12px;margin:6px 0 18px}
+    .setup-form{border-top:1px solid var(--line);padding-top:15px;display:grid;gap:9px}
+    .setup-form label{font-size:12px;font-weight:700}
+    .setup-form textarea{width:100%;border:1px solid var(--line);border-radius:9px;background:#0e0e10;color:var(--text);font:12px/1.5 monospace;resize:vertical;padding:9px 11px}
+    .setup-security,.setup-bottom{font-size:11px;line-height:1.5;color:var(--muted)}
+    .setup-submit{justify-self:start}
+    .setup-bottom{margin:15px 0 0}
+    @media(max-width:900px){.compact-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.summary-cell--control,.summary-cell--limit{grid-column:span 3}.summary-cell--control,.summary-cell--limit{flex-direction:row;align-items:center}}
+    @media(max-width:600px){.shell{width:calc(100% - 24px)}.header-inner{padding:10px 0}.site-nav{width:100%}.compact-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.summary-cell{padding:9px}.summary-cell>strong{font-size:19px}.compact-context{gap:7px}.setup-dialog{padding:18px 16px}.setup-steps{font-size:12px;gap:9px}.setup-dialog h1{font-size:24px}.card{padding:14px}.summary-cell--control,.summary-cell--limit{grid-column:span 3}}
   </style>
 </head>
 <body>
@@ -116,11 +184,11 @@
     <div class="shell header-inner">
       <a class="brand" href="{% url 'dashboard' %}">
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 30 30" fill="none"><path d="M5 20 14 10l10 5" stroke="currentColor" stroke-width="2"/><circle cx="5" cy="20" r="3" fill="currentColor"/><circle cx="14" cy="10" r="3" fill="currentColor"/><circle cx="24" cy="15" r="3" fill="currentColor"/></svg></span>
-        <span>SVDEV</span><span class="brand-divider"></span><span class="brand-product">MP No Sale</span>
+        <span>NoSale</span><span class="brand-divider"></span><span class="brand-product">защита цен WB</span>
       </a>
       <nav class="site-nav" aria-label="Основная навигация">
         {% if user.is_authenticated %}
-          <a href="{% url 'dashboard' %}">Товары</a><a href="{% url 'stores' %}">Магазины</a><a href="{% url 'settings' %}">Настройки</a><a href="{% url 'history' %}">История</a><a href="{% url 'notifications' %}">Уведомления{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}</a>
+          <a href="{% url 'dashboard' %}">Товары</a><a href="{% url 'stores' %}">Магазины</a><a href="{% url 'settings' %}">Настройки</a>{% if unread_notification_count %}<a href="{% url 'notifications' %}">Оповещения · {{ unread_notification_count }}</a>{% endif %}
           {% if user.is_staff %}<a href="/admin/">Админка</a>{% endif %}
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondary">Выйти</button></form>
         {% else %}
@@ -133,7 +201,7 @@
     {% if messages %}<ul class="messages" aria-live="polite">{% for message in messages %}<li class="{% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</li>{% endfor %}</ul>{% endif %}
     {% block content %}{% endblock %}
   </main>
-  <footer class="site-footer"><div class="shell">MP No Sale · <a href="https://svdev.pro/">SVDEV</a></div></footer>
+  <footer class="site-footer"><div class="shell">NoSale · <a href="https://svdev.pro/">SVDEV</a></div></footer>
   <script>
     if ("serviceWorker" in navigator && window.isSecureContext) {
       window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
