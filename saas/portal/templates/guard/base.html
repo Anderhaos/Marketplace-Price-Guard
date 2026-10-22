@@ -110,6 +110,10 @@
     @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-stats--five{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-grid{grid-template-columns:1fr}.header-inner{align-items:flex-start;flex-direction:column;padding-block:15px;gap:10px}.site-nav{justify-content:flex-start}.products-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:600px){.shell{width:min(100% - 24px,1200px)}main.shell{padding-top:18px}.page-hero,.card{border-radius:18px;padding:20px}.grid{gap:10px}.dashboard-stats--five{grid-template-columns:1fr}.grid .card{min-height:110px;padding:16px}.stat-card--limit .stat-limit-form{grid-template-columns:1fr}.value{font-size:22px}.site-nav{width:100%;flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px}.site-nav>a,.site-nav button{padding:7px 10px;font-size:13px}.brand{font-size:18px}.brand-product{font-size:11px}.limit-form .field{width:100%}.limit-form button{width:100%}.auth-wrap{margin:10px auto}.auth-wrap .card{padding:22px}.products-grid{grid-template-columns:1fr}.messages{right:12px;bottom:12px;width:calc(100vw - 24px)}}
 
+    /* Keep footer at viewport bottom on short pages without oversized panels. */
+    body{display:flex;flex-direction:column;min-height:100dvh}
+    main.shell{flex:1 0 auto}
+    .site-footer{margin-top:auto}
     /* NoSale v2 compact, low-noise UI (the owner-visible source of truth). */
     body{font-size:14px;line-height:1.43}
     .shell{width:min(1100px,calc(100% - 36px))}
