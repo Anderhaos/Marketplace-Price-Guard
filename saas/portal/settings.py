@@ -97,7 +97,7 @@ if not DEBUG and REQUIRE_EMAIL_VERIFICATION:
     smtp_ready = (EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
                   and EMAIL_HOST and EMAIL_HOST_USER and EMAIL_HOST_PASSWORD)
     relay_ready = (EMAIL_BACKEND == "portal.email_backend.RelayEmailBackend"
-                   and MAIL_RELAY_URL == "https://mail.svdev.pro/mail-relay.php"
+                   and MAIL_RELAY_URL == "https://mail.beclients.ru/svdev-relay.php"
                    and len(MAIL_RELAY_TOKEN) >= 32)
     if not (smtp_ready or relay_ready):
         raise RuntimeError("Production registration requires a configured mail transport")
