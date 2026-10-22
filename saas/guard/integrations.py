@@ -37,7 +37,10 @@ def connect_wb_token(account, token):
 
     # First validate read-only: never send discount changes during onboarding.
     try:
-        WBClient(token).validate_token()
+        if permissions["token_type"] == "base":
+            WBClient(token).validate_token(probe_prices=False)
+        else:
+            WBClient(token).validate_token()
     except WBApiError as error:
         if error.status == 401:
             raise ConnectError("WB отклонил токен. Проверьте срок действия и скопируйте его полностью.") from error
