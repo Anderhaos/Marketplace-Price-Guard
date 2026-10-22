@@ -188,6 +188,7 @@ class FirstRunOnboardingTests(TestCase):
         account.refresh_from_db()
         self.assertFalse(account.apply_all_requested)
 
+    @override_settings(SAAS_WB_NETWORK_ENABLED=True)
     @patch("guard.integrations.WBClient")
     @patch("guard.monitor.WBClient")
     def test_basic_token_worker_loads_products_without_writing(self, monitor_wb, integration_wb):
