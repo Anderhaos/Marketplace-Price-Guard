@@ -33,4 +33,4 @@ jobs:
       - name: Schema drift
         run: python manage.py makemigrations --check --dry-run
       - name: Unit and isolation tests
-        run: python manage.py test guard billing
+        run: python manage.py test guard billing push
