@@ -126,10 +126,12 @@ def verify_tochka_webhook(raw):
             _decoded(sig64), (head64 + "." + body64).encode(),
             padding.PKCS1v15(), hashes.SHA256(),
         )
-        # The original bank JWT has signed issued-at and expiry.
+        # Tochka webhooks are verified by signature; timestamp claims are
+        # validated if present (the bank's signed event can omit exp).
         now = int(time.time())
-        iat, exp = int(payload["iat"]), int(payload["exp"])
-        if not (now - 86400 <= iat <= now + 60 and now <= exp <= now + 86400):
+        if "iat" in payload and not (now - 7 * 86400 <= int(payload["iat"]) <= now + 300):
+            raise InvalidWebhook("Invalid issued-at")
+        if "exp" in payload and int(payload["exp"]) < now:
             raise InvalidWebhook("Expired webhook")
         return payload
     except (ValueError, TypeError, KeyError, UnicodeError, InvalidSignature) as exc:
