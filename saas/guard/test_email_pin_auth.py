@@ -21,11 +21,11 @@ class EmailPinAuthTests(TestCase):
         self.assertRedirects(response, "/auth/code/")
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("noreply@svdev.pro", mail.outbox[0].from_email)
-        code = re.search(r"Код: (\d{6})", mail.outbox[0].body)
+        code = re.search(r"Код: (\d{4})", mail.outbox[0].body)
         self.assertIsNotNone(code)
         return code.group(1)
 
-    def _create(self, email="seller@example.test", pin="618492"):
+    def _create(self, email="seller@example.test", pin="6184"):
         code = self._send(email)
         self.assertRedirects(self.client.post("/auth/code/", {"code": code}), "/auth/pin/")
         self.assertRedirects(
@@ -47,7 +47,7 @@ class EmailPinAuthTests(TestCase):
     def test_code_wrong_five_times_blocks_then_correct_code_still_rejected(self):
         code = self._send()
         for unused in range(5):
-            wrong = "000000" if code != "000000" else "999999"
+            wrong = "0000" if code != "0000" else "9999"
             self.assertEqual(self.client.post("/auth/code/", {"code": wrong}).status_code, 200)
         self.assertEqual(EmailPinChallenge.objects.get().attempts, 5)
         self.assertEqual(self.client.post("/auth/code/", {"code": code}).status_code, 200)
@@ -57,7 +57,7 @@ class EmailPinAuthTests(TestCase):
     def test_resend_cooldown_does_not_issue_new_code_or_reset_attempts(self):
         self._send()
         challenge = EmailPinChallenge.objects.get()
-        self.client.post("/auth/code/", {"code": "999999"})
+        self.client.post("/auth/code/", {"code": "9999"})
         self.client.post("/register/", {"email": "seller@example.test"})
         self.assertEqual(len(mail.outbox), 1)
         challenge.refresh_from_db()
@@ -70,40 +70,40 @@ class EmailPinAuthTests(TestCase):
         code = self._send(url="/password-reset/")
         self.assertRedirects(self.client.post("/auth/code/", {"code": code}), "/auth/pin/")
         self.assertRedirects(self.client.post(
-            "/auth/pin/", {"pin": "895613", "confirm_pin": "895613"},
+            "/auth/pin/", {"pin": "8956", "confirm_pin": "8956"},
         ), "/login/")
-        self.assertTrue(User.objects.get(email="seller@example.test").check_password("895613"))
-        self.assertFalse(User.objects.get(email="seller@example.test").check_password("618492"))
+        self.assertTrue(User.objects.get(email="seller@example.test").check_password("8956"))
+        self.assertFalse(User.objects.get(email="seller@example.test").check_password("6184"))
         self.assertRedirects(self.client.post("/login/", {
-            "email": "seller@example.test", "pin": "895613",
+            "email": "seller@example.test", "pin": "8956",
         }), "/")
 
     def test_recovery_unknown_email_never_sends(self):
         result = self.client.post("/password-reset/", {"email": "missing@example.test"})
         self.assertRedirects(result, "/auth/code/")
         self.assertEqual(len(mail.outbox), 0)
-        self.assertEqual(self.client.post("/auth/code/", {"code": "000000"}).status_code, 200)
+        self.assertEqual(self.client.post("/auth/code/", {"code": "0000"}).status_code, 200)
 
     def test_login_pin_locks_out_after_five_failed_attempts(self):
         self._create()
         self.client.post("/logout/")
         for unused in range(5):
             self.assertEqual(self.client.post("/login/", {
-                "email": "seller@example.test", "pin": "000000",
+                "email": "seller@example.test", "pin": "0000",
             }).status_code, 200)
         throttle = EmailPinLoginThrottle.objects.get(email="seller@example.test")
         self.assertEqual(throttle.attempts, 5)
         self.assertTrue(throttle.locked_until > timezone.now())
         self.assertEqual(self.client.post("/login/", {
-            "email": "seller@example.test", "pin": "618492",
+            "email": "seller@example.test", "pin": "6184",
         }).status_code, 200)
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_simple_pin_rejected(self):
         self._send()
-        code = re.search(r"Код: (\d{6})", mail.outbox[0].body).group(1)
+        code = re.search(r"Код: (\d{4})", mail.outbox[0].body).group(1)
         self.client.post("/auth/code/", {"code": code})
         self.assertEqual(self.client.post("/auth/pin/", {
-            "pin": "111111", "confirm_pin": "111111",
+            "pin": "1111", "confirm_pin": "1111",
         }).status_code, 200)
         self.assertFalse(User.objects.filter(email="seller@example.test").exists())
