@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="NotificationPreference",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("instant_enabled", models.BooleanField(default=True)),
                 ("daily_enabled", models.BooleanField(default=True)),
                 ("timezone_name", models.CharField(default="Europe/Moscow", max_length=64)),
@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="PushSubscription",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("endpoint", models.URLField(max_length=2048, unique=True)),
                 ("p256dh", models.CharField(max_length=256)),
                 ("auth", models.CharField(max_length=256)),
@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="PushMessage",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("kind", models.CharField(choices=[("event", "Event"), ("digest", "Digest")], max_length=12)),
                 ("digest_date", models.DateField(blank=True, null=True)),
                 ("title", models.CharField(max_length=180)),
@@ -52,11 +52,12 @@ class Migration(migrations.Migration):
                 ("event", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name="push_messages", to="guard.guardevent")),
                 ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="push_messages", to=settings.AUTH_USER_MODEL)),
             ],
+            options={"ordering": ["-created_at", "-id"]},
         ),
         migrations.CreateModel(
             name="PushDelivery",
             fields=[
-                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("state", models.CharField(choices=[("pending", "Pending"), ("sending", "Sending"), ("sent", "Sent"), ("gone", "Gone"), ("failed", "Failed")], default="pending", max_length=12)),
                 ("attempts", models.PositiveSmallIntegerField(default=0)),
                 ("next_attempt_at", models.DateTimeField(default=django.utils.timezone.now)),
