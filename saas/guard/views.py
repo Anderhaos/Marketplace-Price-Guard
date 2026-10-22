@@ -35,6 +35,25 @@ def favicon(request):
     return response
 
 
+def pwa_manifest(request):
+    response = FileResponse(
+        (settings.BASE_DIR / "portal" / "static" / "manifest.webmanifest").open("rb"),
+        content_type="application/manifest+json",
+    )
+    response["Cache-Control"] = "public, max-age=3600"
+    return response
+
+
+def pwa_service_worker(request):
+    response = FileResponse(
+        (settings.BASE_DIR / "portal" / "static" / "sw.js").open("rb"),
+        content_type="application/javascript",
+    )
+    response["Cache-Control"] = "no-cache"
+    response["Service-Worker-Allowed"] = "/"
+    return response
+
+
 def register(request):
     if request.user.is_authenticated:
         return redirect("dashboard")
