@@ -4,7 +4,7 @@
 <div class="auth-wrap"><section class="card">
   <span class="eyebrow">MP NoSale / подтверждение email</span>
   <h1>Введите код из письма</h1>
-  <p class="lead">Код состоит из 6 цифр и действует 10 минут. Допускается не более 5 попыток.</p>
+  <p class="lead">Код состоит из 4 цифр и действует 10 минут. Допускается не более 5 попыток.</p>
   <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Подтвердить email</button></form>
   <p style="margin-top:18px"><a href="{% if purpose == 'recover' %}{% url 'password_reset' %}{% else %}{% url 'register' %}{% endif %}">Запросить код заново</a></p>
 </section></div>
