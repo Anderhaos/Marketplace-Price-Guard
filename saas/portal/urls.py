@@ -7,6 +7,7 @@ from django.views.generic import RedirectView
 from guard import views, email_pin
 from guard.forms import EmailLoginForm
 from push import views as push_views
+from billing import views as billing_views
 
 urlpatterns = [
     path("favicon.ico", RedirectView.as_view(url="/favicon.svg", permanent=False)),
@@ -16,6 +17,11 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", views.dashboard, name="dashboard"),
     path("connect/wb/", views.connect_wb, name="connect_wb"),
+    path("billing/", billing_views.subscription, name="subscription"),
+    path("billing/checkout/", billing_views.checkout, name="billing_checkout"),
+    path("billing/return/", billing_views.payment_return, name="billing_return"),
+    path("billing/tochka/webhook/", billing_views.tochka_webhook, name="tochka_webhook"),
+
     path("register/", email_pin.registration_entry, name="register"),
     path("auth/code/", email_pin.verify_code, name="auth_code"),
     path("auth/pin/", email_pin.finish_pin, name="auth_pin"),
