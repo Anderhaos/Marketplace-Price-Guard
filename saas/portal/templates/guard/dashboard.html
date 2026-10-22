@@ -26,8 +26,8 @@
     <span class="summary-label">Предел скидки, %</span>
     <form method="post" class="compact-limit-form" action="{% url 'dashboard' %}">{% csrf_token %}
       <input type="hidden" name="action" value="apply_all">
-      <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active %}disabled{% endif %}>
-      <button type="submit" aria-label="Сохранить и применить предел скидки в WB" title="Сохраняет предел и отправляет изменения в WB" {% if not trial_status.active %}disabled{% endif %}>Применить</button>
+      <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active or base_token %}disabled{% endif %}>
+      <button type="submit" aria-label="Сохранить и применить предел скидки в WB" title="Сохраняет предел и отправляет изменения в WB" {% if not trial_status.active or base_token %}disabled{% endif %}>Применить</button>
     </form>
   </div>
 </section>
@@ -55,6 +55,7 @@
         <div><span>Цена со скидкой</span><strong class="price-main">{% if product.discounted_price %}{{ product.discounted_price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
         <div><span>Цена до скидки</span><strong class="price-secondary">{% if product.price %}{{ product.price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
       </div>
+      {% if not base_token %}
       <form method="post" action="{% url 'product_rule' product.nm_id %}" class="product-rule">{% csrf_token %}
         <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
         <div class="product-discount-row">
@@ -68,6 +69,7 @@
           <button type="submit" class="apply-rule">Применить</button>
         {% endif %}
       </form>
+      {% else %}<p class="muted">Режим просмотра · базовый API</p>{% endif %}
       {% if product.nm_id in pending_product_ids %}<p class="card-sync">Правило сохранено. Отправка в WB ожидает следующую проверку.</p>
       {% elif product.current_discount > product.allowed_discount %}<p class="card-warning">Сейчас выше вашего предела {{ product.allowed_discount }}%</p>{% endif %}
     </article>
