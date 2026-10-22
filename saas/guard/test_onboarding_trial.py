@@ -208,3 +208,11 @@ class FirstRunOnboardingTests(TestCase):
         self.assertTrue(account.check_requested)
         self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 14*60)
         self.assertEqual(run_due_checks(), 0)
+
+    @patch("guard.integrations.WBClient")
+    def test_basic_readonly_token_allowed_for_preview(self, mock_wb):
+        limited = token_for(kind=1, scopes=(1 << 1) | (1 << 3) | (1 << 30))
+        response = self.client.post(reverse("connect_wb"), {"token": limited})
+        self.assertRedirects(response, reverse("dashboard"))
+        mock_wb.return_value.validate_token.assert_called_once_with(probe_prices=False)
+        self.assertTrue(has_active_access(self.user.pk))
