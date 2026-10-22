@@ -22,7 +22,7 @@ from urllib.request import (
 )
 
 
-BASE = "https://mpnosale-saas.svdev.pro"
+BASE = "https://nosale.svdev.pro"
 TEST_EMAIL = "owner@svdev.pro"
 MAILDIR = "/var/www/u3264726/data/email/svdev.pro/owner/.maildir"
 
