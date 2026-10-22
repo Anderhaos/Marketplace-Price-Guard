@@ -59,12 +59,18 @@ def connect_wb_token(account, token):
         current.token_ciphertext = ciphertext
         current.token_hint = token[:4] + "…" + token[-4:] if len(token) >= 12 else "сохранён"
         current.enabled = False  # users explicitly opt in to automatic corrections
+        # Never replay pending price writes against a newly connected store.
+        current.apply_all_requested = False
+        current.apply_requested_ids = []
         current.check_requested = True  # read-only first refresh, if enabled
+        current.lock_until = None
+        current.rules_version += 1  # fences active workers on stale credentials/rules
         current.last_error = ""
         current.next_check_at = timezone.now()
         current.save(update_fields=[
-            "token_ciphertext", "token_hint", "enabled", "check_requested",
-            "last_error", "next_check_at",
+            "token_ciphertext", "token_hint", "enabled", "apply_all_requested",
+            "apply_requested_ids", "check_requested", "lock_until",
+            "rules_version", "last_error", "next_check_at",
         ])
         grant, created = grant_trial_once(current.user_id)
     return permissions, grant, created
