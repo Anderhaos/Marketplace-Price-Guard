@@ -61,6 +61,7 @@ class Upload(models.Model):
     status = models.CharField(max_length=16, default="pending")
     product_ids = models.JSONField(default=list)
     corrected_count = models.PositiveIntegerField(default=0)
+    change_details = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     checked_at = models.DateTimeField(null=True, blank=True)
     details = models.TextField(blank=True)
@@ -75,6 +76,8 @@ class GuardEvent(models.Model):
     kind = models.CharField(max_length=32)
     nm_id = models.PositiveBigIntegerField(null=True, blank=True)
     message = models.TextField()
+    details = models.JSONField(default=dict, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
