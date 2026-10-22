@@ -52,7 +52,7 @@ class RelayEmailBackend(BaseEmailBackend):
             req = Request(
                 url, data=payload, method="POST",
                 headers={"Content-Type": "application/json",
-                         "x-beclients-relay-token": token},
+                         "x-svdev-relay-token": token},
             )
             try:
                 with urlopen(req, timeout=12) as response:
