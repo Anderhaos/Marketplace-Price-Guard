@@ -4,7 +4,7 @@ from django.conf import settings
 from django.urls import path
 from django.views.generic import RedirectView
 
-from guard import views
+from guard import views, email_pin
 from guard.forms import EmailLoginForm
 from push import views as push_views
 
@@ -15,11 +15,13 @@ urlpatterns = [
     path("sw.js", views.pwa_service_worker, name="pwa_service_worker"),
     path("admin/", admin.site.urls),
     path("", views.dashboard, name="dashboard"),
-    path("register/", views.register, name="register"),
-    path("verify/<uidb64>/<token>/", views.verify, name="verify"),
-    path("login/", auth_views.LoginView.as_view(template_name="guard/login.html", authentication_form=EmailLoginForm, extra_context={"password_reset_available": settings.REQUIRE_EMAIL_VERIFICATION}), name="login"),
+    path("register/", email_pin.start_registration if settings.SAAS_PIN_AUTH_ENABLED else views.register, name="register"),
+    path("auth/code/", email_pin.verify_code, name="auth_code"),
+    path("auth/pin/", email_pin.finish_pin, name="auth_pin"),
+    path("verify/<uidb64>/<token>/", email_pin.legacy_link_disabled if settings.SAAS_PIN_AUTH_ENABLED else views.verify, name="verify"),
+    path("login/", email_pin.pin_login if settings.SAAS_PIN_AUTH_ENABLED else auth_views.LoginView.as_view(template_name="guard/login.html", authentication_form=EmailLoginForm, extra_context={"password_reset_available": settings.REQUIRE_EMAIL_VERIFICATION}), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
-    path("password-reset/", auth_views.PasswordResetView.as_view(template_name="guard/password_reset.html", email_template_name="guard/password_reset_email.txt", success_url="/password-reset/sent/") if settings.REQUIRE_EMAIL_VERIFICATION else views.password_reset_unavailable, name="password_reset"),
+    path("password-reset/", email_pin.start_recovery if settings.SAAS_PIN_AUTH_ENABLED else (auth_views.PasswordResetView.as_view(template_name="guard/password_reset.html", email_template_name="guard/password_reset_email.txt", success_url="/password-reset/sent/") if settings.REQUIRE_EMAIL_VERIFICATION else views.password_reset_unavailable), name="password_reset"),
     path("password-reset/sent/", auth_views.PasswordResetDoneView.as_view(template_name="guard/message.html", extra_context={"notice": "Письмо для восстановления пароля отправлено."}), name="password_reset_done"),
     path("password-reset/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(template_name="guard/password_reset_confirm.html", success_url="/login/"), name="password_reset_confirm"),
     path("stores/", views.stores, name="stores"),
