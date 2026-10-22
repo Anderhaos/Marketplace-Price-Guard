@@ -310,7 +310,7 @@ def dashboard(request):
         "pending_product_ids": pending_product_ids,
         "product_cards_missing": bool(active_products) and not any(product.title or product.photo_url for product in active_products),
         "refresh_error": "",
-        "onboarding_required": not bool(account.token_ciphertext),
+        "onboarding_required": settings.SAAS_PIN_AUTH_ENABLED and not bool(account.token_ciphertext),
         "wb_token_form": TokenForm(),
         "trial_status": access_snapshot(request.user.pk),
     })
