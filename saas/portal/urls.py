@@ -10,6 +10,8 @@ from guard.forms import EmailLoginForm
 urlpatterns = [
     path("favicon.ico", RedirectView.as_view(url="/favicon.svg", permanent=False)),
     path("favicon.svg", views.favicon, name="favicon"),
+    path("manifest.webmanifest", views.pwa_manifest, name="pwa_manifest"),
+    path("sw.js", views.pwa_service_worker, name="pwa_service_worker"),
     path("admin/", admin.site.urls),
     path("", views.dashboard, name="dashboard"),
     path("register/", views.register, name="register"),
