@@ -20,6 +20,7 @@ def token_for(kind=4, scopes=(1 << 1) | (1 << 3)):
 
 
 @override_settings(
+    SAAS_PIN_AUTH_ENABLED=True,
     SAAS_WB_TOKEN_VALIDATION_ENABLED=True, SAAS_WB_NETWORK_ENABLED=False,
     SAAS_ACCESS_ENFORCED=True,
 )
