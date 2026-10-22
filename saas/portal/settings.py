@@ -84,6 +84,8 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+MAIL_RELAY_URL = os.environ.get("MAIL_RELAY_URL", "")
+MAIL_RELAY_TOKEN = os.environ.get("MAIL_RELAY_TOKEN", "")
 REQUIRE_EMAIL_VERIFICATION = env_bool("REQUIRE_EMAIL_VERIFICATION", True)
 EMAIL_HOST = os.environ.get("SMTP_HOST", "")
 EMAIL_PORT = int(os.environ.get("SMTP_PORT", "587"))
@@ -91,8 +93,14 @@ EMAIL_HOST_USER = os.environ.get("SMTP_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("SMTP_USE_TLS", True)
 DEFAULT_FROM_EMAIL = os.environ.get("SMTP_FROM", "noreply@mpnosale.svdev.pro")
-if not DEBUG and REQUIRE_EMAIL_VERIFICATION and (EMAIL_BACKEND != "django.core.mail.backends.smtp.EmailBackend" or not EMAIL_HOST or not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD):
-    raise RuntimeError("Production registration requires SMTP settings")
+if not DEBUG and REQUIRE_EMAIL_VERIFICATION:
+    smtp_ready = (EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
+                  and EMAIL_HOST and EMAIL_HOST_USER and EMAIL_HOST_PASSWORD)
+    relay_ready = (EMAIL_BACKEND == "portal.email_backend.RelayEmailBackend"
+                   and MAIL_RELAY_URL == "https://mail.svdev.pro/mail-relay.php"
+                   and len(MAIL_RELAY_TOKEN) >= 32)
+    if not (smtp_ready or relay_ready):
+        raise RuntimeError("Production registration requires a configured mail transport")
 if not DEBUG and not os.environ.get("TOKEN_ENCRYPTION_KEY"):
     raise RuntimeError("Production requires TOKEN_ENCRYPTION_KEY")
 if not DEBUG:
