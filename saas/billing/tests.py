@@ -75,6 +75,29 @@ class AccessGateTests(TestCase):
         self.account.refresh_from_db()
         self.assertFalse(self.account.enabled)
 
+    @override_settings(SAAS_PIN_AUTH_ENABLED=True)
+    def test_expired_trial_cannot_queue_bulk_changes(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("dashboard"), {
+            "action": "apply_all", "default_allowed_discount": "15",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.account.refresh_from_db()
+        self.assertFalse(self.account.apply_all_requested)
+
+    @override_settings(SAAS_PIN_AUTH_ENABLED=True)
+    def test_expired_trial_cannot_queue_product_changes(self):
+        from guard.models import Product
+        item = Product.objects.create(account=self.account, nm_id=7654, current_discount=30)
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("product_rule", args=[item.nm_id]),
+                                    {"allowed_discount": "12"})
+        self.assertEqual(response.status_code, 302)
+        self.account.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(item.allowed_discount_override, None)
+        self.assertEqual(self.account.apply_requested_ids, [])
+
     @override_settings(SAAS_WB_TOKEN_VALIDATION_ENABLED=False)
     def test_disabled_token_validation_fails_closed(self):
         self.client.force_login(self.user)
