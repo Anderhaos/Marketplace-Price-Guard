@@ -7,6 +7,7 @@ COPY manage.py .
 COPY guard ./guard
 COPY portal ./portal
 COPY billing ./billing
+COPY push ./push
 RUN useradd --system --create-home app && mkdir -p /app/staticfiles && chown -R app:app /app/staticfiles
 USER app
 EXPOSE 8000
