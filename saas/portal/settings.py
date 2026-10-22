@@ -63,6 +63,29 @@ else:
 SAAS_WB_NETWORK_ENABLED = env_bool("SAAS_WB_NETWORK_ENABLED", False)
 SAAS_WB_TOKEN_VALIDATION_ENABLED = env_bool("SAAS_WB_TOKEN_VALIDATION_ENABLED", False)
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
+# Same acquiring contract as MiniBook, separate NoSale merchant configuration.
+# Fail closed until a merchant, verified RS256 webhook key, and approved RUB price exist.
+TOCHKA_BILLING_ENABLED = env_bool("NOSALE_TOCHKA_ENABLED", False)
+TOCHKA_API_BASE = os.environ.get("NOSALE_TOCHKA_API_BASE", "https://enter.tochka.com/uapi")
+TOCHKA_JWT_TOKEN = os.environ.get("NOSALE_TOCHKA_JWT_TOKEN", "")
+TOCHKA_CUSTOMER_CODE = os.environ.get("NOSALE_TOCHKA_CUSTOMER_CODE", "")
+TOCHKA_MERCHANT_ID = os.environ.get("NOSALE_TOCHKA_MERCHANT_ID", "")
+TOCHKA_WEBHOOK_JWK_JSON = os.environ.get("NOSALE_TOCHKA_WEBHOOK_JWK_JSON", "")
+NOSALE_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_MONTHLY_PRICE_RUB", "0")
+NOSALE_PAYMENT_RETURN_BASE = "https://nosale.svdev.pro"
+if TOCHKA_BILLING_ENABLED:
+    from decimal import Decimal, InvalidOperation
+    try:
+        _amount = Decimal(NOSALE_MONTHLY_PRICE_RUB)
+    except InvalidOperation as exc:
+        raise RuntimeError("NoSale price must be a fixed positive RUB amount") from exc
+    if _amount < 1 or _amount > 100000 or _amount.as_tuple().exponent < -2:
+        raise RuntimeError("NoSale price must be an approved positive RUB amount")
+    if not all((TOCHKA_JWT_TOKEN, TOCHKA_CUSTOMER_CODE, TOCHKA_MERCHANT_ID, TOCHKA_WEBHOOK_JWK_JSON)):
+        raise RuntimeError("NoSale Tochka merchant/JWT/webhook public key must be separately provisioned")
+    if TOCHKA_API_BASE != "https://enter.tochka.com/uapi":
+        raise RuntimeError("Production acquiring endpoint must use Tochka public API")
+
 PUSH_VAPID_PUBLIC_KEY = os.environ.get("PUSH_VAPID_PUBLIC_KEY", "")
 PUSH_VAPID_PRIVATE_KEY = os.environ.get("PUSH_VAPID_PRIVATE_KEY", "")
 PUSH_VAPID_SUBJECT = os.environ.get("PUSH_VAPID_SUBJECT", "mailto:notifications@svdev.pro")
