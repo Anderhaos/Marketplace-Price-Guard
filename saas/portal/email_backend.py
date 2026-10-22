@@ -4,6 +4,8 @@ The relay chooses the verified From address from its own configuration. Neither
 the client nor the Django message may override that identity.
 """
 import json
+import logging
+import time
 from email.utils import parseaddr
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -11,6 +13,9 @@ from urllib.request import Request, ProxyHandler, build_opener
 
 from django.conf import settings
 from django.core.mail.backends.base import BaseEmailBackend
+
+
+_log = logging.getLogger(__name__)
 
 
 class RelayEmailBackend(BaseEmailBackend):
@@ -54,10 +59,12 @@ class RelayEmailBackend(BaseEmailBackend):
                 headers={"Content-Type": "application/json",
                          "x-svdev-relay-token": token},
             )
+            started_at = time.monotonic()
             try:
                 with build_opener(ProxyHandler({})).open(req, timeout=12) as response:
                     if response.status not in (200, 202):
                         raise OSError("Relay rejected email")
+                    _log.info("mpno_mail_relay_accepted http_status=%d latency_ms=%d", response.status, round((time.monotonic()-started_at)*1000))
             except (HTTPError, URLError, TimeoutError, OSError):
                 if self.fail_silently:
                     continue
