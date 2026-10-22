@@ -14,7 +14,7 @@
   <div class="notice" style="margin-top:18px">
     <b>Месячный доступ</b>
     {% if billing_enabled %}
-      <p style="margin:7px 0 11px">30-дневный расчётный цикл по тарифу — {{ tariff_price|floatformat:2 }} ₽ за 1 календарный месяц. Разовая оплата: автоматических списаний нет.</p>
+      <p style="margin:7px 0 11px">Стоимость — {{ tariff_price|floatformat:2 }} ₽ за 1 календарный месяц. Разовая оплата: автоматических списаний нет.</p>
       <form method="post" action="{% url 'billing_checkout' %}">{% csrf_token %}
         <button type="submit">Перейти к оплате</button>
       </form>
