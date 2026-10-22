@@ -21,7 +21,7 @@ ALLOWED_HOSTS = [host.strip() for host in os.environ.get("DJANGO_ALLOWED_HOSTS",
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()]
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
-    "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles", "guard", "billing",
+    "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles", "guard", "billing", "push.apps.PushConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -61,6 +61,9 @@ else:
         raise RuntimeError("Generated SAAS_DB_PASSWORD required for production")
 SAAS_WB_NETWORK_ENABLED = env_bool("SAAS_WB_NETWORK_ENABLED", False)
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
+PUSH_VAPID_PUBLIC_KEY = os.environ.get("PUSH_VAPID_PUBLIC_KEY", "")
+PUSH_VAPID_PRIVATE_KEY = os.environ.get("PUSH_VAPID_PRIVATE_KEY", "")
+PUSH_VAPID_SUBJECT = os.environ.get("PUSH_VAPID_SUBJECT", "mailto:notifications@svdev.pro")
 if not DEBUG and not SAAS_ACCESS_ENFORCED:
     raise RuntimeError("Production may not disable SaaS access enforcement")
 AUTH_PASSWORD_VALIDATORS = [
