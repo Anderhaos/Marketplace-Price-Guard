@@ -10,6 +10,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--env-file", required=True, type=Path)
     parser.add_argument("--token-file", required=True, type=Path)
+    parser.add_argument("--public-host", default="", help="SaaS HTTPS hostname, without scheme")
     args = parser.parse_args()
     path = args.env_file.resolve()
     token = args.token_file.read_text(encoding="utf-8").strip()
@@ -24,6 +25,16 @@ def main():
         "MAIL_RELAY_TOKEN": token,
         "SMTP_FROM": "MP NoSale <noreply@svdev.pro>",
     }
+    if args.public_host:
+        if args.public_host != "mpnosale-saas.svdev.pro":
+            raise SystemExit("Unapproved SaaS hostname")
+        updates.update({
+            "DJANGO_ALLOWED_HOSTS": "localhost,127.0.0.1,mpnosale-saas.svdev.pro",
+            "DJANGO_CSRF_TRUSTED_ORIGINS": "https://mpnosale-saas.svdev.pro",
+            "TRUST_PROXY": "1",
+            "SECURE_COOKIES": "1",
+            "SECURE_SSL_REDIRECT": "1",
+        })
     current_lines = path.read_text(encoding="utf-8").splitlines()
     seen = set()
     result = []
