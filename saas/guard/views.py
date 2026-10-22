@@ -21,6 +21,8 @@ from .crypto import decrypt_token, encrypt_token
 from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
 from .models import GuardAccount, GuardEvent, Product, Upload
 from .stores import selected_store, SESSION_KEY
+from push.models import NotificationPreference, PushMessage, PushSubscription
+from push.service import SUPPORTED_TIMEZONES
 from .monitor import check_account
 from .wb import WBClient, WBApiError, get_token_permissions, get_token_type
 
@@ -433,7 +435,15 @@ def notifications(request):
         account__user=request.user,
         kind__in=IMPORTANT_EVENT_KINDS,
     ).select_related("account").order_by("-created_at", "-id")[:100]
-    return render(request, "guard/notifications.html", {"events": events})
+    pref, _ = NotificationPreference.objects.get_or_create(user=request.user)
+    digest_messages = PushMessage.objects.filter(user=request.user, kind="digest").order_by("-created_at")[:30]
+    return render(request, "guard/notifications.html", {
+        "events": events, "digest_messages": digest_messages,
+        "preferences": pref, "push_public_key": settings.PUSH_VAPID_PUBLIC_KEY,
+        "push_ready": bool(settings.PUSH_VAPID_PUBLIC_KEY and settings.PUSH_VAPID_PRIVATE_KEY),
+        "push_devices": PushSubscription.objects.filter(user=request.user, active=True).count(),
+        "timezones": sorted(SUPPORTED_TIMEZONES),
+    })
 
 
 @login_required
@@ -444,6 +454,9 @@ def mark_notifications_read(request):
         account__user=request.user,
         kind__in=IMPORTANT_EVENT_KINDS,
         read_at__isnull=True,
+    ).update(read_at=timezone.now())
+    PushMessage.objects.filter(
+        user=request.user, kind="digest", read_at__isnull=True,
     ).update(read_at=timezone.now())
     return redirect("notifications")
 
