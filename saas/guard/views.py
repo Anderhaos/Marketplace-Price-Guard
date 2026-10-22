@@ -265,6 +265,9 @@ def dashboard(request):
             form = DefaultDiscountForm(request.POST)
             if form.is_valid():
                 discount = form.cleaned_data["default_allowed_discount"]
+                if settings.SAAS_PIN_AUTH_ENABLED and not guard_is_permitted(account):
+                    messages.error(request, "Для применения правил требуется действующий пробный или оплаченный доступ.")
+                    return _dashboard_redirect(request)
                 if not account.token_ciphertext:
                     messages.error(request, "Сначала подключите токен Wildberries.")
                     return redirect("settings")
@@ -383,6 +386,9 @@ def product_rule(request, nm_id):
     product = get_object_or_404(Product, account=account, nm_id=nm_id, active=True)
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
+    if settings.SAAS_PIN_AUTH_ENABLED and not guard_is_permitted(account):
+        messages.error(request, "Пробный период закончился или защита WB временно недоступна.")
+        return _dashboard_redirect(request)
     if request.POST.get("no_discount") == "on":
         product.allowed_discount_override = 0
         product.save(update_fields=["allowed_discount_override"])
