@@ -142,3 +142,28 @@ class FirstRunOnboardingTests(TestCase):
         self.assertIsNone(account.lock_until)
         self.assertEqual(account.rules_version, 4)
         self.assertEqual(upload.status, "unknown")
+
+    def test_business_pages_redirect_to_onboarding_until_connected(self):
+        for path in ("/stores/", "/settings/", "/history/", "/notifications/", "/push/preferences/"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertRedirects(response, reverse("dashboard"))
+
+    def test_onboarding_rejection_visible_inside_modal(self):
+        response = self.client.post(reverse("connect_wb"), {"token": "not-a-valid-token"}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="setup-feedback"')
+        self.assertContains(response, "Не удалось определить права токена")
+        self.assertNotContains(response, '<ul class="messages"')
+
+    @patch("guard.integrations.WBClient")
+    def test_after_connect_business_pages_accessible(self, mock_wb):
+        self.client.post(reverse("connect_wb"), {"token": token_for()})
+        for path in ("/stores/", "/settings/", "/history/", "/notifications/"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+
+    @override_settings(SAAS_PIN_AUTH_ENABLED=False)
+    def test_legacy_mode_not_affected_by_onboarding_gate(self):
+        self.assertEqual(self.client.get("/settings/").status_code, 200)
