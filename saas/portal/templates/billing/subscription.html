@@ -28,7 +28,7 @@
     <div class="billing-payments">
     {% for p in payments %}
       <div style="display:flex;gap:10px;justify-content:space-between;border-top:1px solid var(--line);padding:10px 0;font-size:12px">
-        <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.amount_kopeks|floatformat:0 }} коп.</span>
+        <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.amount_rubles|floatformat:2 }} ₽</span>
         <strong>{% if p.status == "paid" %}Оплачено{% elif p.status == "pending" %}Ожидает оплаты{% elif p.status == "refunded" %}Возврат{% else %}Не оплачено{% endif %}</strong>
       </div>
     {% endfor %}
