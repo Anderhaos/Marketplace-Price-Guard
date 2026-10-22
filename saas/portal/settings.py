@@ -87,12 +87,17 @@ EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backend
 MAIL_RELAY_URL = os.environ.get("MAIL_RELAY_URL", "")
 MAIL_RELAY_TOKEN = os.environ.get("MAIL_RELAY_TOKEN", "")
 REQUIRE_EMAIL_VERIFICATION = env_bool("REQUIRE_EMAIL_VERIFICATION", True)
+SAAS_PIN_AUTH_ENABLED = env_bool("SAAS_PIN_AUTH_ENABLED", False)
 EMAIL_HOST = os.environ.get("SMTP_HOST", "")
 EMAIL_PORT = int(os.environ.get("SMTP_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("SMTP_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("SMTP_USE_TLS", True)
 DEFAULT_FROM_EMAIL = os.environ.get("SMTP_FROM", "noreply@mpnosale.svdev.pro")
+if not DEBUG and SAAS_PIN_AUTH_ENABLED and not REQUIRE_EMAIL_VERIFICATION:
+    raise RuntimeError("PIN authentication requires email verification")
+if not DEBUG and SAAS_PIN_AUTH_ENABLED and EMAIL_BACKEND != "portal.email_backend.RelayEmailBackend":
+    raise RuntimeError("PIN authentication requires the trusted HTTPS relay")
 if not DEBUG and REQUIRE_EMAIL_VERIFICATION:
     smtp_ready = (EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
                   and EMAIL_HOST and EMAIL_HOST_USER and EMAIL_HOST_PASSWORD)
