@@ -103,7 +103,11 @@ def apply_verified_event(payload):
     if event["amount"] is None or _money_to_kopeks(event["amount"]) != payment.amount_kopeks:
         raise InvalidWebhook("Amount mismatch")
     status = event["status"]
-    if status == "REFUNDED" and payment.status == "paid":
+    if status == "REFUNDED":
+        if payment.status == "refunded":
+            return "duplicate_refund"
+        # A verified refund can arrive before an approval; it must be terminal
+        # so a delayed APPROVED event cannot grant access after money returned.
         payment.status = "refunded"
         payment.save(update_fields=["status"])
         AccessGrant.objects.filter(
@@ -116,7 +120,10 @@ def apply_verified_event(payload):
         return "ignored"
     if payment.status == "paid":
         return "duplicate"
-    if payment.status != "pending":
+    # A bank may have accepted the link but its HTTP response was lost.
+    # A matching signed bank APPROVED event is stronger evidence than the
+    # local failed link request, and must recover the paid entitlement.
+    if payment.status not in ("pending", "failed"):
         return "ignored"
     if not payment.operation_id:
         payment.operation_id = operation

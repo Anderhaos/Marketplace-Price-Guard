@@ -164,6 +164,30 @@ class AcquiringTests(TestCase):
         self.assertEqual(payment.status, "refunded")
         self.assertIsNotNone(AccessGrant.objects.get(source_ref=f"nosale:tochka:{payment.pk}").revoked_at)
 
+    def test_signed_approval_recovers_bank_link_after_local_timeout(self):
+        # The server marked the creation request failed, but the bank could
+        # still have issued a link and subsequently accepted payment.
+        payment = self.payment()
+        payment.status = "failed"
+        payment.save(update_fields=["status"])
+        self.assertEqual(self.post_signed(self.event(payment)).status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "paid")
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="payment").count(), 1)
+        self.post_signed(self.event(payment))
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="payment").count(), 1)
+
+    def test_refund_before_delayed_approval_never_grants_access(self):
+        payment = self.payment()
+        self.assertEqual(self.post_signed(self.event(payment, status="REFUNDED")).status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "refunded")
+        self.post_signed(self.event(payment, status="APPROVED"))
+        self.post_signed(self.event(payment, status="REFUNDED"))
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "refunded")
+        self.assertFalse(AccessGrant.objects.filter(user=self.user, source="payment").exists())
+
     def test_other_seller_cannot_see_payment_return(self):
         payment = self.payment()
         self.client.force_login(self.other)
