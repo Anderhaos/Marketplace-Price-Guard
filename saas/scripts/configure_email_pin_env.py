@@ -26,11 +26,11 @@ def main():
         "SMTP_FROM": "MP NoSale <noreply@svdev.pro>",
     }
     if args.public_host:
-        if args.public_host != "mpnosale-saas.svdev.pro":
+        if args.public_host != "nosale.svdev.pro":
             raise SystemExit("Unapproved SaaS hostname")
         updates.update({
-            "DJANGO_ALLOWED_HOSTS": "localhost,127.0.0.1,mpnosale-saas.svdev.pro",
-            "DJANGO_CSRF_TRUSTED_ORIGINS": "https://mpnosale-saas.svdev.pro",
+            "DJANGO_ALLOWED_HOSTS": "localhost,127.0.0.1,nosale.svdev.pro",
+            "DJANGO_CSRF_TRUSTED_ORIGINS": "https://nosale.svdev.pro",
             "TRUST_PROXY": "1",
             "SECURE_COOKIES": "1",
             "SECURE_SSL_REDIRECT": "1",
