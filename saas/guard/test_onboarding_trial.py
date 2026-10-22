@@ -172,3 +172,39 @@ class FirstRunOnboardingTests(TestCase):
     @override_settings(SAAS_PIN_AUTH_ENABLED=False)
     def test_legacy_mode_not_affected_by_onboarding_gate(self):
         self.assertEqual(self.client.get("/settings/").status_code, 200)
+
+    @patch("guard.integrations.WBClient")
+    def test_basic_token_connects_read_only_without_price_probe(self, mock_wb):
+        self.client.post(reverse("connect_wb"), {"token": token_for(kind=1)})
+        mock_wb.return_value.validate_token.assert_called_once_with(probe_prices=False)
+        account = GuardAccount.objects.get(user=self.user)
+        self.assertTrue(account.token_ciphertext)
+        self.assertFalse(account.enabled)
+        self.assertTrue(has_active_access(self.user.pk))
+        response = self.client.post(reverse("dashboard"), {
+            "action": "apply_all", "default_allowed_discount": 12,
+        })
+        self.assertRedirects(response, reverse("dashboard"))
+        account.refresh_from_db()
+        self.assertFalse(account.apply_all_requested)
+
+    @patch("guard.integrations.WBClient")
+    @patch("guard.monitor.WBClient")
+    def test_basic_token_worker_loads_products_without_writing(self, monitor_wb, integration_wb):
+        from guard.models import Product
+        from guard.monitor import run_due_checks
+        self.client.post(reverse("connect_wb"), {"token": token_for(kind=1)})
+        mocked = monitor_wb.return_value
+        mocked.get_product_cards.return_value = []
+        mocked.get_products.return_value = [{
+            "nmID": 1472, "vendorCode": "demo", "discount": 25,
+            "sizes": [{"price": 100, "discountedPrice": 75}],
+        }]
+        self.assertEqual(run_due_checks(), 1)
+        self.assertTrue(Product.objects.filter(account__user=self.user, nm_id=1472).exists())
+        mocked.submit_discounts.assert_not_called()
+        account = GuardAccount.objects.get(user=self.user)
+        self.assertFalse(account.enabled)
+        self.assertTrue(account.check_requested)
+        self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 14*60)
+        self.assertEqual(run_due_checks(), 0)
