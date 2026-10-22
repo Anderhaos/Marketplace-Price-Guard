@@ -24,5 +24,7 @@ class SubscriptionPayment(models.Model):
     period_months = models.PositiveSmallIntegerField(default=1)
     created_at = models.DateTimeField(default=timezone.now)
     paid_at = models.DateTimeField(null=True, blank=True)
+    payment_url = models.URLField(max_length=2048, blank=True)
+    link_expires_at = models.DateTimeField(null=True, blank=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=["provider","operation_id"], condition=~models.Q(operation_id=""), name="unique_provider_operation")]
