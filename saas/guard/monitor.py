@@ -11,8 +11,11 @@ from .models import GuardAccount, GuardEvent, Product, Upload
 from .wb import WBApiError, WBClient, get_token_type
 
 
-def _event(account, kind, message, nm_id=None):
-    GuardEvent.objects.create(account=account, kind=kind, nm_id=nm_id, message=message[:2000])
+def _event(account, kind, message, nm_id=None, details=None):
+    GuardEvent.objects.create(
+        account=account, kind=kind, nm_id=nm_id, message=message[:2000],
+        details=details or {},
+    )
 
 
 def _price(size, key):
@@ -60,7 +63,11 @@ def _reconcile_uploads(account, client):
             upload.status = "success"
             successful_upload = True
             upload.details = f"Подтверждено WB: {len(upload.product_ids)} товаров"
-            _event(account, "confirmed", f"WB подтвердил изменение скидок, загрузка {upload.upload_id}: {len(upload.product_ids)} товаров.")
+            _event(
+                account, "confirmed",
+                f"WB подтвердил изменение скидок, загрузка {upload.upload_id}: {len(upload.product_ids)} товаров.",
+                details={"upload_id": upload.upload_id, "changes": upload.change_details},
+            )
         elif status in {4, 5, 6}:
             upload.status = "failed" if status in {4, 6} else "partial"
             errors = []
@@ -69,7 +76,10 @@ def _reconcile_uploads(account, client):
                     if item.get("errorText"):
                         errors.append(f"{item.get('nmID')}: {item['errorText']}")
             upload.details = "\n".join(errors)[:4000] or f"WB status: {status}"
-            _event(account, "upload_error", f"Загрузка {upload.upload_id}: {upload.details}")
+            _event(
+                account, "upload_error", f"Загрузка {upload.upload_id}: {upload.details}",
+                details={"upload_id": upload.upload_id, "changes": upload.change_details},
+            )
         else:
             still_pending = True
             upload.save(update_fields=["checked_at"])
@@ -101,6 +111,7 @@ def check_account(account):
     goods = client.get_products()
     checked_at = timezone.now()
     changes = []
+    change_details = []
     corrected_count = 0
     problems = 0
     for item in goods:
@@ -125,7 +136,11 @@ def check_account(account):
         )
         if previous:
             if previous.current_discount != discount:
-                _event(account, "discount_changed", f"Скидка в WB: {previous.current_discount}% → {discount}%.", nm_id)
+                _event(
+                    account, "discount_changed",
+                    f"Скидка в WB: {previous.current_discount}% → {discount}%.", nm_id,
+                    details={"before": previous.current_discount, "after": discount, "vendor_code": product.vendor_code},
+                )
             if previous.price != product.price:
                 _event(account, "price_changed", f"Цена первого размера: {previous.price or '—'} → {product.price or '—'} {product.currency}.", nm_id)
         allowed = product.allowed_discount_override
@@ -135,6 +150,10 @@ def check_account(account):
             problems += 1
             if force_apply_all or nm_id in force_apply_ids or (account.enabled and len(changes) < account.max_fixes):
                 changes.append((nm_id, allowed))
+                change_details.append({
+                    "nm_id": nm_id, "vendor_code": product.vendor_code,
+                    "title": product.title, "before": discount, "after": allowed,
+                })
                 corrected_count += 1
     Product.objects.filter(account=account).exclude(checked_at=checked_at).update(active=False)
     _event(account, "check", f"Проверено товаров: {len(goods)}; скидка выше разрешённой: {problems}.")
@@ -151,17 +170,18 @@ def check_account(account):
     upload_id = client.submit_discounts(changes)
     upload, created = Upload.objects.get_or_create(
         account=account, upload_id=upload_id,
-        defaults={"product_ids": [nm_id for nm_id, _ in changes], "corrected_count": corrected_count},
+        defaults={"product_ids": [nm_id for nm_id, _ in changes], "corrected_count": corrected_count, "change_details": change_details},
     )
     if not created:
         upload.status = "pending"
         upload.product_ids = [nm_id for nm_id, _ in changes]
         upload.corrected_count = corrected_count
-        upload.save(update_fields=["status", "product_ids", "corrected_count"])
+        upload.change_details = change_details
+        upload.save(update_fields=["status", "product_ids", "corrected_count", "change_details"])
     if force_apply_all:
-        _event(account, "submitted", f"Отправлена задача WB {upload_id}: снизить превышения для {len(changes)} товаров. Ожидается подтверждение.")
+        _event(account, "submitted", f"Отправлена задача WB {upload_id}: снизить превышения для {len(changes)} товаров. Ожидается подтверждение.", details={"upload_id": upload_id, "changes": change_details})
     else:
-        _event(account, "submitted", f"Отправлена задача WB {upload_id}: {len(changes)} товаров. Ожидается подтверждение.")
+        _event(account, "submitted", f"Отправлена задача WB {upload_id}: {len(changes)} товаров. Ожидается подтверждение.", details={"upload_id": upload_id, "changes": change_details})
     return True
 
 
