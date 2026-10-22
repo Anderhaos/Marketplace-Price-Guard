@@ -102,7 +102,7 @@ for path in files[:18]:
         continue
     body=msg.get_payload(decode=True)
     if body is None: continue
-    code=re.search(r'Код:\\s*(\\d{6})',body.decode('utf-8',errors='replace'))
+    code=re.search(r'Код:\s*(\d{6})',body.decode('utf-8',errors='replace'))
     if code:
         print(code.group(1))
         break
@@ -116,7 +116,7 @@ for path in files[:18]:
         if result.returncode != 0:
             raise RuntimeError("Could not read the owned REG.RU test mailbox")
         code = result.stdout.strip()
-        if re.fullmatch(r"\\d{6}", code):
+        if re.fullmatch(r"\d{6}", code):
             return code
         time.sleep(2)
     raise RuntimeError("Expected real OTP email was not found")
@@ -144,7 +144,10 @@ def main():
     if status != 200 or "Магазин" not in html:
         raise RuntimeError("Dashboard did not open after registration")
     print("AUTHENTICATED_DASHBOARD_PASS")
-    post_redirect(opener, "/logout/", {}, "/login/")
+    csrf = get_form(opener, "/")
+    status, target, _ = request(opener, "/logout/", {"csrfmiddlewaretoken": csrf})
+    if status != 302 or target != "/login/":
+        raise RuntimeError(f"Logout failed with HTTP {status} target {target}")
     post_redirect(opener, "/login/", {"email": TEST_EMAIL, "pin": pin}, "/")
     print("EMAIL_PIN_LOGIN_PASS")
     print("PUBLIC_MP_NO_SALE_OTP_E2E_PASS")
