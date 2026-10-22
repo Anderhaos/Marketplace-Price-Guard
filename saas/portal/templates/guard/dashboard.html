@@ -1,44 +1,38 @@
 {% extends 'guard/base.html' %}
 {% block title %}Товары — MP No Sale{% endblock %}
 {% block content %}
-{% if account %}<p class="muted" style="margin:0 0 14px">Магазин: <strong>{{ account.name }}</strong> · {{ account.get_marketplace_display }} · <a href="{% url 'stores' %}">Сменить магазин</a></p>{% endif %}
-<div class="grid dashboard-stats dashboard-stats--five">
-  <div class="card stat-card stat-card--control">
-    <div class="stat-label-row"><div class="stat-label">Автоисправление</div><span class="stat-help" tabindex="0" data-tooltip="Когда включено, гвард регулярно проверяет скидки и возвращает превышение к вашему максимуму.">i</span></div>
-    <form method="post" action="{% url 'dashboard' %}{% if filter_name != 'all' %}?filter={{ filter_name }}{% endif %}" class="stat-auto-form">{% csrf_token %}
-      <input type="hidden" name="action" value="toggle_autocontrol">
-      <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
-      <label class="toggle stat-toggle">
-        <input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not account.token_ciphertext %}disabled{% endif %} onchange="this.form.submit()">
-        <span class="toggle-track" aria-hidden="true"></span>
-        <span class="value stat-toggle-value {% if account.enabled %}good{% else %}bad{% endif %}">{% if account.enabled %}Включено{% else %}Выключено{% endif %}</span>
-      </label>
-    </form>
-  </div>
-  <a class="card stat-card stat-card--filter{% if filter_name == 'all' %} is-active{% endif %}" href="{% url 'dashboard' %}?filter=all" aria-current="{% if filter_name == 'all' %}true{% else %}false{% endif %}">
-    <div class="stat-label-row"><div class="stat-label">Всего товаров</div><span class="stat-help" tabindex="0" data-tooltip="Все активные товары, загруженные из вашего кабинета Wildberries. Нажмите, чтобы показать весь список.">i</span></div>
-    <div class="value">{{ count }}</div>
-  </a>
-  <a class="card stat-card stat-card--filter{% if filter_name == 'corrected' %} is-active{% endif %}" href="{% url 'dashboard' %}?filter=corrected" aria-current="{% if filter_name == 'corrected' %}true{% else %}false{% endif %}">
-    <div class="stat-label-row"><div class="stat-label">Отменено скидок</div><span class="stat-help" tabindex="0" data-tooltip="Количество изменений скидки, которые Wildberries подтвердил после команды гварда. Нажмите, чтобы показать эти товары.">i</span></div>
-    <div class="value">{{ corrected_count }}</div>
-  </a>
-  <a class="card stat-card stat-card--filter{% if filter_name == 'over_limit' %} is-active{% endif %}" href="{% url 'dashboard' %}?filter=over_limit" aria-current="{% if filter_name == 'over_limit' %}true{% else %}false{% endif %}">
-    <div class="stat-label-row"><div class="stat-label">Выше максимума</div><span class="stat-help" tabindex="0" data-tooltip="Товары, где текущая скидка Wildberries больше заданного для них максимума. Нажмите, чтобы показать их.">i</span></div>
-    <div class="value {% if over_limit_count %}bad{% else %}good{% endif %}">{{ over_limit_count }}</div>
-  </a>
-  <div class="card stat-card stat-card--limit">
-    <div class="stat-label-row"><div class="stat-label">Максимальная скидка, %</div><span class="stat-help" tabindex="0" data-tooltip="Если Wildberries установит скидку выше этого процента, гвард вернёт её к этому значению. Индивидуальные правила товаров сохраняются. Кнопка с галочкой запускает проверку превышений.">i</span></div>
-    <form method="post" action="{% url 'dashboard' %}{% if filter_name != 'all' %}?filter={{ filter_name }}{% endif %}" class="stat-limit-form">{% csrf_token %}
-      <input type="hidden" name="action" value="apply_all">
-      <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
-      <input id="id_default_allowed_discount" type="number" name="default_allowed_discount" min="0" max="99" required value="{{ account.default_allowed_discount }}" aria-label="Общий предел скидки в процентах">
-      <button type="submit" class="icon-apply" aria-label="Сохранить общий максимум скидки" data-tooltip="Сохранить общий максимум и проверить превышения" {% if not account.token_ciphertext %}disabled title="Сначала подключите токен Wildberries"{% endif %}><span aria-hidden="true">✓</span></button>
-    </form>
-  </div>
+{% if onboarding_required %}
+  {% include "guard/onboarding_modal.html" %}
+{% else %}
+<div class="compact-context">
+  <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span> <a class="compact-link" href="{% url 'stores' %}">Сменить</a></div>
+  {% if trial_status.active %}<span class="trial-strip">Пробный доступ · {{ trial_status.days_left }} дн. до {{ trial_status.expires_at|date:"d.m.Y" }}</span>
+  {% elif trial_status.trial_expired %}<span class="trial-strip trial-strip--expired">Пробный период завершён · мониторинг приостановлен</span>
+  {% endif %}
 </div>
-{% if not account.token_ciphertext %}<div class="card"><p>Подключите токен WB, чтобы начать мониторинг.</p><a class="button" href="{% url 'settings' %}">Подключить</a></div>{% endif %}
 
+<section class="compact-summary" aria-label="Контроль скидок">
+  <div class="summary-cell summary-cell--control">
+    <span class="summary-label">Защита скидок</span>
+    <form method="post" action="{% url 'dashboard' %}" class="compact-toggle-form">{% csrf_token %}
+      <input type="hidden" name="action" value="toggle_autocontrol">
+      <label class="toggle compact-switch"><input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or base_token %}disabled{% endif %} onchange="this.form.submit()"><span class="toggle-track"></span><b>{% if account.enabled %}Вкл{% else %}Выкл{% endif %}</b></label>
+    </form>
+  </div>
+  <a class="summary-cell {% if filter_name == 'all' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=all"><span class="summary-label">Товаров</span><strong>{{ count }}</strong></a>
+  <a class="summary-cell {% if filter_name == 'corrected' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=corrected"><span class="summary-label">Исправлено</span><strong>{{ corrected_count }}</strong></a>
+  <a class="summary-cell {% if filter_name == 'over_limit' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=over_limit"><span class="summary-label">Выше лимита</span><strong>{{ over_limit_count }}</strong></a>
+  <div class="summary-cell summary-cell--limit">
+    <span class="summary-label">Предел скидки, %</span>
+    <form method="post" class="compact-limit-form" action="{% url 'dashboard' %}">{% csrf_token %}
+      <input type="hidden" name="action" value="apply_all">
+      <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active %}disabled{% endif %}>
+      <button type="submit" aria-label="Сохранить предел скидки" {% if not trial_status.active %}disabled{% endif %}>Сохранить</button>
+    </form>
+  </div>
+</section>
+{% if base_token %}<p class="data-age bad">Подключён базовый токен WB: для автоматической защиты нужен сервисный токен. <a href="{% url 'settings' %}">Заменить</a></p>{% endif %}
+{% if trial_status.trial_expired %}<p class="notice">Бесплатный доступ закончился. Данные и настройки сохранены, фоновые проверки остановлены. Возможность оплаты появится после подключения биллинга.</p>{% endif %}
 <section class="card">
   <div class="section-head">
     <div>
@@ -47,10 +41,10 @@
     </div>
     <div class="actions">
       <form method="post" action="{% url 'settings' %}">{% csrf_token %}<input type="hidden" name="action" value="check"><button class="secondary">Обновить товары</button></form>
-      <span class="status-pill {% if filter_name != 'all' %}good{% endif %}">{{ shown_count }} {% if filter_name != 'all' %}в фильтре{% else %}товаров{% endif %}</span>
+      
     </div>
   </div>
-  {% if base_token %}<p class="data-age bad">Подключён базовый токен WB: автоисправление не работает из-за лимита запросов. <a href="{% url 'settings' %}">Варианты подключения</a>.</p>{% endif %}
+
   {% if account.last_error and data_checked_at %}<p class="data-age bad">Данные WB от {{ data_checked_at|date:"d.m.Y H:i" }}. Последняя проверка не обновила скидки.</p>{% endif %}
   {% if product_cards_missing %}<p class="refresh-status">Фото и названия загрузятся при следующем обновлении.</p>{% endif %}
   <div class="products-grid">{% for product in products %}
@@ -104,4 +98,5 @@
   }));
 })();
 </script>
+{% endif %}
 {% endblock %}
