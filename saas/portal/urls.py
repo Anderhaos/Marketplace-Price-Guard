@@ -19,6 +19,8 @@ urlpatterns = [
     path("password-reset/", auth_views.PasswordResetView.as_view(template_name="guard/password_reset.html", email_template_name="guard/password_reset_email.txt", success_url="/password-reset/sent/") if settings.REQUIRE_EMAIL_VERIFICATION else views.password_reset_unavailable, name="password_reset"),
     path("password-reset/sent/", auth_views.PasswordResetDoneView.as_view(template_name="guard/message.html", extra_context={"notice": "Письмо для восстановления пароля отправлено."}), name="password_reset_done"),
     path("password-reset/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(template_name="guard/password_reset_confirm.html", success_url="/login/"), name="password_reset_confirm"),
+    path("stores/", views.stores, name="stores"),
+    path("stores/select/<int:store_id>/", views.select_store, name="select_store"),
     path("settings/", views.settings_view, name="settings"),
     path("products/<int:nm_id>/", views.product_rule, name="product_rule"),
     path("products/<int:nm_id>/history-data/", views.product_history_data, name="product_history_data"),

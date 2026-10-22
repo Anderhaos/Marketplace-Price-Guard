@@ -17,8 +17,9 @@ from django.conf import settings
 
 from billing.access import guard_is_permitted
 from .crypto import decrypt_token, encrypt_token
-from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm
+from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
 from .models import GuardAccount, GuardEvent, Product, Upload
+from .stores import selected_store, SESSION_KEY
 from .monitor import check_account
 from .wb import WBClient, WBApiError, get_token_permissions, get_token_type
 
@@ -72,9 +73,8 @@ def verify(request, uidb64, token):
     return render(request, "guard/message.html", {"notice": "Ссылка подтверждения недействительна."}, status=400)
 
 
-def _account(user):
-    account, _ = GuardAccount.objects.get_or_create(user=user)
-    return account
+def _account(request):
+    return selected_store(request)
 
 
 def _account_token_type(account):
@@ -157,8 +157,39 @@ def _filter_active_products(active_products, filter_name, corrected_ids):
 
 
 @login_required
+def stores(request):
+    """Manage WB store slots. Ozon stays disabled until adapter and auth exist."""
+    if request.method == "POST":
+        form = StoreCreateForm(request.POST)
+        if form.is_valid():
+            account = GuardAccount.objects.create(
+                user=request.user, marketplace="wb", name=form.cleaned_data["name"]
+            )
+            request.session[SESSION_KEY] = account.pk
+            messages.success(request, "Магазин создан. Подключение API пока выключено.")
+            return redirect("stores")
+    else:
+        form = StoreCreateForm()
+    return render(request, "guard/stores.html", {
+        "form": form,
+        "stores": GuardAccount.objects.filter(user=request.user).order_by("id"),
+        "selected_store_id": selected_store(request).id,
+    })
+
+
+@login_required
+def select_store(request, store_id):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    store = get_object_or_404(GuardAccount, user=request.user, pk=store_id)
+    request.session[SESSION_KEY] = store.pk
+    messages.success(request, f"Выбран магазин: {store.name}")
+    return redirect("dashboard")
+
+
+@login_required
 def dashboard(request):
-    account = _account(request.user)
+    account = _account(request)
     base_token = _account_token_type(account) == "base"
     if request.method == "GET" and account.token_ciphertext and not base_token:
         now = timezone.now()
@@ -234,7 +265,7 @@ def dashboard(request):
 
 @login_required
 def settings_view(request):
-    account = _account(request.user)
+    account = _account(request)
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "token":
@@ -313,7 +344,7 @@ def settings_view(request):
 
 @login_required
 def product_rule(request, nm_id):
-    account = _account(request.user)
+    account = _account(request)
     product = get_object_or_404(Product, account=account, nm_id=nm_id, active=True)
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
@@ -359,7 +390,7 @@ def product_rule(request, nm_id):
 
 @login_required
 def product_history_data(request, nm_id):
-    account = _account(request.user)
+    account = _account(request)
     product = get_object_or_404(Product, account=account, nm_id=nm_id)
     events = GuardEvent.objects.filter(account=account, nm_id=nm_id)[:100]
     return JsonResponse({
@@ -375,7 +406,7 @@ def product_history_data(request, nm_id):
 
 @login_required
 def history(request):
-    account = _account(request.user)
+    account = _account(request)
     nm_id = request.GET.get("product")
     events = GuardEvent.objects.filter(account=account)
     product = None

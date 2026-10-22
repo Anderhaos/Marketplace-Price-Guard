@@ -4,7 +4,7 @@ from .models import GuardAccount, GuardEvent, Product, Upload
 
 @admin.register(GuardAccount)
 class GuardAccountAdmin(admin.ModelAdmin):
-    list_display = ("user", "enabled", "token_hint", "interval_minutes", "last_check_at")
+    list_display = ("user", "name", "marketplace", "enabled", "token_hint", "interval_minutes", "last_check_at")
     list_filter = ("enabled",)
     readonly_fields = ("token_ciphertext", "token_hint", "last_check_at", "last_error", "lock_until", "next_check_at")
     search_fields = ("user__email", "user__username")

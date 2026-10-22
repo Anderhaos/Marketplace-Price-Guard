@@ -5,7 +5,9 @@ from django.utils import timezone
 
 
 class GuardAccount(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="guard_account")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="seller_stores")
+    name = models.CharField(max_length=90, default="Магазин WB")
+    marketplace = models.CharField(max_length=16, default="wb", choices=[("wb", "Wildberries"), ("ozon", "Ozon")])
     token_ciphertext = models.TextField(blank=True)
     token_hint = models.CharField(max_length=32, blank=True)
     enabled = models.BooleanField(default=False)
@@ -21,8 +23,11 @@ class GuardAccount(models.Model):
     last_error = models.TextField(blank=True)
     rules_version = models.PositiveIntegerField(default=0)
 
+    class Meta:
+        indexes = [models.Index(fields=["user", "marketplace"])]
+
     def __str__(self):
-        return self.user.email or self.user.username
+        return f"{self.name} ({self.get_marketplace_display()})"
 
 
 class Product(models.Model):

@@ -1,6 +1,7 @@
 {% extends 'guard/base.html' %}
 {% block title %}Товары — MP No Sale{% endblock %}
 {% block content %}
+{% if account %}<p class="muted" style="margin:0 0 14px">Магазин: <strong>{{ account.name }}</strong> · {{ account.get_marketplace_display }} · <a href="{% url 'stores' %}">Сменить магазин</a></p>{% endif %}
 <div class="grid dashboard-stats dashboard-stats--five">
   <div class="card stat-card stat-card--control">
     <div class="stat-label-row"><div class="stat-label">Автоисправление</div><span class="stat-help" tabindex="0" data-tooltip="Когда включено, гвард регулярно проверяет скидки и возвращает превышение к вашему максимуму.">i</span></div>

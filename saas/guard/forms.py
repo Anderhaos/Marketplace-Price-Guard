@@ -52,6 +52,16 @@ class AccountSettingsForm(forms.ModelForm):
         }
 
 
+class StoreCreateForm(forms.Form):
+    name = forms.CharField(
+        max_length=90, min_length=2, label="Название магазина",
+        widget=forms.TextInput(attrs={"placeholder": "Например, Магазин WB №2"}),
+    )
+
+    def clean_name(self):
+        return self.cleaned_data["name"].strip()
+
+
 class TokenForm(forms.Form):
     token = forms.CharField(
         label="Новый API-токен Wildberries",
