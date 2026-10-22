@@ -21,6 +21,9 @@ class EmailPinAuthTests(TestCase):
         self.assertRedirects(response, "/auth/code/")
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("noreply@svdev.pro", mail.outbox[0].from_email)
+        self.assertEqual(len(mail.outbox[0].alternatives), 1)
+        self.assertEqual(mail.outbox[0].alternatives[0].mimetype, "text/html")
+        self.assertIn("MP NoSale", mail.outbox[0].alternatives[0].content)
         code = re.search(r"Код: (\d{4})", mail.outbox[0].body)
         self.assertIsNotNone(code)
         return code.group(1)
@@ -106,4 +109,22 @@ class EmailPinAuthTests(TestCase):
         self.assertEqual(self.client.post("/auth/pin/", {
             "pin": "1111", "confirm_pin": "1111",
         }).status_code, 200)
+        self.assertFalse(User.objects.filter(email="seller@example.test").exists())
+
+
+    def test_otp_preserves_leading_zeroes(self):
+        from unittest.mock import patch
+        with patch("guard.email_pin.secrets.randbelow", return_value=7):
+            code = self._send()
+        self.assertEqual(code, "0007")
+        self.assertRedirects(self.client.post("/auth/code/", {"code": code}), "/auth/pin/")
+
+    def test_new_pin_requires_exactly_four_digits(self):
+        self._send()
+        code = re.search(r"Код: (\d{4})", mail.outbox[0].body).group(1)
+        self.client.post("/auth/code/", {"code": code})
+        result = self.client.post("/auth/pin/", {
+            "pin": "123456", "confirm_pin": "123456",
+        })
+        self.assertEqual(result.status_code, 200)
         self.assertFalse(User.objects.filter(email="seller@example.test").exists())
