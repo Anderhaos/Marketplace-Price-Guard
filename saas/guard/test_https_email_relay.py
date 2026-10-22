@@ -1,5 +1,4 @@
 import json
-from io import BytesIO
 from unittest.mock import patch
 from urllib.error import URLError
 
@@ -23,28 +22,29 @@ class FakeResponse:
     DEFAULT_FROM_EMAIL="SVDEV <noreply@svdev.pro>",
 )
 class RelayBackendTests(SimpleTestCase):
-    @patch("portal.email_backend.build_opener", return_value=FakeResponse())
+    @patch("portal.email_backend.build_opener")
     def test_sends_over_https_with_provider_protocol(self, transport):
+        transport.return_value.open.return_value = FakeResponse()
         message = EmailMessage("Код входа", "Ваш код: 4821", "noreply@svdev.pro", ["seller@example.com"])
         self.assertEqual(RelayEmailBackend().send_messages([message]), 1)
-        request = transport.call_args.args[0]
+        request = transport.return_value.open.call_args.args[0]
         self.assertEqual(request.full_url, "https://mail.beclients.ru/svdev-relay.php")
         self.assertEqual(request.method, "POST")
         self.assertEqual(request.get_header("X-svdev-relay-token"), "sample-test-token-with-at-least-32-chars-000")
-        self.assertEqual(transport.call_args.kwargs["timeout"], 12)
+        self.assertEqual(transport.return_value.open.call_args.kwargs["timeout"], 12)
         payload = json.loads(request.data)
         self.assertEqual(payload["kind"], "codes")
         self.assertEqual(payload["to"], "seller@example.com")
         self.assertEqual(payload["subject"], "Код входа")
         self.assertEqual(payload["text"], "Ваш код: 4821")
 
-    @patch("portal.email_backend.urlopen")
+    @patch("portal.email_backend.build_opener")
     def test_empty_no_send(self, transport):
         self.assertEqual(RelayEmailBackend().send_messages([]), 0)
         transport.assert_not_called()
 
     @override_settings(MAIL_RELAY_URL="https://127.0.0.1/private")
-    @patch("portal.email_backend.urlopen")
+    @patch("portal.email_backend.build_opener")
     def test_rejects_arbitrary_internal_urls(self, transport):
         message = EmailMessage("Code", "code", "noreply@svdev.pro", ["a@example.com"])
         with self.assertRaises(ValueError):
@@ -71,8 +71,9 @@ class RelayBackendTests(SimpleTestCase):
                 EmailMessage("Code", "code", "admin@another-domain.test", ["a@example.com"])
             ])
 
-    @patch("portal.email_backend.urlopen", side_effect=URLError("blocked"))
+    @patch("portal.email_backend.build_opener")
     def test_transport_error_fails_closed(self, transport):
+        transport.return_value.open.side_effect = URLError("blocked")
         message = EmailMessage("Code", "code", "noreply@svdev.pro", ["a@example.com"])
         with self.assertRaises(URLError):
             RelayEmailBackend().send_messages([message])
