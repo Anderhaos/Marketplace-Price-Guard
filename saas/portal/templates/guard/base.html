@@ -163,8 +163,36 @@
     .site-footer{font-size:11px;padding:13px 0 20px}
     .setup-backdrop-info{margin:25px auto;max-width:450px;text-align:center;color:var(--muted)}
     .setup-backdrop-info h2{color:var(--text);font-size:21px}
-    .setup-dialog{width:min(620px,calc(100% - 24px));max-height:calc(100dvh - 40px);overflow:auto;padding:24px 28px;border:1px solid #363638;border-radius:18px;background:#161618;color:var(--text);box-shadow:0 32px 100px rgba(0,0,0,.7)}
+    .setup-dialog{width:min(560px,calc(100% - 24px));max-height:calc(100dvh - 30px);overflow:auto;padding:22px 24px;border:1px solid #363638;border-radius:17px;background:#161618;color:var(--text);box-shadow:0 32px 100px rgba(0,0,0,.7)}
     .setup-dialog::backdrop{background:rgba(0,0,0,.76);backdrop-filter:blur(5px)}
+
+    .setup-dialog .lead{font-size:13px;color:#aba9ac;line-height:1.55;margin:0 0 16px}
+    .setup-dialog .eyebrow{font-size:10px;letter-spacing:.075em}
+    .setup-dialog h1{font-size:25px;margin:0 0 8px;line-height:1.15}
+    .wb-connect-steps{display:grid;gap:0;margin:0 0 9px}
+    .wb-connect-step{display:grid;grid-template-columns:22px minmax(0,1fr);gap:11px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+    .wb-connect-step:last-child{border-bottom:0;padding-bottom:6px}
+    .wb-step-number{display:grid;place-items:center;align-self:start;margin-top:1px;width:22px;height:22px;border-radius:7px;color:#fff;background:#7a341b;font-size:12px;font-weight:750}
+    .wb-connect-step strong{font-size:13px;line-height:1.4;display:block}
+    .wb-connect-step p{font-size:12px;line-height:1.5;color:#b0aeb2;margin:4px 0 0}
+    .wb-connect-step p b{color:#e6e5e6;font-weight:650}
+    .wb-open-partners{display:inline-block;margin:7px 0 0;padding:7px 11px;border:1px solid rgba(255,90,31,.35);border-radius:8px;color:#ff8558;font-size:12px;font-weight:700;text-decoration:none}
+    .wb-open-partners:hover{background:rgba(255,90,31,.1)}
+    .wb-key-settings{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+    .wb-key-settings span{display:inline-flex;gap:5px;align-items:center;background:#242428;border:1px solid #343439;border-radius:7px;padding:5px 7px;color:#a6a4a9;font-size:11px}
+    .wb-key-settings b{color:#f0eff0;font-weight:650}
+    .wb-guide-link{display:inline-block;font-size:11.5px;margin:4px 0 12px;color:#ff875e;text-decoration:none}
+    .setup-dialog .setup-form{gap:7px;padding-top:13px}
+    .setup-dialog .setup-form label{font-size:12px}
+    .setup-dialog .setup-form textarea{min-height:55px;max-height:95px;font-size:12px}
+    .setup-dialog .setup-security{margin:0;font-size:11px;line-height:1.45;color:#99979c}
+    .setup-dialog .setup-submit{font-size:12px;min-height:35px;margin-top:4px}
+    .setup-dialog .setup-bottom{font-size:11px;margin:10px 0 0;line-height:1.45}
+    .wb-connect-details{margin-top:10px;font-size:11px;color:#aaa9ad}
+    .wb-connect-details summary{cursor:pointer;color:#aaa9ad;padding:4px 0}
+    .wb-connect-details p{line-height:1.5;margin:6px 0 0}
+    @media(max-width:600px){.setup-dialog{padding:18px 15px}.wb-connect-step{gap:8px}.wb-key-settings span{font-size:10px}.wb-connect-step p{font-size:11.5px}}
+
     .setup-dialog-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
     .setup-dialog-top .eyebrow{margin:0}
     .setup-trial-pill{font-size:11px;color:var(--good);border:1px solid rgba(100,216,161,.24);padding:4px 8px;border-radius:20px;white-space:nowrap}
