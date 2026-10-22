@@ -217,3 +217,15 @@ class FirstRunOnboardingTests(TestCase):
         self.assertRedirects(response, reverse("dashboard"))
         mock_wb.return_value.validate_token.assert_called_once_with(probe_prices=False)
         self.assertTrue(has_active_access(self.user.pk))
+
+    @patch("guard.integrations.WBClient")
+    def test_second_store_onboarding_does_not_promise_another_trial(self, mock_wb):
+        self.client.post(reverse("connect_wb"), {"token": token_for()})
+        second = GuardAccount.objects.create(user=self.user, name="Another")
+        session = self.client.session
+        session["mpno_selected_store_id"] = second.pk
+        session.save()
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, 'id="wb-setup"')
+        self.assertNotContains(response, "5 дней бесплатно")
+        self.assertContains(response, "Повторное подключение не продлевает")
