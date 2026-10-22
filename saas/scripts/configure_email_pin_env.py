@@ -34,6 +34,8 @@ def main():
             "TRUST_PROXY": "1",
             "SECURE_COOKIES": "1",
             "SECURE_SSL_REDIRECT": "1",
+            "SAAS_WB_TOKEN_VALIDATION_ENABLED": "1",
+            "SAAS_WB_NETWORK_ENABLED": "1",
         })
     current_lines = path.read_text(encoding="utf-8").splitlines()
     seen = set()
