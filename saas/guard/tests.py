@@ -30,6 +30,7 @@ class PortalTests(TestCase):
         self.assertTrue(self.client.login(username="seller@example.com", password="Strong-Test-Password-903!"))
         self.assertEqual(self.client.get(reverse("settings")).status_code, 200)
 
+    @override_settings(REQUIRE_EMAIL_VERIFICATION=True)
     def test_registration_requires_email_verification(self):
         response = self.client.post(reverse("register"), {
             "email": "seller@example.com", "password1": "Strong-Test-Password-903!", "password2": "Strong-Test-Password-903!",
