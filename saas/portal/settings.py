@@ -72,8 +72,11 @@ TOCHKA_CUSTOMER_CODE = os.environ.get("NOSALE_TOCHKA_CUSTOMER_CODE", "")
 TOCHKA_MERCHANT_ID = os.environ.get("NOSALE_TOCHKA_MERCHANT_ID", "")
 TOCHKA_WEBHOOK_JWK_JSON = os.environ.get("NOSALE_TOCHKA_WEBHOOK_JWK_JSON", "")
 NOSALE_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_MONTHLY_PRICE_RUB", "0")
+NOSALE_FISCALIZATION_CONFIRMED = env_bool("NOSALE_FISCALIZATION_CONFIRMED", False)
 NOSALE_PAYMENT_RETURN_BASE = "https://nosale.svdev.pro"
 if TOCHKA_BILLING_ENABLED:
+    if not NOSALE_FISCALIZATION_CONFIRMED:
+        raise RuntimeError("NoSale acquiring requires configured 54-FZ fiscal receipt issuance")
     from decimal import Decimal, InvalidOperation
     try:
         _amount = Decimal(NOSALE_MONTHLY_PRICE_RUB)
