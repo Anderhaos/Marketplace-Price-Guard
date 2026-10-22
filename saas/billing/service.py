@@ -31,6 +31,7 @@ def _add_months(date, months):
 def create_checkout(user_id):
     if not configured():
         raise AcquiringUnavailable("Оплата пока не подключена")
+    payment_error = None
     with transaction.atomic():
         # Serialized per seller: repeated clicks reuse the same unexpired link.
         user = get_user_model().objects.select_for_update().get(pk=user_id)
@@ -52,14 +53,17 @@ def create_checkout(user_id):
         # successful payment from a network error, local redirect, or test token.
         try:
             url, operation_id = create_tochka_link(payment)
-        except AcquiringUnavailable:
+        except AcquiringUnavailable as error:
             payment.status = "failed"
             payment.save(update_fields=["status"])
-            raise
-        payment.payment_url = url
-        payment.operation_id = operation_id
-        payment.save(update_fields=["payment_url", "operation_id"])
-        return payment
+            payment_error = error
+        else:
+            payment.payment_url = url
+            payment.operation_id = operation_id
+            payment.save(update_fields=["payment_url", "operation_id"])
+    if payment_error:
+        raise payment_error
+    return payment
 
 
 def _money_to_kopeks(value):
@@ -82,9 +86,13 @@ def apply_verified_event(payload):
     # link id is a NoSale DB pk, unique only inside this application.
     if not isinstance(link_id, str) or not link_id.isdecimal():
         raise InvalidWebhook("Missing independent payment link ID")
-    payment = SubscriptionPayment.objects.select_for_update().filter(
-        pk=int(link_id), provider="tochka",
-    ).first()
+    candidate = SubscriptionPayment.objects.filter(pk=int(link_id), provider="tochka").first()
+    if candidate is None:
+        raise InvalidWebhook("Unknown payment")
+    # Serialize all payments for the same account so concurrent bank events
+    # cannot create overlapping monthly grants.
+    get_user_model().objects.select_for_update().get(pk=candidate.user_id)
+    payment = SubscriptionPayment.objects.select_for_update().get(pk=candidate.pk)
     if payment is None:
         raise InvalidWebhook("Unknown payment")
     if payment.operation_id and payment.operation_id != operation:
