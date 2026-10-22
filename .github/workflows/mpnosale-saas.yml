@@ -34,3 +34,7 @@ jobs:
         run: python manage.py makemigrations --check --dry-run
       - name: Unit and isolation tests
         run: python manage.py test guard billing push
+      - name: Docker build and import smoke
+        run: |
+          docker build -t mpnosale-saas-ci .
+          docker run --rm -e DJANGO_DEBUG=1 -e SAAS_TEST_SQLITE=1 mpnosale-saas-ci python manage.py check
