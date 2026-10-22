@@ -25,5 +25,7 @@ urlpatterns = [
     path("products/<int:nm_id>/", views.product_rule, name="product_rule"),
     path("products/<int:nm_id>/history-data/", views.product_history_data, name="product_history_data"),
     path("history/", views.history, name="history"),
+    path("notifications/", views.notifications, name="notifications"),
+    path("notifications/read/", views.mark_notifications_read, name="mark_notifications_read"),
     path("health/", views.health, name="health"),
 ]
