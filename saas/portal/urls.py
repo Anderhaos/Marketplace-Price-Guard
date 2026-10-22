@@ -6,6 +6,7 @@ from django.views.generic import RedirectView
 
 from guard import views
 from guard.forms import EmailLoginForm
+from push import views as push_views
 
 urlpatterns = [
     path("favicon.ico", RedirectView.as_view(url="/favicon.svg", permanent=False)),
@@ -28,6 +29,9 @@ urlpatterns = [
     path("products/<int:nm_id>/history-data/", views.product_history_data, name="product_history_data"),
     path("history/", views.history, name="history"),
     path("notifications/", views.notifications, name="notifications"),
+    path("push/subscribe/", push_views.subscribe, name="push_subscribe"),
+    path("push/unsubscribe/", push_views.unsubscribe_device, name="push_unsubscribe"),
+    path("push/preferences/", push_views.preferences, name="push_preferences"),
     path("notifications/read/", views.mark_notifications_read, name="mark_notifications_read"),
     path("health/", views.health, name="health"),
 ]
