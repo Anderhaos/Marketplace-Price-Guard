@@ -7,7 +7,7 @@ import json
 from email.utils import parseaddr
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request, ProxyHandler, build_opener
 
 from django.conf import settings
 from django.core.mail.backends.base import BaseEmailBackend
@@ -22,8 +22,8 @@ class RelayEmailBackend(BaseEmailBackend):
         if not isinstance(token, str) or len(token) < 32:
             raise ValueError("MAIL_RELAY_TOKEN must be configured")
         parsed = urlsplit(url)
-        if (parsed.scheme != "https" or parsed.hostname != "mail.svdev.pro"
-                or parsed.path != "/mail-relay.php" or parsed.query or parsed.fragment
+        if (parsed.scheme != "https" or parsed.hostname != "mail.beclients.ru"
+                or parsed.path != "/svdev-relay.php" or parsed.query or parsed.fragment
                 or parsed.username or parsed.password or parsed.port not in (None, 443)):
             raise ValueError("MAIL_RELAY_URL must use the trusted SVDEV HTTPS relay")
         count = 0
@@ -55,7 +55,7 @@ class RelayEmailBackend(BaseEmailBackend):
                          "x-svdev-relay-token": token},
             )
             try:
-                with urlopen(req, timeout=12) as response:
+                with build_opener(ProxyHandler({})).open(req, timeout=12) as response:
                     if response.status not in (200, 202):
                         raise OSError("Relay rejected email")
             except (HTTPError, URLError, TimeoutError, OSError):
