@@ -6,8 +6,8 @@
   <p class="lead" id="wb-setup-lead">Сначала подключите API. После проверки токена откроется кабинет и начнутся 5 бесплатных дней.</p>
   <ol class="setup-steps">
     <li>Откройте <a href="https://seller.wildberries.ru/" target="_blank" rel="noopener noreferrer">WB Партнёры ↗</a> → <b>Профиль → Интеграции по API → Создать токен</b>.</li>
-    <li>Для облачного сервиса предпочтителен <b>сервисный токен</b> из каталога WB. Если он недоступен, для начальной проверки можно создать <b>базовый</b> во вкладке «Для интеграции вручную» (с ограниченными возможностями).</li>
-    <li>Категории: <b>Цены и скидки</b> и <b>Контент</b>. Уровень: <b>Чтение и запись</b>. Персональный токен для облачного сервиса использовать нельзя.</li>
+    <li>Для пробного просмотра сейчас подойдёт <b>базовый токен</b> во вкладке «Для интеграции вручную». Для автоматической защиты требуется <b>сервисный токен именно NoSale</b> из каталога WB, если сервис представлен в каталоге.</li>
+    <li>Категории: <b>Цены и скидки</b> и <b>Контент</b>. Для базового просмотра выберите <b>Только чтение</b>. Для сервисного токена с управлением скидками нужны права <b>Чтение и запись</b>. Персональный токен для облачного сервиса не подходит.</li>
     <li>Скопируйте созданный токен и вставьте его ниже. Wildberries показывает его целиком только при создании.</li>
   </ol>
   <a class="setup-help" href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token" target="_blank" rel="noopener noreferrer">Подробная инструкция Wildberries ↗</a>
@@ -18,7 +18,7 @@
     {% csrf_token %}
     <label for="onboarding-token">API-токен WB</label>
     <textarea id="onboarding-token" name="token" autocomplete="off" autocapitalize="off" spellcheck="false" rows="2" required maxlength="4096" placeholder="Вставьте токен сюда" aria-describedby="setup-security"></textarea>
-    <div id="setup-security" class="muted setup-security">Токен проверяется по API Wildberries, шифруется и не показывается повторно. Автоматическое изменение скидок по умолчанию выключено.</div>
+    <div id="setup-security" class="muted setup-security">Токен проверяется по API Wildberries и хранится зашифрованным. С базовым токеном доступен только просмотр товаров; изменение скидок выключено.</div>
     <button type="submit" class="setup-submit">Проверить и подключить</button>
   </form>
   <p class="muted setup-bottom">Пробные 5 дней начнутся только после успешного подключения. Повторная регистрация магазина не продлевает срок.</p>
