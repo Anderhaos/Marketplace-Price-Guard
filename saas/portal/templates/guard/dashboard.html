@@ -6,7 +6,7 @@
 {% else %}
 <div class="compact-context">
   <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span> <a class="compact-link" href="{% url 'stores' %}">Сменить</a></div>
-  {% if trial_status.active %}<span class="trial-strip">Пробный доступ · {{ trial_status.days_left }} дн. до {{ trial_status.expires_at|date:"d.m.Y" }}</span>
+  {% if trial_status.active %}<span class="trial-strip">{% if trial_status.access_source == "trial" %}Пробный доступ{% else %}Доступ активен{% endif %} · {{ trial_status.days_left }} дн. до {{ trial_status.expires_at|date:"d.m.Y" }}</span>
   {% elif trial_status.trial_expired %}<span class="trial-strip trial-strip--expired">Пробный период завершён · мониторинг приостановлен</span>
   {% endif %}
 </div>
