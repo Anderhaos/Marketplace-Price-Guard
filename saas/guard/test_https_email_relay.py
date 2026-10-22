@@ -30,7 +30,7 @@ class RelayBackendTests(SimpleTestCase):
         request = transport.call_args.args[0]
         self.assertEqual(request.full_url, "https://mail.svdev.pro/mail-relay.php")
         self.assertEqual(request.method, "POST")
-        self.assertEqual(request.get_header("X-beclients-relay-token"), "sample-test-token-with-at-least-32-chars-000")
+        self.assertEqual(request.get_header("X-svdev-relay-token"), "sample-test-token-with-at-least-32-chars-000")
         self.assertEqual(transport.call_args.kwargs["timeout"], 12)
         payload = json.loads(request.data)
         self.assertEqual(payload["kind"], "codes")
