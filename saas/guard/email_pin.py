@@ -38,16 +38,17 @@ class EmailForm(forms.Form):
 
 
 class CodeForm(forms.Form):
-    code = forms.RegexField(label="Код из письма", regex=r"^\d{6}$",
-                            error_messages={"invalid": "Введите 6 цифр из письма."})
+    code = forms.RegexField(label="Код из письма", regex=r"^\d{4}$",
+                            widget=forms.TextInput(attrs={"inputmode": "numeric", "autocomplete": "one-time-code", "maxlength": "4", "pattern": "[0-9]{4}"}),
+                            error_messages={"invalid": "Введите 4 цифры из письма."})
 
 
 class PinForm(forms.Form):
-    pin = forms.RegexField(label="PIN (6 цифр)", regex=r"^\d{6}$",
-                           widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
-                           error_messages={"invalid": "PIN должен состоять из 6 цифр."})
+    pin = forms.RegexField(label="PIN (4 цифры)", regex=r"^\d{4}$",
+                           widget=forms.PasswordInput(attrs={"autocomplete": "new-password", "inputmode": "numeric", "maxlength": "4"}),
+                           error_messages={"invalid": "PIN должен состоять из 4 цифр."})
     confirm_pin = forms.CharField(label="Повторите PIN", widget=forms.PasswordInput(
-        attrs={"autocomplete": "new-password"}))
+        attrs={"autocomplete": "new-password", "inputmode": "numeric", "maxlength": "4"}))
 
     def clean(self):
         cleaned = super().clean()
@@ -59,8 +60,9 @@ class PinForm(forms.Form):
 
 
 class PinLoginForm(EmailForm):
-    pin = forms.CharField(label="PIN", widget=forms.PasswordInput(
-        attrs={"autocomplete": "current-password"}))
+    # Six-digit PINs created before this rollout remain usable until reset.
+    pin = forms.RegexField(label="PIN (4 цифры)", regex=r"^\d{4}(\d{2})?$", widget=forms.PasswordInput(
+        attrs={"autocomplete": "current-password", "inputmode": "numeric", "maxlength": "6"}))
 
 
 def _existing_user(email):
@@ -101,7 +103,7 @@ def _start(request, purpose):
                     # a fresh code until cooldown / challenge expiry.
                     pass
                 else:
-                    code = f"{secrets.randbelow(1000000):06d}"
+                    code = f"{secrets.randbelow(10000):04d}"
                     challenge.code_hash = make_password(code)
                     challenge.attempts = 0
                     challenge.sent_at = now
