@@ -60,6 +60,7 @@ else:
     if not DEBUG and (not DATABASES["default"]["PASSWORD"] or DATABASES["default"]["PASSWORD"].startswith("REPLACE_")):
         raise RuntimeError("Generated SAAS_DB_PASSWORD required for production")
 SAAS_WB_NETWORK_ENABLED = env_bool("SAAS_WB_NETWORK_ENABLED", False)
+SAAS_WB_TOKEN_VALIDATION_ENABLED = env_bool("SAAS_WB_TOKEN_VALIDATION_ENABLED", False)
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
 PUSH_VAPID_PUBLIC_KEY = os.environ.get("PUSH_VAPID_PUBLIC_KEY", "")
 PUSH_VAPID_PRIVATE_KEY = os.environ.get("PUSH_VAPID_PRIVATE_KEY", "")
