@@ -11,7 +11,7 @@ def send_pin_verification_email(*, email: str, code: str, purpose: str) -> None:
     subject = ("Код подтверждения MP NoSale"
                if purpose == "register" else "Восстановление PIN MP NoSale")
     text = (
-        f"Ваш код MP NoSale: {code}\n"
+        f"Код: {code}\n"
         "Код действует 10 минут.\n"
         "Если вы не запрашивали код, проигнорируйте это письмо."
     )
