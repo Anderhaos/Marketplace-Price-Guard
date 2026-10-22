@@ -93,8 +93,14 @@ def check_account(account):
         return False
     token_ciphertext = account.token_ciphertext
     rules_version = account.rules_version
-    client = WBClient(decrypt_token(token_ciphertext))
-    still_pending, successful_upload = _reconcile_uploads(account, client)
+    raw_token = decrypt_token(token_ciphertext)
+    basic_readonly = get_token_type(raw_token) == "base"
+    client = WBClient(raw_token)
+    # Basic credentials never reconcile or submit price-change tasks.
+    if basic_readonly:
+        still_pending, successful_upload = False, False
+    else:
+        still_pending, successful_upload = _reconcile_uploads(account, client)
     if still_pending:
         return True
     account.refresh_from_db(fields=["enabled", "check_requested", "apply_all_requested", "apply_requested_ids", "default_allowed_discount"])
@@ -157,7 +163,7 @@ def check_account(account):
                 corrected_count += 1
     Product.objects.filter(account=account).exclude(checked_at=checked_at).update(active=False)
     _event(account, "check", f"Проверено товаров: {len(goods)}; скидка выше разрешённой: {problems}.")
-    if not changes or (not account.enabled and not force_apply_all and not force_apply_ids):
+    if basic_readonly or not changes or (not account.enabled and not force_apply_all and not force_apply_ids):
         return False
     account.refresh_from_db(fields=["enabled", "apply_all_requested", "apply_requested_ids", "token_ciphertext", "rules_version"])
     if (not account.enabled and not account.apply_all_requested and not account.apply_requested_ids) or account.token_ciphertext != token_ciphertext or account.rules_version != rules_version:
@@ -202,24 +208,24 @@ def run_due_checks():
             token_type = get_token_type(decrypt_token(account.token_ciphertext))
         except (ValueError, TypeError):
             token_type = None
+        # A basic token may monitor prices read-only at most every 15 minutes.
+        # Discard all write intents before calling the shared checker.
         if token_type == "base":
-            message = "Базовый токен WB: лимит цен и скидок — один запрос в 15 минут. Для автоисправления нужен токен с подходящими лимитами WB."
-            if account.last_error != message:
-                _event(account, "error", message)
             GuardAccount.objects.filter(pk=account.pk).update(
-                enabled=False, lock_until=None, last_error=message,
-                next_check_at=now + timedelta(days=1),
+                enabled=False, apply_all_requested=False, apply_requested_ids=[],
             )
-            continue
+
         try:
             pending = check_account(account)
-            delay = timedelta(minutes=account.interval_minutes)
+            delay = timedelta(minutes=max(15, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
             GuardAccount.objects.filter(pk=account.pk).update(
-                lock_until=None, check_requested=False, apply_all_requested=False, apply_requested_ids=[], last_check_at=timezone.now(), last_error="",
+                lock_until=None, check_requested=(token_type == "base"),
+                apply_all_requested=False, apply_requested_ids=[], last_check_at=timezone.now(), last_error="",
                 next_check_at=timezone.now() + delay,
+                enabled=False if token_type == "base" else account.enabled,
             )
         except Exception as error:
-            delay = timedelta(minutes=account.interval_minutes)
+            delay = timedelta(minutes=max(15, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
             if isinstance(error, WBApiError) and error.status == 429:
                 if error.retry_after:
                     delay = max(delay, timedelta(seconds=error.retry_after + 5))
