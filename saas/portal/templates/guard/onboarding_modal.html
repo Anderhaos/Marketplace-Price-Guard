@@ -11,6 +11,9 @@
     <li>Скопируйте созданный токен и вставьте его ниже. Wildberries показывает его целиком только при создании.</li>
   </ol>
   <a class="setup-help" href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token" target="_blank" rel="noopener noreferrer">Подробная инструкция Wildberries ↗</a>
+  {% if messages %}<div class="setup-feedback" role="alert" aria-live="assertive">
+  {% for message in messages %}<p class="setup-feedback-line">{{ message }}</p>{% endfor %}
+</div>{% endif %}
   <form method="post" action="{% url 'connect_wb' %}" class="setup-form">
     {% csrf_token %}
     <label for="onboarding-token">API-токен WB</label>
@@ -27,5 +30,12 @@
   dialog.close();
   dialog.showModal();
   dialog.addEventListener('cancel', event => event.preventDefault());
+  const field = dialog.querySelector('#onboarding-token');
+  const submit = dialog.querySelector('.setup-submit');
+  dialog.querySelector('form').addEventListener('submit', () => {
+    submit.disabled = true;
+    submit.textContent = 'Проверяем доступ…';
+  });
+  if (dialog.querySelector('.setup-feedback') && field) field.focus();
 })();
 </script>
