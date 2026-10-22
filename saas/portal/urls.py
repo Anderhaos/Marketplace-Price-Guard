@@ -15,6 +15,7 @@ urlpatterns = [
     path("sw.js", views.pwa_service_worker, name="pwa_service_worker"),
     path("admin/", admin.site.urls),
     path("", views.dashboard, name="dashboard"),
+    path("connect/wb/", views.connect_wb, name="connect_wb"),
     path("register/", email_pin.registration_entry, name="register"),
     path("auth/code/", email_pin.verify_code, name="auth_code"),
     path("auth/pin/", email_pin.finish_pin, name="auth_pin"),
