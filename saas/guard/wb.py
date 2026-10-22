@@ -136,9 +136,12 @@ class WBClient:
                 return cards
             cursor = {"updatedAt": next_cursor.get("updatedAt"), "nmID": next_cursor["nmID"]}
 
-    def validate_token(self):
+    def validate_token(self, *, probe_prices=True):
+        # The price listing endpoint is severely rate-limited for basic tokens.
+        # Verify auth with /ping, then leave the first price read for the worker.
         self._request("GET", "/ping")
-        self._request("GET", "/api/v2/list/goods/filter", {"limit": 1, "offset": 0})
+        if probe_prices:
+            self._request("GET", "/api/v2/list/goods/filter", {"limit": 1, "offset": 0})
 
     def get_products(self):
         products = []
