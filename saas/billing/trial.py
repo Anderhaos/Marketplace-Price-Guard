@@ -45,6 +45,7 @@ def access_snapshot(user_id, *, at=None):
     trial = AccessGrant.objects.filter(source_ref=trial_source_ref(user_id)).first()
     return {
         "active": bool(active),
+        "access_source": active.source if active else None,
         "expires_at": active.ends_at if active else None,
         "days_left": max(0, ceil((active.ends_at - now).total_seconds() / 86400)) if active else 0,
         "trial_started": bool(trial),
