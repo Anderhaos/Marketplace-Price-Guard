@@ -12,13 +12,13 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
-from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
+from .mail_templates import send_pin_verification_email
 from .models import EmailPinChallenge, EmailPinLoginThrottle, GuardAccount
 
 SESSION_CHALLENGE = "mpno_saas_email_challenge_id"
@@ -112,10 +112,8 @@ def _start(request, purpose):
                     challenge.save(update_fields=[
                         "code_hash", "attempts", "sent_at", "expires_at", "verified_until",
                     ])
-                    subject = "Код подтверждения MP NoSale" if purpose == "register" else "Восстановление PIN MP NoSale"
-                    # Fail closed: DB transaction rolls back if delivery fails.
-                    send_mail(subject, f"Код: {code}\nДействует 10 минут. Если вы не запрашивали код, проигнорируйте письмо.",
-                              settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
+                    # Fail closed: the DB challenge is rolled back if the relay fails.
+                    send_pin_verification_email(email=email, code=code, purpose=purpose)
             return redirect("auth_code")
     return render(request, "guard/auth_email.html", {
         "form": form,
