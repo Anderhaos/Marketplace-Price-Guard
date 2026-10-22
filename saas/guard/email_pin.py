@@ -99,9 +99,12 @@ def _start(request, purpose):
                 elif (not created and challenge.expires_at > now
                       and (challenge.attempts >= MAX_CODE_ATTEMPTS
                            or now - challenge.sent_at < CODE_RESEND_WAIT)):
-                    # Repeated requests cannot reset the attempt counter or issue
-                    # a fresh code until cooldown / challenge expiry.
-                    pass
+                    # Repeated requests must never silently claim that a new code
+                    # was sent when only the existing challenge is still active.
+                    if challenge.attempts >= MAX_CODE_ATTEMPTS:
+                        messages.info(request, "Попытки исчерпаны. Новый код можно запросить после истечения текущего.")
+                    else:
+                        messages.info(request, "Код уже отправлен. Повторный запрос доступен через 60 секунд.")
                 else:
                     code = f"{secrets.randbelow(10000):04d}"
                     challenge.code_hash = make_password(code)
