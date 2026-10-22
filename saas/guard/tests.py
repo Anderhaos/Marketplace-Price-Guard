@@ -111,7 +111,7 @@ class PortalTests(TestCase):
         account.refresh_from_db()
         self.assertEqual(product.allowed_discount_override, 0)
         self.assertEqual(account.apply_requested_ids, [123])
-        self.assertContains(self.client.get(reverse("dashboard")), "Отменено скидок")
+        self.assertContains(self.client.get(reverse("dashboard")), "Исправлено")
 
     def test_dashboard_filters_products_by_query(self):
         user = User.objects.create_user("seller@example.com", "seller@example.com", "Strong-Test-Password-903!")
