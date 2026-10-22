@@ -4,7 +4,7 @@
 
 - Legacy customer production: `https://mpnosale.svdev.pro`, E5 Docker project `mpnosale`, localhost port 8891, existing SQLite. **Do not modify, migrate or redirect it**.
 - New SaaS staging: `/srv/mpnosale-saas/source/saas`, Docker project `mpnosale-saas`, localhost port 8892, isolated PostgreSQL, database/backups/keys.
-- Production nginx currently routes the public `mpnosale.svdev.pro` **only to legacy 8891**; the SaaS endpoint 8892 is local-only until the deployment boundary is formally approved.
+- Production nginx currently routes the public `mpnosale.svdev.pro` **only to legacy 8891**; the SaaS staging is now available at https://mpnosale-saas.svdev.pro through an isolated HTTPS Nginx vhost on port 8892.
 - Legacy seller credentials, tokens and databases are not copied into SaaS.
 
 ## Email OTP and PIN (2026-10-22)
@@ -27,7 +27,7 @@ From repo checkout: `cd saas`; for a test-only environment use `DJANGO_DEBUG=1 S
 
 After tests, on E5 deploy the exact GitHub branch SHA to `/srv/mpnosale-saas/source` and build **only SaaS** via `docker compose -f saas/compose.yml --project-directory saas up -d --build web` (from repo root with an explicitly correct project directory), keeping both legacy and shared E5 gateway untouched. Confirm local `http://127.0.0.1:8892/health/` is HTTP 200 and new registration/login/recovery pages display. Confirm authenticated no-send relay probe, real test mail delivery and SaaS Django email backend. Check `docker compose -f compose.yml ps` from `saas/`.
 
-Do not make a public SaaS cutover until the public host/product identity, nginx auth throttling and acceptance are explicitly accounted for.
+The legacy hostname is not cut over. HTTPS SaaS staging is exposed on mpnosale-saas.svdev.pro, separately rate-limited for email/code/PIN endpoints. Full public browser end-to-end OTP+PIN acceptance remains to be confirmed.
 
 ## Current non-OTP scope
 
