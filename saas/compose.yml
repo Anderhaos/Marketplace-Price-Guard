@@ -1,0 +1,61 @@
+name: mpnosale-saas
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${SAAS_DB_NAME:?required}
+      POSTGRES_USER: ${SAAS_DB_USER:?required}
+      POSTGRES_PASSWORD: ${SAAS_DB_PASSWORD:?required}
+    volumes:
+      - saas_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+  web:
+    build: .
+    env_file: .env
+    depends_on:
+      db: {condition: service_healthy}
+    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn portal.wsgi:application --bind 0.0.0.0:8000 --workers 2"
+    ports: ["127.0.0.1:8892:8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+  worker:
+    build: .
+    env_file: .env
+    command: python manage.py run_guard
+    depends_on:
+      db: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [internal]
+  backup:
+    image: postgres:16-alpine
+    env_file: .env
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${SAAS_DB_NAME:?required}
+      PGUSER: ${SAAS_DB_USER:?required}
+      PGPASSWORD: ${SAAS_DB_PASSWORD:?required}
+    volumes:
+      - saas_pg_backups:/backups
+    depends_on:
+      db: {condition: service_healthy}
+    command: sh -c 'while true; do pg_dump -Fc -f "/backups/saas-$$(date +%Y%m%d-%H%M%S).dump" && find /backups -name "*.dump" -mtime +13 -delete; sleep 86400; done'
+    restart: unless-stopped
+    networks: [internal]
+networks:
+  internal: {}
+volumes:
+  saas_pg_data: {}
+  saas_pg_backups: {}

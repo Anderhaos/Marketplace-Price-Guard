@@ -1,0 +1,10 @@
+{% extends 'guard/base.html' %}
+{% block title %}Вход — MP No Sale{% endblock %}
+{% block content %}
+<div class="auth-wrap"><section class="card">
+  <span class="eyebrow">MP No Sale / вход</span><h1>Войти в кабинет</h1>
+  <p class="lead">Управляйте пределами скидок и проверками Wildberries.</p>
+  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button>Войти</button></form>
+  {% if password_reset_available %}<p style="margin-top:18px"><a href="{% url 'password_reset' %}">Забыли пароль?</a></p>{% else %}<p class="field-help" style="margin-top:18px">Восстановление пароля через email временно недоступно.</p>{% endif %}
+</section></div>
+{% endblock %}
