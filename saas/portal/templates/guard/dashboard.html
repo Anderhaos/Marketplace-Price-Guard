@@ -32,7 +32,7 @@
   </div>
 </section>
 {% if base_token %}<p class="data-age bad">Подключён базовый токен WB: для автоматической защиты нужен сервисный токен. <a href="{% url 'settings' %}">Заменить</a></p>{% endif %}
-{% if trial_status.trial_expired %}<p class="notice">Бесплатный доступ закончился. Данные и настройки сохранены, фоновые проверки остановлены. Возможность оплаты появится после подключения биллинга.</p>{% endif %}
+{% if trial_status.trial_expired %}<p class="notice">Бесплатный доступ закончился. Данные и настройки сохранены, фоновые проверки остановлены. <a href="{% url 'subscription' %}">Статус подписки</a>. Оплата станет доступна после подключения банка.</p>{% endif %}
 <section class="card">
   <div class="section-head">
     <div>
