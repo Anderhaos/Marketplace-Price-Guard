@@ -245,3 +245,45 @@ def legacy_link_disabled(request, *args, **kwargs):
     return render(request, "guard/message.html", {
         "notice": "Подтверждение по ссылке заменено кодом. Зарегистрируйтесь заново.",
     }, status=410)
+
+
+# Dynamic feature routing: preserves existing staging behavior while the new
+# email/PIN flow is disabled, and remains toggleable in Django tests.
+def registration_entry(request):
+    if settings.SAAS_PIN_AUTH_ENABLED:
+        return start_registration(request)
+    from .views import register
+    return register(request)
+
+
+def login_entry(request):
+    if settings.SAAS_PIN_AUTH_ENABLED:
+        return pin_login(request)
+    from django.contrib.auth.views import LoginView
+    from .forms import EmailLoginForm
+    return LoginView.as_view(
+        template_name="guard/login.html",
+        authentication_form=EmailLoginForm,
+        extra_context={"password_reset_available": settings.REQUIRE_EMAIL_VERIFICATION},
+    )(request)
+
+
+def legacy_verify_entry(request, uidb64, token):
+    if settings.SAAS_PIN_AUTH_ENABLED:
+        return legacy_link_disabled(request)
+    from .views import verify
+    return verify(request, uidb64, token)
+
+
+def recovery_entry(request):
+    if settings.SAAS_PIN_AUTH_ENABLED:
+        return start_recovery(request)
+    if not settings.REQUIRE_EMAIL_VERIFICATION:
+        from .views import password_reset_unavailable
+        return password_reset_unavailable(request)
+    from django.contrib.auth.views import PasswordResetView
+    return PasswordResetView.as_view(
+        template_name="guard/password_reset.html",
+        email_template_name="guard/password_reset_email.txt",
+        success_url="/password-reset/sent/",
+    )(request)
