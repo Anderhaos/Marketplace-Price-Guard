@@ -81,3 +81,29 @@ class GuardEvent(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class EmailPinChallenge(models.Model):
+    """Single active, rate-limited email challenge per recipient and purpose."""
+    PURPOSE_REGISTER = "register"
+    PURPOSE_RECOVER = "recover"
+    PURPOSE_CHOICES = [(PURPOSE_REGISTER, "Регистрация"), (PURPOSE_RECOVER, "Восстановление PIN")]
+
+    email = models.EmailField(max_length=254)
+    purpose = models.CharField(max_length=16, choices=PURPOSE_CHOICES)
+    code_hash = models.CharField(max_length=256, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    sent_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    verified_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["email", "purpose"], name="saas_email_challenge_one_active")]
+
+
+class EmailPinLoginThrottle(models.Model):
+    """Persisted across Gunicorn workers; limits guesses against six-digit PINs."""
+    email = models.EmailField(max_length=254, unique=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    first_failed_at = models.DateTimeField(null=True, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
