@@ -79,6 +79,18 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
+# Diagnostic boundary: record HTTPS relay acceptance latency only.
+# Do not log email addresses, message bodies, authentication tokens, or OTPs.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"mail_relay_console": {"class": "logging.StreamHandler"}},
+    "loggers": {"portal.email_backend": {
+        "handlers": ["mail_relay_console"],
+        "level": "INFO",
+        "propagate": False,
+    }},
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
