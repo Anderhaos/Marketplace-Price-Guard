@@ -117,9 +117,14 @@ class FirstRunOnboardingTests(TestCase):
 
     @patch("guard.integrations.WBClient")
     def test_settings_and_onboarding_share_save_path(self, mock_wb):
-        self.client.post(reverse("settings"), {"action":"token", "token":token_for()})
+        # Settings are intentionally inaccessible before first-run setup.
+        self.assertRedirects(self.client.get(reverse("settings")), reverse("dashboard"))
+        self.client.post(reverse("connect_wb"), {"token": token_for()})
         self.assertTrue(has_active_access(self.user.pk))
+        response = self.client.post(reverse("settings"), {"action":"token", "token":token_for()})
+        self.assertRedirects(response, reverse("settings"))
         self.assertEqual(AccessGrant.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(mock_wb.return_value.validate_token.call_count, 2)
 
 
     @patch("guard.integrations.WBClient")
