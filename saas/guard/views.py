@@ -5,11 +5,12 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import Count, F, Q, Sum
 from django.http import FileResponse, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.db.models.functions import TruncDate
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes
@@ -404,6 +405,30 @@ def product_history_data(request, nm_id):
     })
 
 
+IMPORTANT_EVENT_KINDS = ("confirmed", "upload_error", "error")
+
+
+@login_required
+def notifications(request):
+    events = GuardEvent.objects.filter(
+        account__user=request.user,
+        kind__in=IMPORTANT_EVENT_KINDS,
+    ).select_related("account").order_by("-created_at", "-id")[:100]
+    return render(request, "guard/notifications.html", {"events": events})
+
+
+@login_required
+def mark_notifications_read(request):
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    GuardEvent.objects.filter(
+        account__user=request.user,
+        kind__in=IMPORTANT_EVENT_KINDS,
+        read_at__isnull=True,
+    ).update(read_at=timezone.now())
+    return redirect("notifications")
+
+
 @login_required
 def history(request):
     account = _account(request)
@@ -417,4 +442,28 @@ def history(request):
             product = None
         else:
             events = events.filter(nm_id=product.nm_id)
-    return render(request, "guard/history.html", {"events": events[:200], "product": product})
+
+    days = {}
+    def ensure_day(day):
+        if day not in days:
+            days[day] = {"date": day, "checks": 0, "events": [], "confirmed": 0, "errors": 0}
+        return days[day]
+
+    # Aggregate routine checks in SQL instead of loading every technical entry.
+    recent = timezone.now() - timedelta(days=30)
+    checks = events.filter(kind="check", created_at__gte=recent).annotate(
+        day=TruncDate("created_at")
+    ).values("day").annotate(count=Count("id")).order_by("-day")[:31]
+    for row in checks:
+        ensure_day(row["day"])["checks"] = row["count"]
+
+    for event in events.exclude(kind="check").order_by("-created_at", "-id")[:250]:
+        day = timezone.localtime(event.created_at).date()
+        entry = ensure_day(day)
+        entry["events"].append(event)
+        if event.kind == "confirmed":
+            entry["confirmed"] += len(event.details.get("changes", [])) or 1
+        elif event.kind in ("error", "upload_error"):
+            entry["errors"] += 1
+    ordered_days = sorted(days.values(), key=lambda day: day["date"], reverse=True)
+    return render(request, "guard/history.html", {"days": ordered_days, "product": product})
