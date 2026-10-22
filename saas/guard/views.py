@@ -262,6 +262,9 @@ def dashboard(request):
                 messages.success(request, "Автоисправление включено." if enabled else "Автоисправление выключено.")
             return _dashboard_redirect(request)
         if action == "apply_all":
+            if base_token:
+                messages.error(request, "Базовый токен поддерживает только просмотр. Для изменения скидок нужен сервисный API.")
+                return _dashboard_redirect(request)
             form = DefaultDiscountForm(request.POST)
             if form.is_valid():
                 discount = form.cleaned_data["default_allowed_discount"]
@@ -386,6 +389,9 @@ def product_rule(request, nm_id):
     product = get_object_or_404(Product, account=account, nm_id=nm_id, active=True)
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
+    if _account_token_type(account) == "base":
+        messages.error(request, "Базовый токен WB разрешает только просмотр товаров.")
+        return _dashboard_redirect(request)
     if settings.SAAS_PIN_AUTH_ENABLED and not guard_is_permitted(account):
         messages.error(request, "Пробный период закончился или защита WB временно недоступна.")
         return _dashboard_redirect(request)
