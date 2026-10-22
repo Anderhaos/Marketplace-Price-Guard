@@ -55,4 +55,4 @@ class PushDelivery(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["message", "subscription"], name="push_one_delivery_per_device")]
-        indexes = [models.Index(fields=["state", "next_attempt_at"])]
+        indexes = [models.Index(fields=["state", "next_attempt_at"], name="push_deliv_state_bba31a_idx")]
