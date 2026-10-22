@@ -1,0 +1,34 @@
+{% extends 'guard/base.html' %}
+{% block title %}Уведомления — MPNO Sale{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <span class="eyebrow">MPNO Sale / центр событий</span>
+  <h1>Уведомления</h1>
+  <p class="lead">Подтверждённые исправления и ошибки. Все события остаются в истории, даже когда приложение закрыто.</p>
+</section>
+<form method="post" action="{% url 'mark_notifications_read' %}" style="margin-bottom:14px">
+  {% csrf_token %}<button class="secondary" type="submit">Отметить всё прочитанным</button>
+</form>
+<section class="card">
+  {% for event in events %}
+  <article style="padding:16px 0;border-bottom:1px solid var(--line)">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <strong>{% if event.kind == "confirmed" %}Исправление подтверждено
+        {% elif event.kind == "error" %}Ошибка проверки
+        {% elif event.kind == "upload_error" %}Ошибка исправления
+        {% else %}Событие{% endif %}
+        {% if not event.read_at %}<span class="scope-chip">Новое</span>{% endif %}</strong>
+      <span class="muted">{{ event.created_at|date:"d.m.Y H:i" }}</span>
+    </div>
+    <p class="muted">{{ event.account.name }} · {{ event.message }}</p>
+    {% if event.details.changes %}
+    <details><summary style="cursor:pointer">Список товаров ({{ event.details.changes|length }})</summary>
+      <ul>{% for item in event.details.changes %}
+        <li>WB {{ item.nm_id }} · {{ item.before }}% → {{ item.after }}%</li>
+      {% endfor %}</ul>
+    </details>
+    {% endif %}
+  </article>
+  {% empty %}<p class="muted">Уведомлений пока нет.</p>{% endfor %}
+</section>
+{% endblock %}
