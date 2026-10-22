@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -26,5 +27,9 @@ class SubscriptionPayment(models.Model):
     paid_at = models.DateTimeField(null=True, blank=True)
     payment_url = models.URLField(max_length=2048, blank=True)
     link_expires_at = models.DateTimeField(null=True, blank=True)
+    @property
+    def amount_rubles(self):
+        return Decimal(self.amount_kopeks) / Decimal(100)
+
     class Meta:
         constraints = [models.UniqueConstraint(fields=["provider","operation_id"], condition=~models.Q(operation_id=""), name="unique_provider_operation")]
