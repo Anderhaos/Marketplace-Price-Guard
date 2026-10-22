@@ -33,11 +33,15 @@ SUPPORTED_TIMEZONES = frozenset({
 def validate_endpoint(endpoint):
     if not isinstance(endpoint, str) or len(endpoint) > 2048:
         raise ValueError("Некорректный адрес Push-сервера.")
-    parsed = urlsplit(endpoint)
-    hostname = (parsed.hostname or "").lower()
+    try:
+        parsed = urlsplit(endpoint)
+        hostname = (parsed.hostname or "").lower()
+        port = parsed.port
+    except ValueError:
+        raise ValueError("Некорректный адрес Push-сервера.")
     allowed = hostname in ALLOWED_HOSTS or hostname.endswith(".push.apple.com") or hostname.endswith(".notify.windows.com")
     if (parsed.scheme != "https" or not allowed or parsed.username or parsed.password
-            or parsed.fragment or parsed.port not in (None, 443)):
+            or parsed.fragment or port not in (None, 443)):
         raise ValueError("Этот Push-провайдер пока не поддерживается.")
     return endpoint
 
