@@ -4,6 +4,7 @@ Strictly no unsignalled sandbox or simulated payment activation in production.
 All merchant values are isolated to NoSale's environment.
 """
 import base64
+import binascii
 import json
 import time
 from decimal import Decimal
@@ -47,8 +48,12 @@ def validate_payment_url(value):
     if not isinstance(value, str) or len(value) > 2048:
         raise AcquiringUnavailable("Invalid payment URL")
     parsed = urlparse(value)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise AcquiringUnavailable("Invalid acquiring payment port") from exc
     # An attacker must never be able to redirect the seller to an arbitrary host.
-    if (parsed.scheme != "https" or parsed.username or parsed.password or parsed.port
+    if (parsed.scheme != "https" or parsed.username or parsed.password or port
             or not parsed.hostname or
             (parsed.hostname != "merch.tochka.com" and not parsed.hostname.endswith(".tochka.com"))
             or parsed.fragment):
@@ -100,7 +105,7 @@ def _decoded(part):
     part += "=" * (-len(part) % 4)
     try:
         return base64.urlsafe_b64decode(part.encode())
-    except (ValueError, UnicodeEncodeError) as exc:
+    except (ValueError, UnicodeEncodeError, binascii.Error) as exc:
         raise InvalidWebhook("Invalid JWT encoding") from exc
 
 
