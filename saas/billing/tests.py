@@ -75,11 +75,13 @@ class AccessGateTests(TestCase):
         self.account.refresh_from_db()
         self.assertFalse(self.account.enabled)
 
-    def test_unpaid_user_cannot_validate_token(self):
+    @override_settings(SAAS_WB_TOKEN_VALIDATION_ENABLED=False)
+    def test_disabled_token_validation_fails_closed(self):
         self.client.force_login(self.user)
-        with patch("guard.views.WBClient") as wb:
+        with patch("guard.integrations.WBClient") as wb:
             result = self.client.post(reverse("settings"), {"action":"token", "token":"fake-token"})
-        self.assertEqual(result.status_code, 302)
+        self.assertEqual(result.status_code, 200)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
         wb.assert_not_called()
 
     @patch("guard.monitor.decrypt_token", return_value="mock-valid-token")
