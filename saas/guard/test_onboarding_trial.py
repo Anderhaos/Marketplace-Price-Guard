@@ -120,3 +120,25 @@ class FirstRunOnboardingTests(TestCase):
         self.client.post(reverse("settings"), {"action":"token", "token":token_for()})
         self.assertTrue(has_active_access(self.user.pk))
         self.assertEqual(AccessGrant.objects.filter(user=self.user).count(), 1)
+
+
+    @patch("guard.integrations.WBClient")
+    def test_token_replacement_discards_old_pending_discount_writes(self, mock_wb):
+        from .models import Upload
+        account = GuardAccount.objects.create(
+            user=self.user, token_ciphertext="old-ciphertext", enabled=True,
+            apply_all_requested=True, apply_requested_ids=[1234], rules_version=3,
+            lock_until=timezone.now() + timedelta(minutes=10),
+        )
+        upload = Upload.objects.create(account=account, upload_id=12345, status="pending")
+        response = self.client.post(reverse("connect_wb"), {"token": token_for()})
+        self.assertEqual(response.status_code, 302)
+        account.refresh_from_db()
+        upload.refresh_from_db()
+        self.assertFalse(account.enabled)
+        self.assertFalse(account.apply_all_requested)
+        self.assertEqual(account.apply_requested_ids, [])
+        self.assertTrue(account.check_requested)
+        self.assertIsNone(account.lock_until)
+        self.assertEqual(account.rules_version, 4)
+        self.assertEqual(upload.status, "unknown")
