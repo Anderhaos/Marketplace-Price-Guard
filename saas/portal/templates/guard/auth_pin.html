@@ -4,7 +4,7 @@
 <div class="auth-wrap"><section class="card">
   <span class="eyebrow">MP NoSale / безопасность</span>
   <h1>{% if purpose == 'recover' %}Установите новый PIN{% else %}Создайте PIN для входа{% endif %}</h1>
-  <p class="lead">Email подтверждён. Для последующих входов используйте email и шестизначный PIN. Не используйте одинаковые цифры.</p>
+  <p class="lead">Email подтверждён. Для последующих входов используйте email и четырёхзначный PIN. Не используйте одинаковые цифры.</p>
   <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Сохранить PIN</button></form>
 </section></div>
 {% endblock %}
