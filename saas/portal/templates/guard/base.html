@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#08080a">
   <title>{% block title %}MP No Sale — SVDEV{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
   <style>
     :root{color-scheme:dark;--bg:#08080a;--panel:rgba(21,21,23,.94);--panel-strong:#151517;--text:#f2f1ee;--muted:rgba(242,241,238,.56);--line:rgba(255,255,255,.1);--accent:#ff5a1f;--accent-strong:#ff7848;--good:#64d8a1;--bad:#ff8d80;--radius:22px;--shadow:0 24px 70px rgba(0,0,0,.38)}
     *{box-sizing:border-box}
@@ -134,6 +135,9 @@
   </main>
   <footer class="site-footer"><div class="shell">MP No Sale · <a href="https://svdev.pro/">SVDEV</a></div></footer>
   <script>
+    if ("serviceWorker" in navigator && window.isSecureContext) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+    }
     document.querySelectorAll('.messages li').forEach((toast, index) => {
       window.setTimeout(() => {
         toast.classList.add('toast-out');
