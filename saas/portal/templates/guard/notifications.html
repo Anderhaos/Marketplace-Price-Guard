@@ -105,10 +105,11 @@
   enable.addEventListener('click', async () => {
     status.textContent = 'Подключаем уведомления…';
     try {
-      const sw = await registration();
-      // The permission request originates from this explicit user action.
+      if (!('Notification' in window)) throw new Error('Web Push недоступен');
+      // Must be requested directly from the click, before other awaits (iOS).
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') throw new Error('Разрешение на уведомления не предоставлено');
+      const sw = await registration();
       let sub = await sw.pushManager.getSubscription();
       if (!sub) sub = await sw.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:bytes(publicKey)});
       await save('{% url "push_subscribe" %}', sub.toJSON());
