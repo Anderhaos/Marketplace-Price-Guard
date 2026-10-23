@@ -34,6 +34,7 @@
 .welcome-panel input:focus-visible{border-color:#ff7848;box-shadow:0 0 0 3px rgba(255,90,31,.15)}
 .welcome-panel input::placeholder{color:#77737c}
 .welcome-panel .welcome-submit{margin-top:8px;border-radius:13px;min-height:51px;width:100%;font-weight:750;font-size:14px}
+.auth-flow-panel .welcome-submit:disabled{background:#2b2c30;color:#aaa9ae;border:1px solid #494951;box-shadow:none;opacity:1;cursor:not-allowed}
 .welcome-form-errors{font-size:13px;color:#ffaaa0;line-height:1.5;margin:0;list-style:none;padding:0}
 .welcome-form-errors li{margin:5px 0}
 .welcome-form-help{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:18px;color:#9d99a0;font-size:12px}
