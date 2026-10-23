@@ -17,6 +17,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", views.dashboard, name="dashboard"),
     path("connect/wb/", views.connect_wb, name="connect_wb"),
+    path("connect/wb/setup/", views.onboarding_connect, name="onboarding_connect"),
     path("billing/", billing_views.subscription, name="subscription"),
     path("billing/checkout/", billing_views.checkout, name="billing_checkout"),
     path("billing/return/", billing_views.payment_return, name="billing_return"),
