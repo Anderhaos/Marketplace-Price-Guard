@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from billing.models import AccessGrant
-from billing.access import has_smart_access
+from billing.access import effective_plan, has_plan_capability, has_smart_access
 from .advisor import store_recommendations
 from .models import GuardAccount, GuardEvent, Product, Upload
 
@@ -92,6 +92,31 @@ class StoreAdvisorTests(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(self.client.post(reverse("store_advisor")).status_code, 405)
             wb.assert_not_called()
+
+    def test_capability_matrix_matches_beclients_pattern(self):
+        self.assertFalse(has_plan_capability(self.seller.pk, "discount_guard"))
+        self.assertFalse(has_plan_capability(self.seller.pk, "ai_advice"))
+        self.grant(plan="standard")
+        self.assertEqual(effective_plan(self.seller.pk), "standard")
+        self.assertTrue(has_plan_capability(self.seller.pk, "telegram_alerts"))
+        self.assertTrue(has_plan_capability(self.seller.pk, "discount_guard"))
+        self.assertFalse(has_plan_capability(self.seller.pk, "ai_questions"))
+        self.assertFalse(has_plan_capability(self.seller.pk, "store_advice"))
+        self.grant(plan="smart")
+        self.assertEqual(effective_plan(self.seller.pk), "smart")
+        self.assertTrue(has_plan_capability(self.seller.pk, "store_advice"))
+        self.assertTrue(has_plan_capability(self.seller.pk, "telegram_alerts"))
+        self.assertFalse(has_plan_capability(self.seller.pk, "unknown_capability"))
+
+    def test_smart_expires_then_standard_remains(self):
+        standard = self.grant(plan="standard", days=10)
+        smart = self.grant(plan="smart", days=1)
+        self.assertEqual(effective_plan(self.seller.pk), "smart")
+        smart.revoked_at = timezone.now()
+        smart.save(update_fields=["revoked_at"])
+        self.assertEqual(effective_plan(self.seller.pk), "standard")
+        self.assertFalse(has_plan_capability(self.seller.pk, "ai_advice"))
+        self.assertTrue(has_plan_capability(self.seller.pk, "discount_guard"))
 
     def test_expired_entitlement_is_denied(self):
         grant = self.grant()
