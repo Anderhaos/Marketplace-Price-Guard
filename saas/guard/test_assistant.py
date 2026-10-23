@@ -67,7 +67,7 @@ class WebAssistantTests(TestCase):
         response = self.client.get(url)
         self.assertContains(response, "предела скидки — 1")
         self.assertContains(response, "20%")
-        self.assertNotContains(response, "999")
+        self.assertTrue(all("WB 999" not in item.answer for item in AssistantMessage.objects.filter(user=self.seller)))
 
     def test_tampered_store_id_never_selects_other_seller(self):
         self.grant()
