@@ -19,7 +19,6 @@
       <li><span class="step-number">02</span><div><strong>Скопируйте 4 цифры</strong><span class="step-caption">Вернитесь сюда и введите их в поле справа.</span></div></li>
       <li><span class="step-number">03</span><div><strong>Продолжите настройку</strong><span class="step-caption">{% if purpose == 'recover' %}После подтверждения вы сможете создать новый PIN.{% else %}После подтверждения останется придумать PIN для входа.{% endif %}</span></div></li>
     </ol>
-    <div class="auth-flow-hint"><span aria-hidden="true">◷</span> Код действует 10 минут. На ввод есть 5 попыток.</div>
   </section>
   <section class="welcome-panel auth-flow-panel" aria-labelledby="verify-title">
     <div class="welcome-panel-top"><span class="welcome-label">Подтверждение email</span><span class="welcome-stage">Шаг 2 из 3</span></div>
@@ -31,6 +30,7 @@
       <input id="auth-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" value="{{ form.code.value|default_if_none:'' }}" required autofocus>
       {% if form.code.errors %}<div class="welcome-form-errors">{{ form.code.errors }}</div>{% endif %}
       <button class="welcome-submit" type="submit">Подтвердить и продолжить →</button>
+      <p class="auth-flow-code-note" role="note"><span class="auth-flow-code-note-icon" aria-hidden="true">◷</span><span><strong>Код действителен 10 минут.</strong><span class="auth-flow-code-note-detail">Доступно 5 попыток ввода.</span></span></p>
     </form>
     <div class="auth-flow-help">
       <p>Не получили письмо? Проверьте «Спам» или запросите код повторно.</p>
