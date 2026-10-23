@@ -1,12 +1,91 @@
-# Wildberries promotions and seller proceeds — research backlog
+# Wildberries акции, источники скидок и экономика NoSale
 
-Source: audited local legacy checkout `D:\Marketplace Price Guard\MARKETPLACE_ROADMAP.md` (unsaved notes, preserved 2026-10-23).
+**Исследование:** 2026-10-23. **Статус:** verified research / planned, НЕ реализовано. Не считать доказательством прохождения live API/financial сверки.
+**Канонический SaaS:** `saas/`; legacy production `mpnosale.svdev.pro` менять запрещено. Источник кода: `feature/nosale-welcome-email-first`.
 
-This is research, **not** a feature implemented in NoSale and not a release blocker for the current discount guard.
+## Основной инвариант
 
-- Review current WB Promotions Calendar API: list campaigns; distinguish voluntary and automatic promotions; determine what supported endpoints can control participation.
-- Separate seller-funded discounts, WB-funded buyer discounts, WB Club discounts and promotional participation.
-- Display seller price, visible buyer price, estimated proceeds and commissions only when available from supported source fields. Do not equate a buyer-side discount to reduced seller proceeds without evidence.
-- Optional alerts for promotions and payout changes; any automatic actions must be off by default.
-- Verify WB API rights with an explicitly authorized test seller before implementing promotion withdrawal or exclusion.
-- Require audit trail, WB status confirmation, rate-limit handling and tests for concurrent price changes.
+**Не удалять скидку только из-за её размера.** Сначала установить, кто оплачивает экономический эффект, меняется ли розничная цена продавца, есть ли дополнительное обязательство продавца, и сохраняется ли минимальная маржа. Финансово бесплатные платформенные скидки и участие в акции без дополнительного снижения цены не блокировать. Платформенный дисконт не гарантирует рост прибыли/продаж, только сам по себе не снижает расчётную розничную цену продавца.
+
+## Проверенные категории
+
+| Механика | Источник расходов | Решение |
+|---|---|---|
+| Скидка WB (бывшая СПП), WB Кошелёк, скидка по промокоду WB | WB предоставляет платформенную скидку за свой счёт, §5.3–5.4 оферты | Наблюдать/сохранять; **не поднимать цену**, чтобы «компенсировать» скидку |
+| Продавец устанавливает базовую цену и discount % | Продавец | Контроль по нижней цене и марже; правка только при разрешении и достоверном источнике |
+| Обычная акция через календарь | Продавец, если в результате снижается его цена | Анализ `planPrice`, `planDiscount`, условий/выгоды, проверка маржи |
+| Автоакция WB | Продавец, если изменяется его розничная цена | Предупреждения + минимальная цена/блокировка на стороне WB; не обещать API-исключение |
+| Уровень глубины автоакции | Продавец | Четыре уровня, выставляются в WB (предел изменения до 5 часов перед стартом) |
+| WB Клуб (скидка продавца) | Продавец | Отдельное поле кумулятивного дисконта, не путать с «скидкой WB» |
+| Собственные акции, региональные акции, промокоды продавца, «Хочу скидку», скидки лояльности продавца | Продавец | Учитывать stacking и идентификаторы из фин.детализации |
+| Кешбэк продавца / баллы «Мой WB» / ВауВБ | Продавец, вплоть до списаний/комиссии после заказа или списания бонусов | Учитывать отдельно от процента скидки на товар |
+| Софинансирование рассрочки | Продавец участвует в скидке | Учитывать соответствующее поле детализации |
+| Акция с бустом/плашкой/повышенной скидкой WB | Смешанный сценарий: возможное снижение цены продавца ради бесплатного преимущества | Сравнить Δмаржи, условия порогового участия, прогноз выгоды; неизвестную выгоду не считать гарантированной |
+
+Название «недельная акция», «распродажа» или «скидка к празднику» — описание периода/формата, а не источник финансирования. Проверять конкретные условия.
+
+## Важные факты из официальных инструкций
+
+1. Оферта от 01.10.2026: п. 5.1 цена и скидки продавца; п.5.3–5.4 платформенные скидки за счёт WB не уменьшают сумму, которую WB обязан перечислить продавцу (до комиссий и иных удержаний).
+2. Платформенную «Скидку WB» владелец кабинета может отключить (общую или отдельные товары, ограничение 1 раз в 24 часа), но это не цель NoSale. Некоторые акции увеличивают скидку WB при условии участия заданного процента ассортимента. Отключение скидки WB не обнуляет другие платформенные скидки в отчёте.
+3. Минимальная цена/блокировка затрагивают **автоакции**, не обычные акции и не цену, которую продавец сам установил ниже минимума. При цене, уже равной или ниже плановой для автоакции, товар может участвовать без нового снижения. Поразмерные товары с неодинаковыми ценами имеют особую механику.
+4. После старта автоакции вывести товар через портал можно поднятием цены; ранее описан механизм исключения до старта. Не использовать «зацикленную» цену как замену функции исключения без проверки договорных обязательств и флагов аккаунта.
+5. «Мой WB»: продавец компенсирует баллы ВБ при начислении, ВауВБ — при использовании покупателем плюс комиссия. Согласие на участие после запуска ограниченно отзывное; смотреть конкретные правила.
+6. Финансовый отчёт: `Цена розничная` отражает цену с seller-funded скидками, `Вайлдберриз реализовал` — покупательскую цену с платформенными скидками, `Платформенные скидки, %` — долю платформенных скидок. `К перечислению продавцу` — выплата после комиссии/эквайринга, **ещё не полная чистая прибыль**. Колонки про согласованную скидку продавца могут показывать `0` и не подходят как текущий источник discount %.
+7. Статья 9 289-ФЗ (с 01.10.2026) и информация WB о 5 рабочих днях предварительного уведомления автоакций; требуется проверять согласия/исключения в актуальной оферте.
+
+## Что поддерживает API
+
+Официальная WB API документация Promo Calendar (категория токена **Prices and Discounts**, endpoint в РФ `dp-calendar-api.wildberries.ru`):
+
+- `GET /api/v1/calendar/promotions` — акции, даты, тип `regular`/`auto`, доступность;
+- `GET /api/v1/calendar/promotions/details` — описание, преимущества, пороги участия, агрегаты;
+- `GET /api/v1/calendar/promotions/nomenclatures` — список товаров, текущая/плановая цена и скидка, **NOT applicable for auto promos**;
+- `POST /api/v1/calendar/promotions/upload` — добавление товаров, **NOT applicable for auto promos**.
+
+Документированных методов календаря для поштучного исключения из **автоакций** и настройки **глубины** через API не обнаружено; не обещать их. Для base-токена без секрета календарь ограничен 1 вызовом в час, с service/personal token — 10 вызовов / 6 секунд (проверять актуальный лимит на метод). Верифицировать реальное API поведение лишь с авторизованным кабинетом продавца.
+
+Официальный **Finance API**: `/api/finance/v1/sales-reports/list`, `/api/finance/v1/sales-reports/detailed` и `/detailed/{reportId}` (POST), категория токена `Финансы`, методы для Personal/Service tokens, лимит около 1 запроса в минуту. Источник фактического подтверждения выплат — именно сверенные отчёты, а не упрощённые оперативные `statistics-api /api/v1/supplier/sales` (документация WB прямо предупреждает о возможном расхождении `forPay`).
+
+Для подтверждения экономического эффекта хранить seller price, seller discount, промо ID/type/status, planned price, фактические реализации/возвраты, platform discount %, payouts, COGS, логистику, расходы на возвраты и бонусы. Данные отчёта приходят с задержкой; прогноз всегда обозначать как оценку.
+
+## Ограничения текущего кода (на дату исследования)
+
+- `saas/guard/wb.py`: подключены только Discounts/Prices и Content API; `get_products()` читает discount и цену; `submit_discounts()` может отправлять правку продавца; **нет** Promo Calendar, Finance API, WB Club, loyalty.
+- `saas/guard/monitor.py`: правило `discount > allowed` не знает источник акции/выплат; может пытаться корректировать скидки, которые бизнес хочет оставить. Защита E5 `SAAS_WB_READ_ONLY` должна сохраниться.
+- `saas/guard/models.py`: `default_allowed_discount` по умолчанию `0`, нет состояния «не настроено», минимумов в ₽, себестоимости, гарантированной маржи и записей о кампаниях. Исправить *до* любых массовых автоматических изменений; NULL/unset => `monitor-only`.
+- В `saas/docs/GOAL_AUDIT_REMEDIATION_2026-10-23.md` текущий цель-аудит; эти исследования **не означают**, что новая логика уже внедрена.
+
+## Показательные свидетельства и их надёжность
+
+- Сотрудник WB API @OnlyOne подтвердил в форуме, что `422` на `nomenclatures` бывает при ID автоакции: https://dev.wildberries.ru/forum/1515 (прямое подтверждение API-ограничения).
+- Кристина Сотникова, 14.07.2024, личный опыт продавца WB: заметила участие через календарь, отмечает ручное восстановление цены после автоакции: https://vc.ru/marketplace/1307797-avtoakcii-na-marketpleisah-kak-dobrovolnoe-sdelat-prinuditelnym (самоотчёт, не аудит платежей; правила в 2026 могли измениться).
+- Ильдар, 06.10.2024, опыт участия: иногда есть продвижение без глубокой скидки, иногда снижение слишком велико; оценивает юнит-экономику: https://vc.ru/marketplace/1550388-kak-avto-akcii-vliyayut-na-prodazhi (самоотчёт, не независимый A/B-тест).
+- Суд: дело А41-69492/2024, 24.02.2025. Продавец заявлял 265 640,75 ₽ потерь от автоакции, однако апелляция подтвердила лишь 316 ₽ взыскания и отказала в основном требовании, поскольку не доказаны себестоимость и неправомерность участия. Важно: **это не судебное подтверждение ущерба в заявленном размере**; иллюстрирует необходимость доказательств и журнала событий. https://sudact.ru/arbitral/doc/iqOHkoa2X1QC/
+
+## Безопасная спецификация будущего решения
+
+1. Мониторинг в read-only: календарь акций, snapshots цены/скидок, классификация источника `platform_funded|seller_funded|mixed|unknown` с признаком уверенности и первичным доказательством.
+2. Правила продавца: minimum seller retail price, minimum contribution margin ₽/%, ассортиментные исключения, «оставлять платформенные скидки» default ON; «не настроено» — отдельное состояние.
+3. Аналитика до/после акции: сравнение фактического seller payout и затрат, оценка влияния на спрос только при достаточных данных; неизвестное не считать нулевым расходом.
+4. Автодействие **только** для документированных, разрешённых seller discount операций после явно заданного правила, согласия, тестов, проверки версии правила и rate limiting; не применять к неизвестным механикам.
+5. Любые auto promo exclusions, depth changes, cashback, My WB, WB Club: сначала проверять возможность управления через официальные методы/кабинет; без документированного endpoint — только рекомендация/инструкция пользователю.
+6. Изменения проводить в отдельной ветке с тестами, без затрагивания legacy production; импорт финансов в отдельной opt-in категории `Финансы` (минимизация прав).
+
+## Первоисточники (проверены 2026-10-23)
+
+- Оферта: https://seller.wildberries.ru/instructions/ru/kg/material/price-reporting-and-calculations
+- Акции: https://seller.wildberries.ru/instructions/ru/uz/material/wb-promo-events
+- WB скидка: https://seller.wildberries.ru/instructions/en/kg/material/wb-discount
+- Минимальная цена / блок: https://seller.wildberries.ru/instructions/ru/ru/material/how-to-set-minimal-price-and-block-auto-promotions
+- Детализация финансов: https://seller.wildberries.ru/instructions/ru/ru/material/how-to-read-fimancial-reports-detalization
+- Еженедельный отчет: https://seller.wildberries.ru/instructions/ru/ru/material/how-to-read-general-financial-report
+- «Мой WB»: https://seller.wildberries.ru/instructions/ru/ru/material/my-wb-promotions
+- Промокоды продавца: https://seller.wildberries.ru/instructions/ru/tj/material/seller-promocodes
+- «Хочу скидку»: https://seller.wildberries.ru/instructions/ru/ru/material/personalized-discounts-using-want-discount-tool
+- WB API Promo Calendar: https://dev.wildberries.cn/docs/openapi/promotion (WB multilingual official mirror; in production use `.ru` hosts)
+- WB API Finance: https://dev.wildberries.cn/docs/openapi/documents-and-accounting
+- WB API Statistics: https://dev.wildberries.cn/docs/openapi/reports
+- Форум WB API: https://dev.wildberries.ru/forum/1515
+
+**Граница уверенности:** официальная документация доказывает общую механику; без сопоставления реальных выплат конкретного продавца нельзя доказать абсолютную выгодность каждой акции. По автодействиям не применять недокументированные/private endpoints.
