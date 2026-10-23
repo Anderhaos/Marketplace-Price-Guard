@@ -48,8 +48,8 @@ services:
     command: python manage.py run_guard
     restart: unless-stopped
     networks: [preview_internal]
-    # The preview's WB_NETWORK flag is off. This worker performs no network
-    # requests unless explicitly enabled by an authorized separate test.
+    # Read-only WB inventory sync is enabled in E5 preview env. Mandatory
+    # SAAS_WB_READ_ONLY=1 prevents changing WB prices from this container.
 networks:
   preview_internal: {}
 volumes:
