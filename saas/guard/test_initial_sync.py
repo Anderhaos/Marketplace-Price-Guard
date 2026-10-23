@@ -93,7 +93,8 @@ class InitialSyncGateTests(TestCase):
         self.assertFalse(Product.objects.filter(account=account).exists())
         r = self.client.get("/")
         self.assertContains(r, "Повторная загрузка запланирована")
-        self.assertContains(r, "Повторить загрузку")
+        self.assertContains(r, "Ожидаем разрешённого времени")
+        self.assertContains(r, 'disabled aria-disabled="true"')
         self.assertNotContains(r, 'class="compact-summary"')
 
     @patch("guard.monitor.WBClient")
