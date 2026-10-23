@@ -77,6 +77,10 @@ class AccessGateTests(TestCase):
 
     @override_settings(SAAS_PIN_AUTH_ENABLED=True)
     def test_expired_trial_cannot_queue_bulk_changes(self):
+        # A previously synced seller can reach the dashboard, but an expired
+        # grant still cannot queue price writes.
+        self.account.initial_sync_completed_at = timezone.now()
+        self.account.save(update_fields=["initial_sync_completed_at"])
         self.client.force_login(self.user)
         response = self.client.post(reverse("dashboard"), {
             "action": "apply_all", "default_allowed_discount": "15",
