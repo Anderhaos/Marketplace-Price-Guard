@@ -31,7 +31,11 @@ def _gateway_url():
     url = getattr(settings, "NOSALE_AI_GATEWAY_URL", "")
     parsed = urlparse(url)
     host = parsed.hostname or ""
-    if (parsed.scheme != "https" or parsed.username or parsed.password or parsed.port
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise AIGatewayUnavailable("Invalid AI gateway port") from exc
+    if (parsed.scheme != "https" or parsed.username or parsed.password or port
             or parsed.query or parsed.fragment or parsed.path != "/v1/chat/completions"
             or not host.endswith(".svdev.pro")):
         raise AIGatewayUnavailable("AI Platform endpoint is not trusted")
