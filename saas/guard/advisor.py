@@ -14,7 +14,9 @@ def store_recommendations(account, *, now=None):
     now = now or timezone.now()
     results = []
     metrics = {"active_products": 0, "over_limit": 0, "discount_changes_24h": 0, "price_changes_24h": 0}
-    last_observed_at = account.last_check_at
+    # A failed WB check can update last_check_at without refreshing products.
+    # Report the time of the actual observed product snapshot instead.
+    last_observed_at = None
 
     def add(priority, title, detail, *, observed_at=None, source="NoSale"):
         results.append({
@@ -32,17 +34,14 @@ def store_recommendations(account, *, now=None):
     if account.last_error:
         add(0, "Проверьте синхронизацию WB", "Последняя проверка завершилась с ошибкой. Данные магазина могут быть устаревшими.", observed_at=account.last_check_at)
 
-    age_limit = timedelta(minutes=max(30, 2 * account.interval_minutes))
-    is_stale = not last_observed_at or now - last_observed_at > age_limit
-    if is_stale and last_observed_at:
-        add(1, "Обновите данные магазина", "С последней проверки прошло больше обычного интервала. Текущие цены и скидки нужно повторно подтвердить через WB API.", observed_at=last_observed_at)
-
     # Iteration is bounded in memory even when the connected store has many SKUs.
     over_limit_examples = []
     for item in Product.objects.filter(account=account, active=True).only(
         "nm_id", "title", "current_discount", "allowed_discount_override", "checked_at"
     ).iterator(chunk_size=500):
         metrics["active_products"] += 1
+        if item.checked_at and (last_observed_at is None or item.checked_at > last_observed_at):
+            last_observed_at = item.checked_at
         limit = item.allowed_discount_override
         if limit is None:
             limit = account.default_allowed_discount
@@ -53,6 +52,11 @@ def store_recommendations(account, *, now=None):
             over_limit_examples.append(entry)
             over_limit_examples.sort(key=lambda x: (-x[0], x[1]))
             del over_limit_examples[4:]
+
+    age_limit = timedelta(minutes=max(30, 2 * account.interval_minutes))
+    is_stale = not last_observed_at or now - last_observed_at > age_limit
+    if is_stale and last_observed_at:
+        add(1, "Обновите данные магазина", "С последнего подтверждённого снимка WB прошло больше обычного интервала. Цены и скидки могли измениться.", observed_at=last_observed_at)
 
     if metrics["over_limit"]:
         for gap, nm_id, discount, limit, title, checked_at in over_limit_examples:
