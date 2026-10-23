@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -78,7 +79,7 @@ class OwnerTariffOffer(models.Model):
     PLAN_CHOICES = [("standard", "Standard"), ("smart", "Smart")]
     slug = models.CharField(max_length=16, primary_key=True, choices=PLAN_CHOICES)
     name = models.CharField(max_length=50)
-    price_kopeks = models.PositiveIntegerField(help_text="Цена за один месяц в копейках. Проверяется на сервере.")
+    price_kopeks = models.PositiveIntegerField(validators=[MinValueValidator(100), MaxValueValidator(10_000_000)], help_text="Цена за месяц в копейках. Редактируется в админке в рублях.")
     enabled = models.BooleanField(default=False, help_text="При выключении новые покупки этого тарифа запрещены.")
     updated_at = models.DateTimeField(auto_now=True)
 
