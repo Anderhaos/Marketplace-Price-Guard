@@ -2,6 +2,7 @@
 import re
 from django.contrib.auth.models import User
 from django.core import mail
+from django.contrib.staticfiles import finders
 from django.test import TestCase, override_settings
 
 @override_settings(
@@ -59,3 +60,9 @@ class EmailFirstWelcomeTests(TestCase):
         self.assertContains(response, "Неверный email или PIN")
         self.assertContains(response, 'name="pin"')
         self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_welcome_stylesheet_is_discoverable(self):
+        path = finders.find("welcome.css")
+        self.assertIsNotNone(path)
+        with open(path, encoding="utf-8") as file:
+            self.assertIn(".welcome-layout", file.read())
