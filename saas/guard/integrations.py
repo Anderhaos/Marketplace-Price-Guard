@@ -61,6 +61,14 @@ def connect_wb_token(account, token):
                     account=current, kind="upload_unknown",
                     message="Ожидавшие подтверждения WB операции требуют проверки после смены API.",
                 )
+        # WB limits are per seller account, not per token. Reconnecting
+        # credentials must not reset an active HTTP 429 cooldown.
+        preserve_cooldown = (
+            "429" in current.last_error
+            and current.next_check_at > timezone.now()
+        )
+        cooldown_until = current.next_check_at
+        cooldown_reason = current.last_error
         current.token_ciphertext = ciphertext
         current.token_hint = token[:4] + "…" + token[-4:] if len(token) >= 12 else "сохранён"
         current.enabled = False  # users explicitly opt in to automatic corrections
@@ -70,10 +78,10 @@ def connect_wb_token(account, token):
         current.check_requested = True  # read-only first refresh, if enabled
         current.lock_until = None
         current.rules_version += 1  # fences active workers on stale credentials/rules
-        current.last_error = ""
+        current.last_error = cooldown_reason if preserve_cooldown else ""
         current.last_check_at = None
         current.initial_sync_completed_at = None
-        current.next_check_at = timezone.now()
+        current.next_check_at = cooldown_until if preserve_cooldown else timezone.now()
         current.save(update_fields=[
             "token_ciphertext", "token_hint", "enabled", "apply_all_requested",
             "apply_requested_ids", "check_requested", "lock_until",
