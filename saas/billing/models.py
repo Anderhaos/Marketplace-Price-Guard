@@ -71,3 +71,21 @@ class OwnerAISettings(models.Model):
     class Meta:
         verbose_name = "Настройки AI владельца"
         verbose_name_plural = "Настройки AI владельца"
+
+
+class OwnerTariffOffer(models.Model):
+    """Two editable commercial offers, not a second subscription/access ledger."""
+    PLAN_CHOICES = [("standard", "Standard"), ("smart", "Smart")]
+    slug = models.CharField(max_length=16, primary_key=True, choices=PLAN_CHOICES)
+    name = models.CharField(max_length=50)
+    price_kopeks = models.PositiveIntegerField(help_text="Цена за один месяц в копейках. Проверяется на сервере.")
+    enabled = models.BooleanField(default=False, help_text="При выключении новые покупки этого тарифа запрещены.")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name or self.get_slug_display()
+
+    class Meta:
+        verbose_name = "Тариф для продажи"
+        verbose_name_plural = "Тарифы для продажи"
+        ordering = ["slug"]
