@@ -1,0 +1,42 @@
+# Only for SSH-forwarded local UI acceptance. Not the public E5 SaaS.
+name: mpnosale-ui-preview
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SAAS_DB_NAME:?preview db name required}
+      POSTGRES_USER: ${SAAS_DB_USER:?preview db user required}
+      POSTGRES_PASSWORD: ${SAAS_DB_PASSWORD:?preview db password required}
+    volumes:
+      - preview_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [preview_internal]
+  web:
+    build:
+      context: ..
+    env_file: ../.preview.env
+    environment:
+      SAAS_DB_HOST: db
+      SAAS_DB_PORT: "5432"
+    depends_on:
+      db: {condition: service_healthy}
+    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn portal.wsgi:application --bind 0.0.0.0:8000 --workers 2 --access-logfile - --error-logfile -"
+    # SSH forwards the local Windows :8926 to E5 loopback :8894.
+    # Never bind preview to the public interface or public nginx.
+    ports: ["127.0.0.1:8894:8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/health/',headers={'Host':'127.0.0.1:8926'}),timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks: [preview_internal]
+networks:
+  preview_internal: {}
+volumes:
+  preview_pg_data: {}
