@@ -4,6 +4,7 @@ Legacy seller service is separate and never imports this module. Challenges and
 login throttles live in SaaS PostgreSQL, not process-local state.
 """
 import secrets
+import os
 from datetime import timedelta
 
 from django import forms
@@ -25,6 +26,20 @@ from .models import EmailPinChallenge, EmailPinLoginThrottle, GuardAccount
 
 log = logging.getLogger(__name__)
 SESSION_CHALLENGE = "mpno_saas_email_challenge_id"
+SESSION_PREVIEW_CODE = "mpno_saas_test_preview_code"
+
+
+def _preview_code_permitted(request):
+    """Staging-only test tool, guarded against real production configurations."""
+    return (
+        settings.DEBUG
+        and os.environ.get("NOSALE_LOCAL_EMAIL_PREVIEW") == "1"
+        and settings.EMAIL_BACKEND == "django.core.mail.backends.console.EmailBackend"
+        and not settings.SAAS_WB_NETWORK_ENABLED
+        and not settings.TOCHKA_BILLING_ENABLED
+        and request.get_host().split(":")[0] in ("127.0.0.1", "localhost")
+    )
+
 CODE_TTL = timedelta(minutes=10)
 CODE_RESEND_WAIT = timedelta(seconds=60)
 VERIFIED_TTL = timedelta(minutes=10)
@@ -120,6 +135,11 @@ def _start(request, purpose):
                     ])
                     # Fail closed: the DB challenge is rolled back if the relay fails.
                     send_pin_verification_email(email=email, code=code, purpose=purpose)
+                    if _preview_code_permitted(request):
+                        # The code is available only in this temporary browser session.
+                        request.session[SESSION_PREVIEW_CODE] = {
+                            "challenge_id": challenge.pk, "code": code,
+                        }
             return redirect("auth_code")
     return render(request, "guard/auth_email.html", {
         "form": form,
@@ -168,12 +188,23 @@ def verify_code(request):
                 challenge.code_hash = ""
                 challenge.verified_until = now + VERIFIED_TTL
                 challenge.save(update_fields=["code_hash", "verified_until"])
+                request.session.pop(SESSION_PREVIEW_CODE, None)
                 return redirect("auth_pin")
             else:
                 challenge.attempts += 1
                 challenge.save(update_fields=["attempts"])
                 form.add_error("code", "Код неверный или истёк.")
-    return render(request, "guard/auth_verify.html", {"form": form, "purpose": challenge.purpose, "email": challenge.email})
+    preview_code = None
+    if _preview_code_permitted(request):
+        entry = request.session.get(SESSION_PREVIEW_CODE)
+        if (isinstance(entry, dict) and entry.get("challenge_id") == challenge.pk
+                and challenge.code_hash and challenge.attempts < MAX_CODE_ATTEMPTS
+                and challenge.expires_at > timezone.now()):
+            preview_code = entry.get("code")
+    return render(request, "guard/auth_verify.html", {
+        "form": form, "purpose": challenge.purpose,
+        "email": challenge.email, "preview_code": preview_code,
+    })
 
 
 def finish_pin(request):
