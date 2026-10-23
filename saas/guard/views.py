@@ -16,13 +16,14 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.conf import settings
 
-from billing.access import guard_is_permitted, has_smart_access
+from billing.access import guard_is_permitted, has_smart_access, has_plan_capability
 from .advisor import store_recommendations
+from .assistant import basic_assistant_reply
 from billing.trial import access_snapshot
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
 from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
-from .models import GuardAccount, GuardEvent, Product, Upload
+from .models import AssistantMessage, GuardAccount, GuardEvent, Product, Upload
 from .stores import selected_store, SESSION_KEY
 from push.models import NotificationPreference, PushMessage, PushSubscription
 from push.service import SUPPORTED_TIMEZONES
@@ -428,6 +429,54 @@ def dashboard(request):
         "wb_read_only": settings.SAAS_WB_READ_ONLY,
         "wb_token_form": TokenForm(),
         "trial_status": access_snapshot(request.user.pk),
+    })
+
+
+@login_required
+def assistant_chat(request):
+    """Standard assistant lives in NoSale; no Telegram and no marketplace I/O."""
+    if request.method not in ("GET", "POST"):
+        return HttpResponseNotAllowed(["GET", "POST"])
+    if not has_plan_capability(request.user.pk, "web_assistant_basic"):
+        return render(request, "guard/message.html", {
+            "notice": "Помощник доступен при действующем пробном периоде или подписке. Проверьте раздел «Подписка»."
+        }, status=403)
+
+    account = _account(request)  # exclusively selected via current user's stores
+    if request.method == "POST":
+        question = request.POST.get("question", "")
+        if not isinstance(question, str) or not question.strip() or len(question) > 400:
+            return HttpResponse("Введите вопрос длиной от 1 до 400 символов.", status=400)
+
+        # Serialize seller requests across Gunicorn workers: no store-switch or
+        # concurrent request can bypass the per-user rate limit.
+        with transaction.atomic():
+            User.objects.select_for_update().get(pk=request.user.pk)
+            now = timezone.now()
+            recent = AssistantMessage.objects.filter(
+                user_id=request.user.pk, created_at__gte=now - timedelta(minutes=1)
+            ).count()
+            daily = AssistantMessage.objects.filter(
+                user_id=request.user.pk, created_at__gte=now - timedelta(hours=24)
+            ).count()
+            if recent >= 8 or daily >= 80:
+                return HttpResponse(
+                    "Слишком много вопросов. Повторите немного позже.", status=429
+                )
+            answer = basic_assistant_reply(request.user.pk, account, question.strip(), now=now)
+            AssistantMessage.objects.create(
+                user_id=request.user.pk, account=account, question=question.strip(),
+                answer=answer, created_at=now,
+            )
+        return redirect("assistant_chat")
+
+    history = list(AssistantMessage.objects.filter(
+        user_id=request.user.pk, account=account
+    ).order_by("-created_at", "-pk")[:20])
+    history.reverse()
+    return render(request, "guard/assistant.html", {
+        "account": account, "history": history,
+        "is_smart": has_smart_access(request.user.pk),
     })
 
 
