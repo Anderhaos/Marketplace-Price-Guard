@@ -306,13 +306,28 @@ def dashboard(request):
                     messages.error(request, "В тестовой среде запросы WB отключены. Реальная синхронизация недоступна.")
                 elif account.lock_until and account.lock_until > timezone.now():
                     messages.info(request, "Синхронизация уже выполняется.")
-                elif account.next_check_at > timezone.now() and not account.last_error:
-                    messages.info(request, "Загрузка уже запланирована.")
+                elif account.next_check_at > timezone.now():
+                    # HTTP 429 must never be bypassed just because an error was
+                    # recorded. The WB token limit applies to the seller,
+                    # including manual retries and concurrent sessions.
+                    messages.info(request, "WB ограничил частоту запросов. Повторная загрузка уже запланирована.")
                 else:
-                    GuardAccount.objects.filter(pk=account.pk, user_id=request.user.pk).update(
-                        check_requested=True, last_error="", next_check_at=timezone.now(), lock_until=None,
+                    now = timezone.now()
+                    # Atomic guard against two browser tabs racing to requeue.
+                    queued = GuardAccount.objects.filter(
+                        pk=account.pk, user_id=request.user.pk,
+                        next_check_at__lte=now,
+                    ).filter(
+                        Q(lock_until__isnull=True) | Q(lock_until__lte=now)
+                    ).update(
+                        check_requested=True, last_error="",
+                        next_check_at=now, lock_until=None,
                     )
-                    messages.info(request, "Повторная загрузка поставлена в очередь.")
+                    messages.info(
+                        request,
+                        "Загрузка поставлена в очередь." if queued
+                        else "Загрузка уже выполняется или ожидает разрешённого времени.",
+                    )
                 return redirect("dashboard")
             return render(request, "guard/onboarding_sync.html", {
                 "account": account, "onboarding_required": True,
