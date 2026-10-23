@@ -438,8 +438,9 @@ def assistant_chat(request):
     if request.method not in ("GET", "POST"):
         return HttpResponseNotAllowed(["GET", "POST"])
     if not has_plan_capability(request.user.pk, "web_assistant_basic"):
-        return render(request, "guard/message.html", {
-            "notice": "Помощник доступен при действующем пробном периоде или подписке. Проверьте раздел «Подписка»."
+        return render(request, "guard/assistant_access.html", {
+            "access_title": "Помощник пока недоступен",
+            "access_explanation": "Базовый помощник включён в действующий пробный период или подписку NoSale."
         }, status=403)
 
     account = _account(request)  # exclusively selected via current user's stores
@@ -486,7 +487,10 @@ def store_advisor(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
     if not has_smart_access(request.user.pk):
-        return HttpResponse("Для рекомендаций NoSale Smart необходим активный тариф Smart.", status=403)
+        return render(request, "guard/assistant_access.html", {
+            "access_title": "Рекомендации доступны в Smart",
+            "access_explanation": "Для просмотра рекомендаций по вашему магазину необходим действующий тариф Smart. Базовый помощник остаётся доступен в Standard."
+        }, status=403)
     account = _account(request)
     return render(request, "guard/advisor.html", {
         "account": account,
