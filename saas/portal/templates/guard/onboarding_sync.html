@@ -23,13 +23,38 @@
       <p class="welcome-explainer">В изолированном тестовом окружении запросы Wildberries отключены. Проверить реальные товары здесь нельзя. Данные магазина не подменяются вымышленными.</p>
       <p class="auth-flow-footer-note">В рабочей версии после подтверждения API запустится фоновая загрузка.</p>
     {% elif account.last_error %}
-      <h2>Не удалось загрузить товары</h2>
-      <p class="welcome-explainer">Данные пока не получены. Кабинет не открыт, повторное чтение будет выполнено безопасно.</p>
+      <h2>{% if retry_waiting %}Ожидаем разрешения WB{% else %}Не удалось загрузить товары{% endif %}</h2>
+      {% if retry_waiting %}
+        <p class="welcome-explainer">Wildberries временно ограничил частоту запросов. NoSale уже запланировал следующую загрузку автоматически. До разрешённого времени повторные запросы отправляться не будут.</p>
+      {% else %}
+        <p class="welcome-explainer">Данные пока не получены. Кабинет остаётся закрытым до успешной синхронизации.</p>
+      {% endif %}
       <div class="setup-feedback" role="alert">{{ account.last_error }}</div>
-      <form method="post" action="{% url 'dashboard' %}">{% csrf_token %}
-        <input type="hidden" name="action" value="retry_initial_sync">
-        <button type="submit" class="welcome-submit">Повторить загрузку</button>
-      </form>
+      {% if retry_waiting %}
+        <div class="auth-flow-hint" role="status">
+          <span>Следующая автоматическая попытка — не раньше
+            <time id="wb-next-retry" datetime="{{ account.next_check_at|date:'c' }}">{{ account.next_check_at|date:"d.m.Y H:i" }}</time>.
+          </span>
+        </div>
+        <p class="auth-flow-footer-note">Лимит WB применяется к магазину, в том числе при использовании других программ. Кнопка повторной загрузки появится после окончания ограничения.</p>
+        <button type="button" class="welcome-submit" disabled aria-disabled="true">Ожидаем разрешённого времени</button>
+        <script>
+          (function () {
+            const el = document.getElementById('wb-next-retry');
+            if (!el) return;
+            const until = Date.parse(el.dateTime);
+            if (!Number.isFinite(until)) return;
+            // One refresh once the worker may have started a scheduled retry.
+            window.setTimeout(() => window.location.reload(),
+              Math.max(1000, Math.min(until - Date.now() + 20000, 2147483647)));
+          }());
+        </script>
+      {% else %}
+        <form method="post" action="{% url 'dashboard' %}">{% csrf_token %}
+          <input type="hidden" name="action" value="retry_initial_sync">
+          <button type="submit" class="welcome-submit">Повторить загрузку</button>
+        </form>
+      {% endif %}
     {% else %}
       <h2>Загружаем товары</h2>
       <p class="welcome-explainer">Подключение принято. Выполняем первую проверку данных Wildberries. Это может занять некоторое время.</p>
