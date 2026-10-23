@@ -8,9 +8,9 @@ from .models import AccessGrant
 # selects a small set of server-enforced features. This is intentionally
 # not a second subscription/payment ledger.
 PLAN_CAPABILITIES = {
-    "standard": frozenset({"discount_guard", "telegram_status", "telegram_alerts"}),
+    "standard": frozenset({"discount_guard", "notifications", "web_assistant_basic"}),
     "smart": frozenset({
-        "discount_guard", "telegram_status", "telegram_alerts",
+        "discount_guard", "notifications", "web_assistant_basic",
         "store_advice", "ai_advice", "ai_questions",
     }),
 }
