@@ -175,7 +175,7 @@ class EmailFirstWelcomeTests(TestCase):
             self.assertEqual(r.status_code, 302)
             self.assertEqual(r["Location"], "/auth/code/")
             code = self.client.session["mpno_saas_test_preview_code"]["code"]
-            self.assertRegex(code, r"^\\d{4}$")
+            self.assertRegex(code, r"^\d{4}$")
             r = self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926")
             self.assertContains(r, "Только тестовая версия")
             self.assertContains(r, code)
