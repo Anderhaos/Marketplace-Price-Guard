@@ -14,7 +14,7 @@ class RequireWbConnectionMiddleware:
         "stores", "select_store", "settings", "product_rule",
         "product_history_data", "history", "notifications",
         "mark_notifications_read", "push_subscribe", "push_unsubscribe",
-        "push_preferences",
+        "push_preferences", "subscription", "billing_checkout",
     })
 
     def __init__(self, get_response):
@@ -29,9 +29,18 @@ class RequireWbConnectionMiddleware:
         match = request.resolver_match
         if not match or match.url_name not in self.PRIVATE_VIEWS:
             return None
-        if not GuardAccount.objects.filter(
-            user_id=request.user.pk,
-            token_ciphertext__gt="",
-        ).exists():
+        from .stores import SESSION_KEY
+        stores = GuardAccount.objects.filter(user_id=request.user.pk).order_by("id")
+        store_id = request.session.get(SESSION_KEY)
+        selected = None
+        if store_id is not None:
+            try:
+                selected = stores.filter(pk=int(store_id)).first()
+            except (ValueError, TypeError):
+                pass
+        if selected is None:
+            selected = stores.first()
+        if (selected is None or not selected.token_ciphertext
+                or selected.initial_sync_completed_at is None):
             return redirect("dashboard")
         return None
