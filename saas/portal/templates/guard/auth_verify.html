@@ -1,11 +1,41 @@
 {% extends 'guard/base.html' %}
-{% block title %}Код подтверждения — MP NoSale{% endblock %}
+{% block title %}Подтверждение email — NoSale{% endblock %}
 {% block content %}
-<div class="auth-wrap"><section class="card">
-  <span class="eyebrow">MP NoSale / подтверждение email</span>
-  <h1>Введите код из письма</h1>
-  <p class="lead">Код состоит из 4 цифр и действует 10 минут. Допускается не более 5 попыток.</p>
-  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Подтвердить email</button></form>
-  <p style="margin-top:18px"><a href="{% if purpose == 'recover' %}{% url 'password_reset' %}{% else %}{% url 'register' %}{% endif %}">Запросить код заново</a></p>
-</section></div>
+<link rel="stylesheet" href="/static/welcome.css">
+<div class="welcome-layout auth-flow-layout">
+  <section class="welcome-story auth-flow-story" aria-labelledby="auth-guide-title">
+    <div class="welcome-kicker">NoSale · регистрация и безопасность</div>
+    <p class="auth-flow-progress">{% if purpose == 'recover' %}Восстановление доступа · шаг 2 из 3{% else %}Создание аккаунта · шаг 2 из 3{% endif %}</p>
+    <h1 class="auth-flow-title" id="auth-guide-title">Проверьте вашу <span>почту.</span></h1>
+    {% if purpose == 'recover' %}
+    <p class="welcome-text">Если этот адрес связан с аккаунтом NoSale, на него отправлен четырёхзначный код. Он поможет подтвердить доступ к почте перед сменой PIN.</p>
+    {% else %}
+    <p class="welcome-text">Мы отправили четырёхзначный код на указанный email. Это нужно, чтобы убедиться, что адрес принадлежит вам, и защитить доступ к будущему аккаунту.</p>
+    {% endif %}
+    <div class="auth-flow-email"><span class="auth-flow-email-icon" aria-hidden="true">✉</span><div><small>Проверяем адрес</small><strong>{{ email }}</strong></div></div>
+    <h2 class="welcome-heading">Что делать дальше?</h2>
+    <ol class="welcome-steps auth-flow-steps">
+      <li><span class="step-number">01</span><div><strong>Откройте свою почту</strong><span class="step-caption">Найдите письмо от NoSale. Если его нет, проверьте папку «Спам».</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Скопируйте 4 цифры</strong><span class="step-caption">Вернитесь сюда и введите их в поле справа.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>Продолжите настройку</strong><span class="step-caption">{% if purpose == 'recover' %}После подтверждения вы сможете создать новый PIN.{% else %}После подтверждения останется придумать PIN для входа.{% endif %}</span></div></li>
+    </ol>
+    <div class="auth-flow-hint"><span aria-hidden="true">◷</span> Код действует 10 минут. На ввод есть 5 попыток.</div>
+  </section>
+  <section class="welcome-panel auth-flow-panel" aria-labelledby="verify-title">
+    <div class="welcome-panel-top"><span class="welcome-label">Подтверждение email</span><span class="welcome-stage">Шаг 2 из 3</span></div>
+    <h2 id="verify-title">Введите код из письма</h2>
+    <p class="welcome-explainer">Введите четыре цифры, которые получили на почту. Это подтвердит, что у вас есть доступ к указанному адресу.</p>
+    <form method="post" class="welcome-form" novalidate>{% csrf_token %}
+      {% if form.non_field_errors %}<div class="welcome-form-errors">{{ form.non_field_errors }}</div>{% endif %}
+      <label for="auth-code">Код подтверждения</label>
+      <input id="auth-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" value="{{ form.code.value|default_if_none:'' }}" required autofocus>
+      {% if form.code.errors %}<div class="welcome-form-errors">{{ form.code.errors }}</div>{% endif %}
+      <button class="welcome-submit" type="submit">Подтвердить и продолжить →</button>
+    </form>
+    <div class="auth-flow-help">
+      <p>Не получили письмо? Проверьте «Спам» или запросите код повторно.</p>
+      <a href="{% if purpose == 'recover' %}{% url 'password_reset' %}{% else %}{% url 'register' %}{% endif %}">Изменить email или запросить код снова</a>
+    </div>
+  </section>
+</div>
 {% endblock %}
