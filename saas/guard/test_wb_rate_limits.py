@@ -81,6 +81,11 @@ class BasicOnboardingCooldownTests(TestCase):
         self.assertContains(html, "Следующая автоматическая попытка")
         self.assertContains(html, 'disabled aria-disabled="true"')
         self.assertContains(html, 'id="wb-next-retry"')
+        self.assertContains(html, "auth-flow-retry-box")
+        self.assertContains(html, 'id="wb-retry-countdown"')
+        self.assertContains(html, "(МСК)")
+        self.assertContains(html, "ваше местное время")
+        self.assertNotContains(html, "WB HTTP 429 at GET")
         self.assertNotContains(html, 'type="submit" class="welcome-submit">Повторить загрузку')
 
         for _ in range(3):
