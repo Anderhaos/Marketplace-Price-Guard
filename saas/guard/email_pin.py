@@ -13,6 +13,8 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.utils import OperationalError
+import logging
 from django.db.models import Q
 from django.http import HttpResponseNotAllowed
 from django.shortcuts import redirect, render
@@ -21,6 +23,7 @@ from django.utils import timezone
 from .mail_templates import send_pin_verification_email
 from .models import EmailPinChallenge, EmailPinLoginThrottle, GuardAccount
 
+log = logging.getLogger(__name__)
 SESSION_CHALLENGE = "mpno_saas_email_challenge_id"
 CODE_TTL = timedelta(minutes=10)
 CODE_RESEND_WAIT = timedelta(seconds=60)
@@ -176,41 +179,56 @@ def verify_code(request):
 def finish_pin(request):
     if request.method not in ("GET", "POST"):
         return HttpResponseNotAllowed(["GET", "POST"])
+    # A completed registration consumes the one-time challenge. Browser
+    # resubmission, refresh and double clicks must remain idempotent.
+    if request.user.is_authenticated:
+        return redirect("dashboard")
     challenge = _current_challenge(request, require_verified=True)
     if challenge is None:
-        messages.error(request, "Подтвердите email повторно.")
-        return redirect("register")
+        messages.error(request, "Подтверждение почты завершено или истекло. Войдите или начните регистрацию заново.")
+        return redirect("login")
     form = PinForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        with transaction.atomic():
-            challenge = EmailPinChallenge.objects.select_for_update().get(pk=challenge.pk)
-            if not challenge.verified_until or challenge.verified_until <= timezone.now():
-                form.add_error(None, "Подтверждение истекло. Начните заново.")
-            elif challenge.purpose == "register":
-                if _existing_user(challenge.email):
-                    form.add_error(None, "Аккаунт уже существует. Выполните вход.")
-                else:
-                    user = User(username=challenge.email, email=challenge.email, is_active=True)
-                    user.set_password(form.cleaned_data["pin"])
-                    user.save()
-                    GuardAccount.objects.create(user=user)
-                    challenge.delete()
-                    request.session.pop(SESSION_CHALLENGE, None)
-                    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-                    return redirect("dashboard")
-            elif challenge.purpose == "recover":
-                user = _existing_user(challenge.email)
-                if user is None:
-                    form.add_error(None, "Не удалось восстановить PIN.")
-                else:
-                    user.set_password(form.cleaned_data["pin"])
-                    user.save(update_fields=["password"])
-                    EmailPinLoginThrottle.objects.filter(email=challenge.email).delete()
-                    challenge.delete()
-                    request.session.pop(SESSION_CHALLENGE, None)
-                    messages.success(request, "PIN обновлён. Войдите с новым PIN.")
-                    return redirect("login")
-    return render(request, "guard/auth_pin.html", {"form": form, "purpose": challenge.purpose, "email": challenge.email})
+        try:
+            with transaction.atomic():
+                challenge = EmailPinChallenge.objects.select_for_update().get(pk=challenge.pk)
+                if not challenge.verified_until or challenge.verified_until <= timezone.now():
+                    form.add_error(None, "Подтверждение истекло. Начните заново.")
+                elif challenge.purpose == "register":
+                    if _existing_user(challenge.email):
+                        # Another request might have completed this exact signup.
+                        # Do not silently recreate it or reveal PIN validity.
+                        form.add_error(None, "Аккаунт уже создан. Перейдите ко входу.")
+                    else:
+                        user = User(username=challenge.email, email=challenge.email, is_active=True)
+                        user.set_password(form.cleaned_data["pin"])
+                        user.save()
+                        GuardAccount.objects.create(user=user)
+                        challenge.delete()
+                        request.session.pop(SESSION_CHALLENGE, None)
+                        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+                        return redirect("dashboard")
+                elif challenge.purpose == "recover":
+                    user = _existing_user(challenge.email)
+                    if user is None:
+                        form.add_error(None, "Не удалось восстановить PIN.")
+                    else:
+                        user.set_password(form.cleaned_data["pin"])
+                        user.save(update_fields=["password"])
+                        EmailPinLoginThrottle.objects.filter(email=challenge.email).delete()
+                        challenge.delete()
+                        request.session.pop(SESSION_CHALLENGE, None)
+                        messages.success(request, "PIN обновлён. Войдите с новым PIN.")
+                        return redirect("login")
+        except OperationalError:
+            # SQLite on Windows (local preview) can fail an interleaved
+            # read-to-write transaction with "database is locked". Preserve
+            # the verified challenge so the user can retry safely.
+            log.exception("nosale_pin_finalization_db_failure")
+            form.add_error(None, "Не удалось сохранить PIN из-за временной ошибки базы. Повторите попытку.")
+    return render(request, "guard/auth_pin.html", {
+        "form": form, "purpose": challenge.purpose, "email": challenge.email,
+    })
 
 
 SESSION_LOGIN_EMAIL = "nosale_login_email"
