@@ -96,6 +96,28 @@ class BasicOnboardingCooldownTests(TestCase):
         self.assertEqual(wb_class.return_value.get_products.call_count, 1)
 
     @patch("guard.monitor.WBClient")
+    def test_reconnecting_token_does_not_reset_seller_429_cooldown(self, wb_class):
+        wb_class.return_value.get_product_cards.return_value = []
+        wb_class.return_value.get_products.side_effect = WBApiError(
+            "WB HTTP 429", 429, 3600,
+        )
+        self.assertEqual(run_due_checks(), 1)
+        self.account.refresh_from_db()
+        due = self.account.next_check_at
+        with patch("guard.integrations.WBClient"):
+            response = self.client.post(
+                reverse("connect_wb"), {"token": token_for(kind=1)}
+            )
+        self.assertRedirects(response, reverse("dashboard"))
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.next_check_at, due)
+        self.assertIn("429", self.account.last_error)
+        self.assertIsNone(self.account.initial_sync_completed_at)
+        self.assertTrue(self.account.check_requested)
+        self.assertContains(self.client.get("/"), "Ожидаем разрешения WB")
+        self.assertEqual(run_due_checks(), 0)
+
+    @patch("guard.monitor.WBClient")
     def test_retry_is_only_queued_after_wait_expires(self, wb_class):
         wb_class.return_value.get_product_cards.return_value = []
         wb_class.return_value.get_products.side_effect = WBApiError(
