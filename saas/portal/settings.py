@@ -105,6 +105,8 @@ TIME_ZONE = "Europe/Moscow"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
+# Dashboard assets live in portal/static (portal is not an installed Django app).
+STATICFILES_DIRS = [BASE_DIR / "portal" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 # Diagnostic boundary: record HTTPS relay acceptance latency only.
