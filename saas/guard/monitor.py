@@ -183,7 +183,7 @@ def check_account(account):
         )
     Product.objects.filter(account=account).exclude(checked_at=checked_at).update(active=False)
     _event(account, "check", f"Проверено товаров: {len(goods)}; скидка выше разрешённой: {problems}.")
-    if basic_readonly or not changes or (not account.enabled and not force_apply_all and not force_apply_ids):
+    if basic_readonly or settings.SAAS_WB_READ_ONLY or not changes or (not account.enabled and not force_apply_all and not force_apply_ids):
         return False
     account.refresh_from_db(fields=["enabled", "apply_all_requested", "apply_requested_ids", "token_ciphertext", "rules_version"])
     if (not account.enabled and not account.apply_all_requested and not account.apply_requested_ids) or account.token_ciphertext != token_ciphertext or account.rules_version != rules_version:
@@ -242,7 +242,7 @@ def run_due_checks():
             token_type = None
         # A basic token may monitor prices read-only at most every 15 minutes.
         # Discard all write intents before calling the shared checker.
-        if token_type == "base":
+        if token_type == "base" or settings.SAAS_WB_READ_ONLY:
             GuardAccount.objects.filter(pk=account.pk).update(
                 enabled=False, apply_all_requested=False, apply_requested_ids=[],
             )
@@ -254,7 +254,7 @@ def run_due_checks():
             changes = dict(
                 lock_until=None, last_check_at=finished_at, last_error="",
                 next_check_at=finished_at + delay,
-                enabled=False if token_type == "base" else account.enabled,
+                enabled=False if (token_type == "base" or settings.SAAS_WB_READ_ONLY) else account.enabled,
             )
             # Only a completed read of the WB inventory may unlock the cabinet.
             # "waiting_upload" returned before the inventory fetch is not success.
