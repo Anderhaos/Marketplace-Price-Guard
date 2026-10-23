@@ -199,3 +199,38 @@ class EmailFirstWelcomeTests(TestCase):
             )
             self.assertEqual(r.status_code, 302)
             self.assertEqual(User.objects.filter(email="preview-guide@example.test").count(), 1)
+
+    def test_pin_creation_has_accessible_visibility_buttons_for_both_fields(self):
+        self.client.post("/login/", {"email": "eye-create@example.test"})
+        challenge_code = re.search(r"Код: (\d{4})", mail.outbox[-1].body).group(1)
+        self.assertRedirects(self.client.post("/auth/code/", {"code": challenge_code}), "/auth/pin/")
+        response = self.client.get("/auth/pin/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'src="/static/pin-visibility.js"')
+        self.assertContains(response, 'data-pin-visibility-root')
+        self.assertContains(response, 'data-pin-secret', count=2)
+        self.assertContains(response, 'data-pin-toggle', count=2)
+        self.assertContains(response, 'aria-controls="auth-new-pin"')
+        self.assertContains(response, 'aria-controls="auth-confirm-pin"')
+        self.assertContains(response, 'aria-label="Показать PIN"', count=2)
+        self.assertContains(response, 'type="button" data-pin-toggle', count=2)
+        self.assertContains(response, 'name="pin"')
+        self.assertContains(response, 'name="confirm_pin"')
+        self.assertIsNotNone(finders.find("pin-visibility.js"))
+        self.assertIsNotNone(finders.find("welcome.css"))
+
+    def test_returning_seller_pin_input_has_one_visibility_button(self):
+        User.objects.create_user(
+            username="eye-login@example.test",
+            email="eye-login@example.test",
+            password="6819",
+        )
+        response = self.client.post("/login/", {"email": "eye-login@example.test"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-pin-visibility-root')
+        self.assertContains(response, 'data-pin-secret', count=1)
+        self.assertContains(response, 'data-pin-toggle', count=1)
+        self.assertContains(response, 'aria-controls="welcome-pin"')
+        self.assertContains(response, 'maxlength="4"')
+        self.assertContains(response, 'type="button" data-pin-toggle', count=1)
+        self.assertNotContains(response, "pin-visibility-toggle" + " type=\"submit\"")
