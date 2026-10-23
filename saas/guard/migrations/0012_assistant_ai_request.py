@@ -11,6 +11,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.AddField(model_name="assistantmessage", name="mode", field=models.CharField(choices=[("basic", "Базовый"), ("smart", "AI Smart")], default="basic", max_length=8)),
         migrations.CreateModel(
             name="AssistantAIRequest",
             fields=[
