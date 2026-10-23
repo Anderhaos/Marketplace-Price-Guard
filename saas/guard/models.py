@@ -20,6 +20,7 @@ class GuardAccount(models.Model):
     next_check_at = models.DateTimeField(default=timezone.now)
     lock_until = models.DateTimeField(null=True, blank=True)
     last_check_at = models.DateTimeField(null=True, blank=True)
+    initial_sync_completed_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
     rules_version = models.PositiveIntegerField(default=0)
 
