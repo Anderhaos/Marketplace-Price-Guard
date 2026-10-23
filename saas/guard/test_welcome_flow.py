@@ -1,5 +1,6 @@
 """Regression tests for the unified NoSale welcome / email-first entry."""
 import re
+import os
 from unittest.mock import patch
 from django.db.utils import OperationalError
 from django.contrib.auth.models import User
@@ -158,3 +159,43 @@ class EmailFirstWelcomeTests(TestCase):
             self.client.post("/auth/pin/", {"pin": "7382", "confirm_pin": "7382"}), "/"
         )
         self.assertEqual(User.objects.filter(email="db-lock@example.test").count(), 1)
+
+    @override_settings(
+        DEBUG=True,
+        EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend",
+        SAAS_WB_NETWORK_ENABLED=False,
+        TOCHKA_BILLING_ENABLED=False,
+    )
+    def test_localhost_only_session_code_allows_full_preview_registration(self):
+        with patch.dict(os.environ, {"NOSALE_LOCAL_EMAIL_PREVIEW": "1"}):
+            r = self.client.post(
+                "/login/", {"email": "preview-guide@example.test"},
+                HTTP_HOST="127.0.0.1:8926",
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(r["Location"], "/auth/code/")
+            code = self.client.session["mpno_saas_test_preview_code"]["code"]
+            self.assertRegex(code, r"^\\d{4}$")
+            r = self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926")
+            self.assertContains(r, "Только тестовая версия")
+            self.assertContains(r, code)
+            self.assertContains(r, "настоящее письмо здесь не отправляется")
+            # Production/non-loopback origins must never display the test OTP,
+            # even when the feature flag is accidentally present.
+            r = self.client.get("/auth/code/", HTTP_HOST="testserver")
+            self.assertNotContains(r, 'class="auth-flow-test-digits"')
+            with override_settings(SAAS_WB_NETWORK_ENABLED=True):
+                r = self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926")
+                self.assertNotContains(r, 'class="auth-flow-test-digits"')
+            r = self.client.post(
+                "/auth/code/", {"code": code}, HTTP_HOST="127.0.0.1:8926"
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(r["Location"], "/auth/pin/")
+            self.assertNotIn("mpno_saas_test_preview_code", self.client.session)
+            r = self.client.post(
+                "/auth/pin/", {"pin": "8372", "confirm_pin": "8372"},
+                HTTP_HOST="127.0.0.1:8926",
+            )
+            self.assertEqual(r.status_code, 302)
+            self.assertEqual(User.objects.filter(email="preview-guide@example.test").count(), 1)
