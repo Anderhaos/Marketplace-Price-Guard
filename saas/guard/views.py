@@ -298,6 +298,9 @@ def dashboard(request):
     # GET never performs network I/O: the dedicated worker refreshes WB data.
     if request.method == "POST":
         action = request.POST.get("action", "apply_all")
+        if settings.SAAS_WB_READ_ONLY and action in ("toggle_autocontrol", "apply_all"):
+            messages.error(request, "В тестовом режиме изменения цен и скидок Wildberries отключены.")
+            return _dashboard_redirect(request)
         if action == "toggle_autocontrol":
             if not guard_is_permitted(account):
                 messages.error(request, "Для запуска защиты нужна активная подписка и подключённый сервис.")
@@ -372,6 +375,7 @@ def dashboard(request):
         "product_cards_missing": bool(active_products) and not any(product.title or product.photo_url for product in active_products),
         "refresh_error": "",
         "onboarding_required": settings.SAAS_PIN_AUTH_ENABLED and not bool(account.token_ciphertext),
+        "wb_read_only": settings.SAAS_WB_READ_ONLY,
         "wb_token_form": TokenForm(),
         "trial_status": access_snapshot(request.user.pk),
     })
@@ -444,6 +448,9 @@ def product_rule(request, nm_id):
     product = get_object_or_404(Product, account=account, nm_id=nm_id, active=True)
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
+    if settings.SAAS_WB_READ_ONLY:
+        messages.error(request, "В тестовом режиме изменение скидок Wildberries отключено.")
+        return _dashboard_redirect(request)
     if _account_token_type(account) == "base":
         messages.error(request, "Базовый токен WB разрешает только просмотр товаров.")
         return _dashboard_redirect(request)
