@@ -10,12 +10,12 @@
     {% if purpose == 'recover' %}
     <p class="welcome-text">Если этот адрес связан с аккаунтом NoSale, на него отправлен четырёхзначный код. Он поможет подтвердить доступ к почте перед сменой PIN.</p>
     {% else %}
-    <p class="welcome-text">Мы отправили четырёхзначный код на указанный email. Это нужно, чтобы убедиться, что адрес принадлежит вам, и защитить доступ к будущему аккаунту.</p>
+    <p class="welcome-text">{% if preview_code %}Это изолированная тестовая версия NoSale. Код для подтверждения адреса отображается справа — настоящее письмо здесь не отправляется.{% else %}Мы отправили четырёхзначный код на указанный email. Это нужно, чтобы убедиться, что адрес принадлежит вам, и защитить доступ к будущему аккаунту.{% endif %}</p>
     {% endif %}
     <div class="auth-flow-email"><span class="auth-flow-email-icon" aria-hidden="true">✉</span><div><small>Проверяем адрес</small><strong>{{ email }}</strong></div></div>
     <h2 class="welcome-heading">Что делать дальше?</h2>
     <ol class="welcome-steps auth-flow-steps">
-      <li><span class="step-number">01</span><div><strong>Откройте свою почту</strong><span class="step-caption">Найдите письмо от NoSale. Если его нет, проверьте папку «Спам».</span></div></li>
+      <li><span class="step-number">01</span><div>{% if preview_code %}<strong>Посмотрите тестовый код</strong><span class="step-caption">Он показан в правой колонке только для локального предпросмотра.</span>{% else %}<strong>Откройте свою почту</strong><span class="step-caption">Найдите письмо от NoSale. Если его нет, проверьте папку «Спам».</span>{% endif %}</div></li>
       <li><span class="step-number">02</span><div><strong>Скопируйте 4 цифры</strong><span class="step-caption">Вернитесь сюда и введите их в поле справа.</span></div></li>
       <li><span class="step-number">03</span><div><strong>Продолжите настройку</strong><span class="step-caption">{% if purpose == 'recover' %}После подтверждения вы сможете создать новый PIN.{% else %}После подтверждения останется придумать PIN для входа.{% endif %}</span></div></li>
     </ol>
@@ -23,7 +23,14 @@
   <section class="welcome-panel auth-flow-panel" aria-labelledby="verify-title">
     <div class="welcome-panel-top"><span class="welcome-label">Подтверждение email</span><span class="welcome-stage">Шаг 2 из 3</span></div>
     <h2 id="verify-title">Введите код из письма</h2>
-    <p class="welcome-explainer">Введите четыре цифры, которые получили на почту. Это подтвердит, что у вас есть доступ к указанному адресу.</p>
+    <p class="welcome-explainer">{% if preview_code %}Тестовый код показан ниже. Это проверка интерфейса без доставки настоящего письма.{% else %}Введите четыре цифры, которые получили на почту. Это подтвердит, что у вас есть доступ к указанному адресу.{% endif %}</p>
+    {% if preview_code %}
+    <div class="auth-flow-test-code" role="note">
+      <span class="auth-flow-test-label">Только тестовая версия</span>
+      <strong class="auth-flow-test-digits" aria-label="Тестовый код">{{ preview_code }}</strong>
+      <small>Код действителен 10 минут. В рабочем NoSale он здесь не показывается.</small>
+    </div>
+    {% endif %}
     <form method="post" class="welcome-form" novalidate>{% csrf_token %}
       {% if form.non_field_errors %}<div class="welcome-form-errors">{{ form.non_field_errors }}</div>{% endif %}
       <label for="auth-code">Код подтверждения</label>
@@ -33,7 +40,7 @@
       <p class="auth-flow-code-note" role="note"><span class="auth-flow-code-note-icon" aria-hidden="true">◷</span><span><strong>Код действителен 10 минут.</strong><span class="auth-flow-code-note-detail">Доступно 5 попыток ввода.</span></span></p>
     </form>
     <div class="auth-flow-help">
-      <p>Не получили письмо? Проверьте «Спам» или запросите код повторно.</p>
+      {% if preview_code %}<p>Тестовый код показан выше. При истечении срока запросите новый.</p>{% else %}<p>Не получили письмо? Проверьте «Спам» или запросите код повторно.</p>{% endif %}
       <a href="{% if purpose == 'recover' %}{% url 'password_reset' %}{% else %}{% url 'register' %}{% endif %}">Изменить email или запросить код снова</a>
     </div>
   </section>
