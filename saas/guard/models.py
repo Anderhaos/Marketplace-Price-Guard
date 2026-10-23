@@ -121,7 +121,7 @@ class AssistantMessage(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
-        indexes = [models.Index(fields=["user", "account", "created_at"])]
+        indexes = [models.Index(fields=["user", "account", "created_at"], name="guard_assis_user_id_593b14_idx")]
 
     def __str__(self):
         return f"Помощник: магазин {self.account_id}, {self.created_at:%Y-%m-%d}"
