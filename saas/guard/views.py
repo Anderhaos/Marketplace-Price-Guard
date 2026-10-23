@@ -117,7 +117,9 @@ def _account_can_write(account):
         info = get_token_permissions(decrypt_token(account.token_ciphertext))
     except (ValueError, TypeError):
         return False
-    return bool(info and info["access"] == "Чтение и запись")
+    if info is None:
+        return not settings.SAAS_PIN_AUTH_ENABLED
+    return info["access"] == "Чтение и запись"
 
 
 def _check_now(account):
