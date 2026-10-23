@@ -24,7 +24,7 @@ def connect_wb_token(account, token):
     if not permissions:
         raise ConnectError("Не удалось определить права токена. Создайте новый токен WB.")
     if permissions["token_type"] == "personal":
-        raise ConnectError("Персональный токен нельзя использовать в облачном сервисе. Используйте сервисный токен WB или временный базовый токен.")
+        raise ConnectError("Этот персональный токен подходит для Solo на вашей инфраструктуре, но WB запрещает использовать его в облачном SaaS. Для NoSale создайте отдельный базовый токен с категориями «Контент» и «Цены и скидки» и правами «Чтение и запись». Токен Solo менять не нужно.")
     if permissions["token_type"] == "test":
         raise ConnectError("Тестовый токен работает только в песочнице WB. Нужен токен реального магазина.")
     if permissions["token_type"] not in ("service", "base"):
