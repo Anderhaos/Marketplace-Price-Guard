@@ -5,6 +5,7 @@ address. This is a one-time trusted-operator maintenance command.
 """
 import os
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -18,6 +19,8 @@ class Command(BaseCommand):
         parser.add_argument("--confirm", action="store_true", help="Actually grant owner rights; omit to dry-run")
 
     def handle(self, *args, **options):
+        if not settings.SAAS_PIN_AUTH_ENABLED or not settings.REQUIRE_EMAIL_VERIFICATION:
+            raise CommandError("Owner promotion requires the confirmed email + PIN authentication flow")
         approved = os.environ.get("NOSALE_OWNER_EMAIL", "").strip().casefold()
         supplied = options["email"].strip().casefold()
         if not approved or "@" not in approved:
