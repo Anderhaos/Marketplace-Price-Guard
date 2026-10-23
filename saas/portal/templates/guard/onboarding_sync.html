@@ -1,0 +1,44 @@
+{% extends 'guard/base.html' %}
+{% block title %}Загружаем товары — NoSale{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/welcome.css">
+<section class="welcome-layout auth-flow-layout" aria-labelledby="sync-title">
+  <div class="welcome-story auth-flow-story">
+    <div class="welcome-kicker">NoSale · подготовка магазина</div>
+    <p class="auth-flow-progress">Подключение · шаг 2 из 2</p>
+    <h1 class="auth-flow-title" id="sync-title">Готовим ваш <span>кабинет.</span></h1>
+    <p class="welcome-text">API-токен сохранён. Перед открытием кабинета NoSale должен получить актуальные товары, цены, скидки и карточки Wildberries. До окончания проверки защита не включается.</p>
+    <ol class="welcome-steps auth-flow-steps">
+      <li><span class="step-number">01</span><div><strong>Проверка доступа</strong><span class="step-caption">Права API-токена успешно проверены. Никаких изменений в WB мы не отправляли.</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Первичная загрузка</strong><span class="step-caption">Считываем товары, цены, скидки и сведения о карточках. При ошибке покажем причину.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>Открытие кабинета</strong><span class="step-caption">Кабинет откроется только после успешного завершения импорта.</span></div></li>
+    </ol>
+    <p class="auth-flow-hint">Автоматическое изменение цен и скидок остаётся выключенным. Включить защиту можно будет отдельно.</p>
+  </div>
+  <div class="welcome-panel auth-flow-panel" aria-live="polite">
+    <div class="welcome-panel-top"><span class="welcome-label">Первичная синхронизация</span><span class="welcome-stage">Шаг 2 из 2</span></div>
+    {% if messages %}<div class="setup-feedback" role="status">{% for message in messages %}<p>{{ message }}</p>{% endfor %}</div>{% endif %}
+    {% if not wb_sync_available %}
+      <h2>Ожидаем доступ к WB</h2>
+      <p class="welcome-explainer">В изолированном тестовом окружении запросы Wildberries отключены. Проверить реальные товары здесь нельзя. Данные магазина не подменяются вымышленными.</p>
+      <p class="auth-flow-footer-note">В рабочей версии после подтверждения API запустится фоновая загрузка.</p>
+    {% elif account.last_error %}
+      <h2>Не удалось загрузить товары</h2>
+      <p class="welcome-explainer">Данные пока не получены. Кабинет не открыт, повторное чтение будет выполнено безопасно.</p>
+      <div class="setup-feedback" role="alert">{{ account.last_error }}</div>
+      <form method="post" action="{% url 'dashboard' %}">{% csrf_token %}
+        <input type="hidden" name="action" value="retry_initial_sync">
+        <button type="submit" class="welcome-submit">Повторить загрузку</button>
+      </form>
+    {% else %}
+      <h2>Загружаем товары</h2>
+      <p class="welcome-explainer">Подключение принято. Выполняем первую проверку данных Wildberries. Это может занять некоторое время.</p>
+      <div class="auth-flow-hint" role="status">Получаем данные магазина. Обновление страницы безопасно.</div>
+      <p class="auth-flow-footer-note">Страница сама проверяет состояние синхронизации. Не нужно повторно вводить ключ.</p>
+      <script>window.setTimeout(() => window.location.reload(), 12000);</script>
+    {% endif %}
+    <p class="auth-flow-footer-note">Для замены токена можно вернуться к настройке подключения.</p>
+    <a href="{% url 'onboarding_connect' %}">Проверить или заменить API-ключ →</a>
+  </div>
+</section>
+{% endblock %}
