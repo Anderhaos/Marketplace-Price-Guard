@@ -93,9 +93,13 @@ class FirstRunOnboardingTests(TestCase):
 
     @patch("guard.integrations.WBClient")
     def test_personal_token_for_cloud_rejected_without_trial(self, mock_wb):
-        self.client.post(reverse("connect_wb"), {"token": token_for(kind=3)})
+        result = self.client.post(reverse("connect_wb"), {"token": token_for(kind=3)}, follow=True)
+        self.assertEqual(result.status_code, 200)
+        self.assertContains(result, "токен подходит для Solo")
+        self.assertContains(result, "создайте отдельный базовый токен")
         mock_wb.assert_not_called()
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        self.assertFalse(GuardAccount.objects.filter(user=self.user, token_ciphertext__gt="").exists())
 
     @patch("guard.integrations.WBClient")
     def test_missing_scope_rejected_without_trial(self, mock_wb):
