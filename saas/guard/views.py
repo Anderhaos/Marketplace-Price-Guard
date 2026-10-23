@@ -333,6 +333,9 @@ def dashboard(request):
                 "account": account, "onboarding_required": True,
                 "trial_status": access_snapshot(request.user.pk),
                 "wb_sync_available": settings.SAAS_WB_NETWORK_ENABLED,
+                "retry_waiting": bool(
+                    account.last_error and account.next_check_at > timezone.now()
+                ),
             })
     token_readonly = not _account_can_write(account)
     # GET never performs network I/O: the dedicated worker refreshes WB data.
