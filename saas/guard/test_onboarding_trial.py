@@ -130,6 +130,7 @@ class FirstRunOnboardingTests(TestCase):
         self.assertRedirects(self.client.get(reverse("settings")), reverse("dashboard"))
         self.client.post(reverse("connect_wb"), {"token": token_for()})
         self.assertTrue(has_active_access(self.user.pk))
+        GuardAccount.objects.filter(user=self.user).update(initial_sync_completed_at=timezone.now())
         response = self.client.post(reverse("settings"), {"action":"token", "token":token_for()})
         self.assertRedirects(response, reverse("settings"))
         self.assertEqual(AccessGrant.objects.filter(user=self.user).count(), 1)
@@ -173,10 +174,14 @@ class FirstRunOnboardingTests(TestCase):
     @patch("guard.integrations.WBClient")
     def test_after_connect_business_pages_accessible(self, mock_wb):
         self.client.post(reverse("connect_wb"), {"token": token_for()})
+        # A verified token alone is not enough; the initial import must finish.
         for path in ("/stores/", "/settings/", "/history/", "/notifications/"):
             with self.subTest(path=path):
-                response = self.client.get(path)
-                self.assertEqual(response.status_code, 200)
+                self.assertRedirects(self.client.get(path), reverse("dashboard"))
+        GuardAccount.objects.filter(user=self.user).update(initial_sync_completed_at=timezone.now())
+        for path in ("/stores/", "/settings/", "/history/", "/notifications/"):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 200)
 
     @override_settings(SAAS_PIN_AUTH_ENABLED=False)
     def test_legacy_mode_not_affected_by_onboarding_gate(self):
@@ -193,7 +198,7 @@ class FirstRunOnboardingTests(TestCase):
         response = self.client.post(reverse("dashboard"), {
             "action": "apply_all", "default_allowed_discount": 12,
         })
-        self.assertRedirects(response, reverse("dashboard"))
+        self.assertEqual(response.status_code, 405)
         account.refresh_from_db()
         self.assertFalse(account.apply_all_requested)
 
