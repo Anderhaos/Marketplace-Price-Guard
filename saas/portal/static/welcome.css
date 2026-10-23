@@ -61,6 +61,15 @@
 .auth-flow-steps{margin-bottom:23px}
 .auth-flow-hint{display:flex;align-items:center;gap:11px;max-width:530px;padding:13px 16px;border:1px solid rgba(100,216,161,.2);border-radius:12px;color:#bbd8c8;font-size:12px;line-height:1.6;background:rgba(44,89,66,.095)}
 .auth-flow-hint span{color:#77dcac;font-size:19px;flex:0 0 19px}
+
+/* The generic auth-flow-hint span rule reserves 19px for a small icon.
+   The first-import rate-limit callout is text, so it needs a full-width
+   layout rather than an icon-sized flex child. */
+.auth-flow-panel .auth-flow-retry-box{display:block;width:100%;max-width:none;min-width:0;padding:16px 17px}
+.auth-flow-panel .auth-flow-retry-box .retry-label{font-size:13px;line-height:1.55;font-weight:500;color:#c3d7cd;margin:0 0 6px}
+.auth-flow-panel .auth-flow-retry-box .retry-time{display:block;font-size:17px;line-height:1.4;font-weight:700;color:#80e9b5;font-variant-numeric:tabular-nums;overflow-wrap:normal}
+.auth-flow-panel .auth-flow-retry-box .retry-countdown{font-size:12px;line-height:1.5;color:#a6c4b4;margin:7px 0 0}
+
 .auth-flow-panel .welcome-form{gap:11px}
 .auth-flow-panel .welcome-form label:not(:first-child){margin-top:4px}
 .auth-flow-panel .welcome-form input[type=text],.auth-flow-panel .welcome-form input[type=password]{min-height:53px;background:#101013;border:1px solid #353339;border-radius:13px;padding:12px 15px;font-size:16px;width:100%;outline:none;color:#f2f1ee}
