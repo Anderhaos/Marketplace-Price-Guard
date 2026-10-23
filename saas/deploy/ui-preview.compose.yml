@@ -36,6 +36,20 @@ services:
       timeout: 5s
       retries: 8
     networks: [preview_internal]
+  worker:
+    build:
+      context: ..
+    env_file: ../.preview.env
+    environment:
+      SAAS_DB_HOST: db
+      SAAS_DB_PORT: "5432"
+    depends_on:
+      db: {condition: service_healthy}
+    command: python manage.py run_guard
+    restart: unless-stopped
+    networks: [preview_internal]
+    # The preview's WB_NETWORK flag is off. This worker performs no network
+    # requests unless explicitly enabled by an authorized separate test.
 networks:
   preview_internal: {}
 volumes:
