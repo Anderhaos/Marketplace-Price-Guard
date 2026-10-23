@@ -4,6 +4,7 @@
 {% if onboarding_required %}
   {% include "guard/onboarding_modal.html" %}
 {% else %}
+{% if wb_read_only %}<p class="notice" role="status">Предпросмотр NoSale: товары и скидки считываются из WB. Изменение цен, скидок и автоматическая защита здесь отключены.</p>{% endif %}
 <div class="compact-context">
   <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span> <a class="compact-link" href="{% url 'stores' %}">Сменить</a></div>
   {% if trial_status.active %}<span class="trial-strip">{% if trial_status.access_source == "trial" %}Пробный доступ{% else %}Доступ активен{% endif %} · {{ trial_status.days_left }} дн. до {{ trial_status.expires_at|date:"d.m.Y" }}</span>
@@ -17,7 +18,7 @@
     <form method="post" action="{% url 'dashboard' %}" class="compact-toggle-form">{% csrf_token %}
       <input type="hidden" name="action" value="toggle_autocontrol">
       <input type="hidden" name="confirm_zero_discount" value="0">
-      <label class="toggle compact-switch"><input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or base_token %}disabled{% endif %} onchange="if(this.checked && {{ account.default_allowed_discount }}===0){if(!confirm('Внимание: лимит 0%. NoSale будет убирать скидки в Wildberries. Продолжить?')){this.checked=false;return;}this.form.elements.confirm_zero_discount.value='1';}this.form.submit()"><span class="toggle-track"></span><b>{% if account.enabled %}Вкл{% else %}Выкл{% endif %}</b></label>
+      <label class="toggle compact-switch"><input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or base_token or wb_read_only %}disabled{% endif %} onchange="if(this.checked && {{ account.default_allowed_discount }}===0){if(!confirm('Внимание: лимит 0%. NoSale будет убирать скидки в Wildberries. Продолжить?')){this.checked=false;return;}this.form.elements.confirm_zero_discount.value='1';}this.form.submit()"><span class="toggle-track"></span><b>{% if account.enabled %}Вкл{% else %}Выкл{% endif %}</b></label>
     </form>
   </div>
   <a class="summary-cell {% if filter_name == 'all' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=all"><span class="summary-label">Товаров</span><strong>{{ count }}</strong></a>
@@ -28,8 +29,8 @@
     <form method="post" class="compact-limit-form" action="{% url 'dashboard' %}" onsubmit="if(Number(this.elements.default_allowed_discount.value)===0){if(!confirm('Лимит 0%: будут убраны все превышающие его скидки WB. Подтвердить?'))return false;this.elements.confirm_zero_discount.value='1';}">{% csrf_token %}
       <input type="hidden" name="action" value="apply_all">
       <input type="hidden" name="confirm_zero_discount" value="0">
-      <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active or base_token %}disabled{% endif %}>
-      <button type="submit" aria-label="Сохранить и применить предел скидки в WB" title="Сохраняет предел и отправляет изменения в WB" {% if not trial_status.active or base_token %}disabled{% endif %}>Применить</button>
+      <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active or base_token or wb_read_only %}disabled{% endif %}>
+      <button type="submit" aria-label="Сохранить и применить предел скидки в WB" title="Сохраняет предел и отправляет изменения в WB" {% if not trial_status.active or base_token or wb_read_only %}disabled{% endif %}>Применить</button>
     </form>
   </div>
 </section>
@@ -57,7 +58,7 @@
         <div><span>Цена со скидкой</span><strong class="price-main">{% if product.discounted_price %}{{ product.discounted_price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
         <div><span>Цена до скидки</span><strong class="price-secondary">{% if product.price %}{{ product.price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
       </div>
-      {% if not base_token %}
+      {% if not base_token and not wb_read_only %}
       <form method="post" action="{% url 'product_rule' product.nm_id %}" class="product-rule">{% csrf_token %}
         <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
         <div class="product-discount-row">
