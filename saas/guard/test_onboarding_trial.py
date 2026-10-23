@@ -40,10 +40,10 @@ class FirstRunOnboardingTests(TestCase):
         self.assertContains(response, "Базовый токен")
         self.assertContains(response, "Цены и скидки")
         self.assertContains(response, "Контент")
-        self.assertContains(response, "Только чтение")
+        self.assertContains(response, "Чтение и запись")
         self.assertContains(response, "Вставьте скопированный ключ")
         self.assertContains(response, "Подключить магазин")
-        self.assertNotContains(response, "Персональный токен")
+        self.assertContains(response, "Персональный токен")
         self.assertNotContains(response, "Всего товаров")
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
 
@@ -192,7 +192,7 @@ class FirstRunOnboardingTests(TestCase):
         self.assertEqual(self.client.get("/settings/").status_code, 200)
 
     @patch("guard.integrations.WBClient")
-    def test_basic_token_connects_read_only_without_price_probe(self, mock_wb):
+    def test_basic_rw_token_connects_without_price_probe(self, mock_wb):
         self.client.post(reverse("connect_wb"), {"token": token_for(kind=1)})
         mock_wb.return_value.validate_token.assert_called_once_with(probe_prices=False)
         account = GuardAccount.objects.get(user=self.user)
@@ -224,17 +224,17 @@ class FirstRunOnboardingTests(TestCase):
         mocked.submit_discounts.assert_not_called()
         account = GuardAccount.objects.get(user=self.user)
         self.assertFalse(account.enabled)
-        self.assertTrue(account.check_requested)
-        self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 14*60)
+        self.assertFalse(account.check_requested)
+        self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 59*60)
         self.assertEqual(run_due_checks(), 0)
 
     @patch("guard.integrations.WBClient")
-    def test_basic_readonly_token_allowed_for_preview(self, mock_wb):
+    def test_basic_readonly_token_rejected_before_trial(self, mock_wb):
         limited = token_for(kind=1, scopes=(1 << 1) | (1 << 3) | (1 << 30))
         response = self.client.post(reverse("connect_wb"), {"token": limited})
         self.assertRedirects(response, reverse("dashboard"))
-        mock_wb.return_value.validate_token.assert_called_once_with(probe_prices=False)
-        self.assertTrue(has_active_access(self.user.pk))
+        mock_wb.assert_not_called()
+        self.assertFalse(has_active_access(self.user.pk))
 
     @patch("guard.integrations.WBClient")
     def test_second_store_onboarding_does_not_promise_another_trial(self, mock_wb):
