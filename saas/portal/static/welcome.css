@@ -65,6 +65,10 @@
 .auth-flow-panel .welcome-form input[type=text],.auth-flow-panel .welcome-form input[type=password]{min-height:53px;background:#101013;border:1px solid #353339;border-radius:13px;padding:12px 15px;font-size:16px;width:100%;outline:none;color:#f2f1ee}
 .auth-flow-panel .welcome-form input:focus-visible{border-color:#ff7848;box-shadow:0 0 0 3px rgba(255,90,31,.15)}
 .auth-flow-panel .welcome-form input::placeholder{color:#75737a}
+.auth-flow-code-note{display:flex;align-items:center;gap:12px;padding:13px 14px;margin:4px 0 0!important;border-radius:12px;border:1px solid rgba(100,216,161,.34);background:rgba(44,103,71,.15);color:#d5f1e2;line-height:1.5}
+.auth-flow-code-note-icon{display:grid;place-items:center;flex:0 0 29px;height:29px;border:1px solid rgba(117,224,171,.25);border-radius:9px;background:rgba(117,224,171,.09);color:#78dca9;font-size:19px}
+.auth-flow-code-note strong{display:block;font-size:13px;font-weight:750;color:#bbefce}
+.auth-flow-code-note-detail{display:block;margin-top:2px;font-size:12px;color:#b4c7b9}
 .auth-flow-help{padding-top:22px;border-top:1px solid #303035;margin-top:26px}
 .auth-flow-help p{color:#9d99a0;font-size:12px;line-height:1.6;margin:0 0 8px}
 .auth-flow-help a{font-size:13px}
