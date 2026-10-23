@@ -238,7 +238,7 @@ def connect_wb(request):
         messages.error(request, str(error))
         return redirect("dashboard")
     if started:
-        messages.success(request, "Магазин подключён. Ваши 5 бесплатных дней начались.")
+        messages.success(request, "API проверен. Началась первичная загрузка товаров. Ваши 5 бесплатных дней начались.")
     elif access_snapshot(request.user.pk)["active"]:
         messages.success(request, "Токен проверен и сохранён.")
     else:
@@ -251,6 +251,35 @@ def connect_wb(request):
 @login_required
 def dashboard(request):
     account = _account(request)
+    if settings.SAAS_PIN_AUTH_ENABLED:
+        if not account.token_ciphertext:
+            if request.method != "GET":
+                return HttpResponseNotAllowed(["GET"])
+            return render(request, "guard/onboarding_start.html", {
+                "onboarding_required": True,
+                "trial_status": access_snapshot(request.user.pk),
+            })
+        if account.initial_sync_completed_at is None:
+            if request.method == "POST":
+                if request.POST.get("action") != "retry_initial_sync":
+                    return HttpResponseNotAllowed(["GET"])
+                if not settings.SAAS_WB_NETWORK_ENABLED:
+                    messages.error(request, "В тестовой среде запросы WB отключены. Реальная синхронизация недоступна.")
+                elif account.lock_until and account.lock_until > timezone.now():
+                    messages.info(request, "Синхронизация уже выполняется.")
+                elif account.next_check_at > timezone.now() and not account.last_error:
+                    messages.info(request, "Загрузка уже запланирована.")
+                else:
+                    GuardAccount.objects.filter(pk=account.pk, user_id=request.user.pk).update(
+                        check_requested=True, last_error="", next_check_at=timezone.now(), lock_until=None,
+                    )
+                    messages.info(request, "Повторная загрузка поставлена в очередь.")
+                return redirect("dashboard")
+            return render(request, "guard/onboarding_sync.html", {
+                "account": account, "onboarding_required": True,
+                "trial_status": access_snapshot(request.user.pk),
+                "wb_sync_available": settings.SAAS_WB_NETWORK_ENABLED,
+            })
     base_token = _account_token_type(account) == "base"
     # GET never performs network I/O: the dedicated worker refreshes WB data.
     if request.method == "POST":
