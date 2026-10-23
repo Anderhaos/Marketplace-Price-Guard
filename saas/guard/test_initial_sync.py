@@ -135,6 +135,43 @@ class InitialSyncGateTests(TestCase):
         sess.save()
         self.assertEqual(self.client.get("/stores/").status_code, 200)
 
+    @override_settings(SAAS_WB_READ_ONLY=True)
+    @patch("guard.monitor.WBClient")
+    def test_preview_reads_service_token_inventory_without_any_price_writes(self, wb_class):
+        account = self.connect(kind=4)
+        account.enabled = True
+        account.apply_all_requested = True
+        account.save(update_fields=["enabled", "apply_all_requested"])
+        wb = wb_class.return_value
+        wb.get_product_cards.return_value = []
+        wb.get_products.return_value = [
+            {"nmID": 9903, "discount": 33, "vendorCode": "readonly-33",
+             "sizes": [{"price": 500, "discountedPrice": 335}]},
+        ]
+        self.assertEqual(run_due_checks(), 1)
+        account.refresh_from_db()
+        self.assertIsNotNone(account.initial_sync_completed_at)
+        self.assertFalse(account.enabled)
+        self.assertFalse(account.apply_all_requested)
+        self.assertTrue(Product.objects.filter(account=account, nm_id=9903).exists())
+        wb.submit_discounts.assert_not_called()
+
+    @override_settings(SAAS_WB_READ_ONLY=True)
+    def test_preview_refuses_dashboard_write_controls_after_first_import(self):
+        account = self.connect(kind=4)
+        account.initial_sync_completed_at = timezone.now()
+        account.save(update_fields=["initial_sync_completed_at"])
+        response = self.client.get("/")
+        self.assertContains(response, "Изменение цен, скидок и автоматическая защита здесь отключены")
+        self.assertContains(response, "disabled")
+        for action in ("apply_all", "toggle_autocontrol"):
+            response = self.client.post("/", {"action": action,
+                                              "enabled": "on", "default_allowed_discount": "0"})
+            self.assertRedirects(response, "/")
+            account.refresh_from_db()
+            self.assertFalse(account.apply_all_requested)
+            self.assertFalse(account.enabled)
+
     @override_settings(SAAS_WB_NETWORK_ENABLED=False)
     def test_preview_explains_disabled_real_import_without_inventing_products(self):
         self.connect()
