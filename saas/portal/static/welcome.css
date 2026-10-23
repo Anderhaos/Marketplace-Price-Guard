@@ -85,7 +85,7 @@
 /* PIN eye controls: no layout shift; accessible 44px hit area on touch screens. */
 .welcome-panel .pin-field{position:relative;width:100%;min-width:0}
 .welcome-panel .pin-field input[type="password"],
-.welcome-panel .pin-field input[type="text"]{width:100%;min-width:0;padding-right:58px}
+.welcome-panel .pin-field input[type="text"]{width:100%;min-width:0;min-height:53px;background:#101013;border:1px solid #353339;border-radius:13px;padding:12px 58px 12px 15px;font-size:16px;outline:none;color:#f2f1ee}
 .welcome-panel .pin-visibility-toggle{
   position:absolute;right:5px;top:50%;transform:translateY(-50%);
   display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;
