@@ -29,12 +29,12 @@
       {% else %}
         <p class="welcome-explainer">Данные пока не получены. Кабинет остаётся закрытым до успешной синхронизации.</p>
       {% endif %}
-      <div class="setup-feedback" role="alert">{{ account.last_error }}</div>
+      <div class="setup-feedback" role="alert">{% if rate_limited %}Wildberries ограничил частоту запросов (HTTP 429). Запланирован безопасный автоматический повтор.{% else %}{{ account.last_error }}{% endif %}</div>
       {% if retry_waiting %}
-        <div class="auth-flow-hint" role="status">
-          <span>Следующая автоматическая попытка — не раньше
-            <time id="wb-next-retry" datetime="{{ account.next_check_at|date:'c' }}">{{ account.next_check_at|date:"d.m.Y H:i" }}</time>.
-          </span>
+        <div class="auth-flow-hint auth-flow-retry-box" role="status">
+          <p class="retry-label">Следующая автоматическая попытка — не раньше</p>
+          <time class="retry-time" id="wb-next-retry" datetime="{{ account.next_check_at|date:'c' }}">{{ account.next_check_at|date:"d.m.Y H:i" }} (МСК)</time>
+          <p class="retry-countdown" id="wb-retry-countdown">NoSale сам повторит загрузку после снятия ограничения.</p>
         </div>
         <p class="auth-flow-footer-note">Лимит WB применяется к магазину, в том числе при использовании других программ. Кнопка повторной загрузки появится после окончания ограничения.</p>
         <button type="button" class="welcome-submit" disabled aria-disabled="true">Ожидаем разрешённого времени</button>
@@ -44,9 +44,28 @@
             if (!el) return;
             const until = Date.parse(el.dateTime);
             if (!Number.isFinite(until)) return;
-            // One refresh once the worker may have started a scheduled retry.
+            try {
+              el.textContent = new Intl.DateTimeFormat('ru-RU', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+              }).format(new Date(until)) + ' (ваше местное время)';
+            } catch (_) {
+              // Keep the explicit Moscow-time fallback in the HTML.
+            }
+            const countdown = document.getElementById('wb-retry-countdown');
+            function updateCountdown() {
+              if (!countdown) return;
+              const minutes = Math.ceil((until - Date.now()) / 60000);
+              countdown.textContent = minutes > 0
+                ? 'Осталось примерно ' + minutes + ' мин. Повтор автоматический.'
+                : 'Время ожидания прошло. Проверяем результат загрузки…';
+            }
+            updateCountdown();
+            window.setInterval(updateCountdown, 60000);
+            // One page refresh after the worker is allowed to retry; no WB
+            // requests are sent from the browser.
             window.setTimeout(() => window.location.reload(),
-              Math.max(1000, Math.min(until - Date.now() + 20000, 2147483647)));
+              Math.max(1000, Math.min(until - Date.now() + 25000, 2147483647)));
           }());
         </script>
       {% else %}
