@@ -9,6 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 
+@override_settings(SAAS_PIN_AUTH_ENABLED=True, REQUIRE_EMAIL_VERIFICATION=True)
 class OwnerProvisioningTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
@@ -24,6 +25,17 @@ class OwnerProvisioningTests(TestCase):
             "provision_owner_admin", email=email, confirm=confirm, stdout=output
         )
         return output.getvalue()
+
+    def test_requires_real_email_pin_auth_mode(self):
+        with patch.dict("os.environ", {"NOSALE_OWNER_EMAIL": self.user.email}):
+            with override_settings(SAAS_PIN_AUTH_ENABLED=False):
+                with self.assertRaises(CommandError):
+                    self.call(confirm=True)
+            with override_settings(REQUIRE_EMAIL_VERIFICATION=False):
+                with self.assertRaises(CommandError):
+                    self.call(confirm=True)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_superuser)
 
     def test_no_server_allowlist_never_elevates(self):
         with patch.dict("os.environ", {"NOSALE_OWNER_EMAIL": ""}):
