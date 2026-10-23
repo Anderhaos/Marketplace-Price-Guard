@@ -75,11 +75,12 @@ class StoreAdvisorTests(TestCase):
     def test_get_does_not_call_wb(self):
         self.grant()
         self.client.force_login(self.seller)
-        with self.assertNumQueries(8):
-            pass  # The GET path does not trigger a marketplace request.
-        response = self.client.get(reverse("store_advisor"))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.client.post(reverse("store_advisor")).status_code, 405)
+        from unittest.mock import patch
+        with patch("guard.views.WBClient") as wb:
+            response = self.client.get(reverse("store_advisor"))
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(self.client.post(reverse("store_advisor")).status_code, 405)
+            wb.assert_not_called()
 
     def test_expired_entitlement_is_denied(self):
         grant = self.grant()
