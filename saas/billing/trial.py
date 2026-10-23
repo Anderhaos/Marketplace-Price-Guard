@@ -6,7 +6,7 @@ validated marketplace integration, not on initial email confirmation.
 from datetime import timedelta
 from math import ceil
 
-from django.db import transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 
 from .models import AccessGrant
@@ -41,11 +41,21 @@ def access_snapshot(user_id, *, at=None):
     active = AccessGrant.objects.filter(
         user_id=user_id, starts_at__lte=now, ends_at__gt=now,
         revoked_at__isnull=True,
-    ).order_by("-ends_at").first()
+    ).order_by(
+        Case(When(plan="smart", then=Value(0)), default=Value(1), output_field=IntegerField()),
+        "-ends_at",
+    ).first()
+    upcoming = AccessGrant.objects.filter(
+        user_id=user_id, source="payment", starts_at__gt=now,
+        revoked_at__isnull=True,
+    ).order_by("starts_at").first()
     trial = AccessGrant.objects.filter(source_ref=trial_source_ref(user_id)).first()
     return {
         "active": bool(active),
         "access_source": active.source if active else None,
+        "active_plan": active.plan if active else None,
+        "upcoming_plan": upcoming.plan if upcoming else None,
+        "upcoming_starts_at": upcoming.starts_at if upcoming else None,
         "expires_at": active.ends_at if active else None,
         "days_left": max(0, ceil((active.ends_at - now).total_seconds() / 86400)) if active else 0,
         "trial_started": bool(trial),
