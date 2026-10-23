@@ -81,3 +81,21 @@
 .auth-flow-test-label{color:#ff956e;text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:800}
 .auth-flow-test-digits{color:#fff;font-size:31px;letter-spacing:.24em;font-variant-numeric:tabular-nums;font-weight:780}
 .auth-flow-test-code small{font-size:12px;line-height:1.45;color:#b4acac}
+
+/* PIN eye controls: no layout shift; accessible 44px hit area on touch screens. */
+.welcome-panel .pin-field{position:relative;width:100%;min-width:0}
+.welcome-panel .pin-field input[type="password"],
+.welcome-panel .pin-field input[type="text"]{width:100%;min-width:0;padding-right:58px}
+.welcome-panel .pin-visibility-toggle{
+  position:absolute;right:5px;top:50%;transform:translateY(-50%);
+  display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;
+  background:transparent;border:0;border-radius:11px;color:#a7a3ac;
+  box-shadow:none;cursor:pointer;touch-action:manipulation;z-index:1
+}
+.welcome-panel .pin-visibility-toggle:hover{background:rgba(255,255,255,.06);color:#f2f1ee;transform:translateY(-50%)}
+.welcome-panel .pin-visibility-toggle:focus-visible{outline:2px solid #ff7848;outline-offset:-2px;color:#f2f1ee}
+.welcome-panel .pin-visibility-toggle[aria-pressed="true"]{color:#ff956e}
+.welcome-panel .pin-visibility-toggle svg{display:block;pointer-events:none}
+.welcome-panel .pin-visibility-toggle .pin-eye-hidden{display:none}
+.welcome-panel .pin-visibility-toggle[aria-pressed="true"] .pin-eye-visible{display:none}
+.welcome-panel .pin-visibility-toggle[aria-pressed="true"] .pin-eye-hidden{display:inline}
