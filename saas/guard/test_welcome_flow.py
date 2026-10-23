@@ -1,5 +1,7 @@
 """Regression tests for the unified NoSale welcome / email-first entry."""
 import re
+from unittest.mock import patch
+from django.db.utils import OperationalError
 from django.contrib.auth.models import User
 from django.core import mail
 from django.contrib.staticfiles import finders
@@ -127,3 +129,32 @@ class EmailFirstWelcomeTests(TestCase):
         self.assertContains(response, "Аккаунт найден")
         self.assertContains(response, "Остался ваш PIN")
         self.assertContains(response, 'name="pin"')
+
+    def test_pin_submission_is_idempotent_after_sign_up(self):
+        self.client.post("/login/", {"email": "doubleclick@example.test"})
+        challenge_code = re.search(r"Код: (\d{4})", mail.outbox[-1].body).group(1)
+        self.assertRedirects(self.client.post("/auth/code/", {"code": challenge_code}), "/auth/pin/")
+        response = self.client.post("/auth/pin/", {"pin": "7382", "confirm_pin": "7382"})
+        self.assertRedirects(response, "/")
+        self.assertTrue(User.objects.filter(email="doubleclick@example.test").exists())
+        # Refresh / duplicate POST no longer takes a registered seller back
+        # to the registration step after the challenge is consumed.
+        self.assertRedirects(
+            self.client.post("/auth/pin/", {"pin": "7382", "confirm_pin": "7382"}), "/"
+        )
+        self.assertRedirects(self.client.get("/auth/pin/"), "/")
+        self.assertEqual(User.objects.filter(email="doubleclick@example.test").count(), 1)
+
+    def test_transient_database_lock_shows_retry_message_without_consuming_verification(self):
+        self.client.post("/login/", {"email": "db-lock@example.test"})
+        challenge_code = re.search(r"Код: (\d{4})", mail.outbox[-1].body).group(1)
+        self.assertRedirects(self.client.post("/auth/code/", {"code": challenge_code}), "/auth/pin/")
+        with patch("guard.email_pin.User.save", side_effect=OperationalError("database is locked")):
+            response = self.client.post("/auth/pin/", {"pin": "7382", "confirm_pin": "7382"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Не удалось сохранить PIN из-за временной ошибки базы")
+        self.assertFalse(User.objects.filter(email="db-lock@example.test").exists())
+        self.assertRedirects(
+            self.client.post("/auth/pin/", {"pin": "7382", "confirm_pin": "7382"}), "/"
+        )
+        self.assertEqual(User.objects.filter(email="db-lock@example.test").count(), 1)
