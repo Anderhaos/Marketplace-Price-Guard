@@ -166,6 +166,11 @@ class WBClient:
             if not page:
                 return products
             products.extend(page)
+            # If a page is shorter than the requested batch, there is no
+            # next page. An unnecessary extra call can exhaust the basic
+            # token's shared four-requests-per-hour price API allowance.
+            if len(page) < 1000:
+                return products
             offset += 1000
 
     def submit_discounts(self, changes):
