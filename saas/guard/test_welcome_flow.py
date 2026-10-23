@@ -75,3 +75,49 @@ class EmailFirstWelcomeTests(TestCase):
         self.assertIsNotNone(path)
         with open(path, encoding="utf-8") as file:
             self.assertIn(".welcome-layout", file.read())
+
+    def test_code_verification_has_contextual_two_column_guide(self):
+        self.client.post("/login/", {"email": "guide@example.test"})
+        response = self.client.get("/auth/code/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="welcome-layout auth-flow-layout"')
+        self.assertContains(response, "Проверьте вашу")
+        self.assertContains(response, "guide@example.test")
+        self.assertContains(response, "Код действует 10 минут")
+        self.assertContains(response, "После подтверждения останется придумать PIN")
+        self.assertContains(response, 'name="code"')
+        self.assertContains(response, "Подтвердить и продолжить")
+        self.assertNotContains(response, "Начать бесплатно")
+
+    def test_pin_setup_continues_conversation_after_verifying_email(self):
+        self.client.post("/login/", {"email": "new-guided@example.test"})
+        code = re.search(r"Код: (\d{4})", mail.outbox[-1].body).group(1)
+        self.assertRedirects(self.client.post("/auth/code/", {"code": code}), "/auth/pin/")
+        response = self.client.get("/auth/pin/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="welcome-layout auth-flow-layout"')
+        self.assertContains(response, "Почта подтверждена")
+        self.assertContains(response, "new-guided@example.test")
+        self.assertContains(response, "Шаг 3 из 3")
+        self.assertContains(response, 'name="pin"')
+        self.assertContains(response, 'name="confirm_pin"')
+        self.assertContains(response, "Создать аккаунт")
+
+    def test_recovery_guide_does_not_claim_unknown_email_was_sent(self):
+        self.client.post("/password-reset/", {"email": "unknown-guided@example.test"})
+        response = self.client.get("/auth/code/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Если этот адрес связан с аккаунтом")
+        self.assertContains(response, "Восстановление доступа")
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_known_account_pin_screen_has_its_own_contextual_guide(self):
+        User.objects.create_user(
+            username="known-guide@example.test", email="known-guide@example.test", password="6159"
+        )
+        response = self.client.post("/login/", {"email": "known-guide@example.test"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "С возвращением")
+        self.assertContains(response, "Аккаунт найден")
+        self.assertContains(response, "Остался ваш PIN")
+        self.assertContains(response, 'name="pin"')
