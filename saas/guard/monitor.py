@@ -114,7 +114,10 @@ def check_account(account):
         card_data = _card_data(client)
         _save_card_data(account, card_data)
     except WBApiError:
-        pass
+        # Initial import must include catalog metadata, not just prices.
+        # Subsequent refreshes may retain previously fetched card details.
+        if account.initial_sync_completed_at is None:
+            raise
     goods = list({int(item["nmID"]): item for item in client.get_products()}.values())
     checked_at = timezone.now()
     existing_products = {product.nm_id: product for product in Product.objects.filter(
