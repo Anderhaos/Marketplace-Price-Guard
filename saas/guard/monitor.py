@@ -96,7 +96,12 @@ def check_account(account):
     rules_version = account.rules_version
     raw_token = decrypt_token(token_ciphertext)
     permission = get_token_permissions(raw_token)
-    token_readonly = not permission or permission["access"] != "Чтение и запись"
+    # Historical non-SaaS accounts have legacy credential formats. Only
+    # SaaS accounts must prove write permissions in the WB JWT scope.
+    token_readonly = (
+        permission["access"] != "Чтение и запись" if permission
+        else settings.SAAS_PIN_AUTH_ENABLED
+    )
     client = WBClient(raw_token)
     # The actual access scope, not the token class, controls write access.
     if token_readonly:
@@ -241,7 +246,10 @@ def run_due_checks():
             raw_token = decrypt_token(account.token_ciphertext)
             token_type = get_token_type(raw_token)
             permission = get_token_permissions(raw_token)
-            token_readonly = not permission or permission["access"] != "Чтение и запись"
+            token_readonly = (
+                permission["access"] != "Чтение и запись" if permission
+                else settings.SAAS_PIN_AUTH_ENABLED
+            )
         except (ValueError, TypeError):
             token_type, token_readonly = None, True
         # A basic token can carry write access. Only a truly read-only token
