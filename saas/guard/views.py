@@ -18,6 +18,8 @@ from django.conf import settings
 
 from billing.access import guard_is_permitted, has_smart_access
 from .advisor import store_recommendations
+from .helper import answer_store_question
+from billing.access import has_active_access
 from billing.trial import access_snapshot
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
@@ -429,6 +431,27 @@ def dashboard(request):
         "wb_token_form": TokenForm(),
         "trial_status": access_snapshot(request.user.pk),
     })
+
+
+@login_required
+def store_helper(request):
+    """A single read-only, CSRF-protected helper for the signed-in seller."""
+    if request.method not in ("GET", "POST"):
+        return HttpResponseNotAllowed(["GET", "POST"])
+    account = _account(request)
+    has_access = has_active_access(request.user.pk)
+    context = {"account": account, "has_access": has_access}
+    if request.method == "POST":
+        if not has_access:
+            return HttpResponse("Для помощника требуется активная подписка.", status=403)
+        question = request.POST.get("question", "")
+        context["question"] = question
+        try:
+            context["answer"] = answer_store_question(account, request.user.pk, question)
+        except ValueError as exc:
+            context["error"] = str(exc)
+            return render(request, "guard/helper.html", context, status=400)
+    return render(request, "guard/helper.html", context)
 
 
 @login_required
