@@ -170,7 +170,7 @@ def verify_code(request):
                 challenge.attempts += 1
                 challenge.save(update_fields=["attempts"])
                 form.add_error("code", "Код неверный или истёк.")
-    return render(request, "guard/auth_verify.html", {"form": form, "purpose": challenge.purpose})
+    return render(request, "guard/auth_verify.html", {"form": form, "purpose": challenge.purpose, "email": challenge.email})
 
 
 def finish_pin(request):
@@ -210,7 +210,7 @@ def finish_pin(request):
                     request.session.pop(SESSION_CHALLENGE, None)
                     messages.success(request, "PIN обновлён. Войдите с новым PIN.")
                     return redirect("login")
-    return render(request, "guard/auth_pin.html", {"form": form, "purpose": challenge.purpose})
+    return render(request, "guard/auth_pin.html", {"form": form, "purpose": challenge.purpose, "email": challenge.email})
 
 
 SESSION_LOGIN_EMAIL = "nosale_login_email"
