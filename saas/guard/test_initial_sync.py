@@ -92,7 +92,7 @@ class InitialSyncGateTests(TestCase):
         self.assertTrue(account.last_error)
         self.assertFalse(Product.objects.filter(account=account).exists())
         r = self.client.get("/")
-        self.assertContains(r, "Не удалось загрузить товары")
+        self.assertContains(r, "Повторная загрузка запланирована")
         self.assertContains(r, "Повторить загрузку")
         self.assertNotContains(r, 'class="compact-summary"')
 
