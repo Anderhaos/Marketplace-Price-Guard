@@ -1,6 +1,7 @@
 {% extends 'guard/base.html' %}
 {% block title %}{% if purpose == 'recover' %}Новый PIN{% else %}Создание PIN{% endif %} — NoSale{% endblock %}
 {% block content %}
+<script src="/static/pin-visibility.js" defer></script>
 <link rel="stylesheet" href="/static/welcome.css">
 <div class="welcome-layout auth-flow-layout">
   <section class="welcome-story auth-flow-story" aria-labelledby="auth-guide-title">
@@ -21,13 +22,13 @@
     <div class="welcome-panel-top"><span class="welcome-label">Защита входа</span><span class="welcome-stage">Шаг 3 из 3</span></div>
     <h2 id="pin-title">{% if purpose == 'recover' %}Установите новый PIN{% else %}Создайте PIN для входа{% endif %}</h2>
     <p class="welcome-explainer">Выберите четыре цифры, которые сможете вспомнить. PIN понадобится вместе с email для следующего входа.</p>
-    <form method="post" class="welcome-form" novalidate>{% csrf_token %}
+    <form method="post" class="welcome-form" novalidate data-pin-visibility-root>{% csrf_token %}
       {% if form.non_field_errors %}<div class="welcome-form-errors">{{ form.non_field_errors }}</div>{% endif %}
       <label for="auth-new-pin">Ваш PIN (4 цифры)</label>
-      <input id="auth-new-pin" type="password" name="pin" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="••••" required autofocus>
+      <div class="pin-field"><input id="auth-new-pin" type="password" name="pin" data-pin-secret inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="••••" required autofocus><button class="pin-visibility-toggle" type="button" data-pin-toggle aria-pressed="false" aria-label="Показать PIN" aria-controls="auth-new-pin" title="Показать PIN"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="pin-eye-visible"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></g><g class="pin-eye-hidden"><path d="m3 3 18 18M10.5 5.6a10.8 10.8 0 0 1 1.5-.1c6.4 0 10 6.5 10 6.5a16.7 16.7 0 0 1-3 3.6M6 6.9C3.5 8.5 2 12 2 12s3.6 6.5 10 6.5c1.7 0 3.2-.5 4.5-1.2"/><path d="M10.3 10.3a2.5 2.5 0 0 0 3.4 3.4"/></g></svg></button></div>
       {% if form.pin.errors %}<div class="welcome-form-errors">{{ form.pin.errors }}</div>{% endif %}
       <label for="auth-confirm-pin">Повторите PIN</label>
-      <input id="auth-confirm-pin" type="password" name="confirm_pin" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="••••" required>
+      <div class="pin-field"><input id="auth-confirm-pin" type="password" name="confirm_pin" data-pin-secret inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="••••" required><button class="pin-visibility-toggle" type="button" data-pin-toggle aria-pressed="false" aria-label="Показать PIN" aria-controls="auth-confirm-pin" title="Показать PIN"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="pin-eye-visible"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></g><g class="pin-eye-hidden"><path d="m3 3 18 18M10.5 5.6a10.8 10.8 0 0 1 1.5-.1c6.4 0 10 6.5 10 6.5a16.7 16.7 0 0 1-3 3.6M6 6.9C3.5 8.5 2 12 2 12s3.6 6.5 10 6.5c1.7 0 3.2-.5 4.5-1.2"/><path d="M10.3 10.3a2.5 2.5 0 0 0 3.4 3.4"/></g></svg></button></div>
       {% if form.confirm_pin.errors %}<div class="welcome-form-errors">{{ form.confirm_pin.errors }}</div>{% endif %}
       <button class="welcome-submit" type="submit">{% if purpose == 'recover' %}Сохранить новый PIN{% else %}Создать аккаунт →{% endif %}</button>
     </form>
