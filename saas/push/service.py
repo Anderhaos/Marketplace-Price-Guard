@@ -230,7 +230,7 @@ def deliver_due_pushes(now=None, send=None):
                 }},
                 data=json.dumps({
                     "title": delivery.message.title, "body": delivery.message.body,
-                    "url": URL,
+                    "url": delivery.message.url if delivery.message.url in (URL, "/advisor/") else URL,
                 }, ensure_ascii=False),
                 vapid_private_key=settings.PUSH_VAPID_PRIVATE_KEY,
                 vapid_claims={"sub": settings.PUSH_VAPID_SUBJECT},
