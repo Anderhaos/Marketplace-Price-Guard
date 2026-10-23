@@ -1,0 +1,27 @@
+{% extends "guard/base.html" %}
+{% block title %}Помощник — NoSale{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <span class="eyebrow">NoSale · встроенный помощник</span>
+  <h1>Помощник магазина</h1>
+  <p class="lead">Отвечает по настройкам и сохранённым данным вашего магазина. Ничего не меняет в Wildberries. Telegram не требуется.</p>
+</section>
+<section class="card" style="max-width:780px;margin:auto">
+  <h2>{{ account.name }}</h2>
+  {% if not has_access %}<p class="muted">Подписка неактивна. Для персональных ответов требуется активный доступ.</p>{% endif %}
+  {% if error %}<p class="bad">{{ error }}</p>{% endif %}
+  {% if answer %}
+    <div class="notice" style="margin-bottom:16px"><strong>Ваш вопрос</strong><p>{{ question }}</p></div>
+    <div class="notice" style="margin-bottom:16px"><strong>Ответ помощника</strong><p>{{ answer }}</p></div>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      <label for="helper-question">Ваш вопрос</label>
+      <input id="helper-question" name="question" maxlength="500" placeholder="Что изменилось в моём магазине?" required autocomplete="off" {% if not has_access %}disabled{% endif %}>
+    </div>
+    <button type="submit" {% if not has_access %}disabled{% endif %}>Спросить помощника</button>
+  </form>
+  <p class="muted" style="font-size:13px;margin-top:16px">Для сложного анализа финансов и акций необходимы дополнительные подтверждённые данные. AI-ассистент Smart подключается отдельно.</p>
+</section>
+{% endblock %}
