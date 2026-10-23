@@ -13,7 +13,7 @@ from .models import GuardEvent, Product, Upload
 def store_recommendations(account, *, now=None):
     now = now or timezone.now()
     results = []
-    metrics = {"active_products": 0, "over_limit": 0, "discount_changes_24h": 0, "price_changes_24h": 0}
+    metrics = {"active_products": 0, "stale_products": 0, "over_limit": 0, "discount_changes_24h": 0, "price_changes_24h": 0}
     # A failed WB check can update last_check_at without refreshing products.
     # Report the time of the actual observed product snapshot instead.
     last_observed_at = None
@@ -35,6 +35,8 @@ def store_recommendations(account, *, now=None):
         add(0, "Проверьте синхронизацию WB", "Последняя проверка завершилась с ошибкой. Данные магазина могут быть устаревшими.", observed_at=account.last_check_at)
 
     # Iteration is bounded in memory even when the connected store has many SKUs.
+    age_limit = timedelta(minutes=max(30, 2 * account.interval_minutes))
+    freshness_cutoff = now - age_limit
     over_limit_examples = []
     for item in Product.objects.filter(account=account, active=True).only(
         "nm_id", "title", "current_discount", "allowed_discount_override", "checked_at"
@@ -42,6 +44,8 @@ def store_recommendations(account, *, now=None):
         metrics["active_products"] += 1
         if item.checked_at and (last_observed_at is None or item.checked_at > last_observed_at):
             last_observed_at = item.checked_at
+        if item.checked_at is None or item.checked_at < freshness_cutoff:
+            metrics["stale_products"] += 1
         limit = item.allowed_discount_override
         if limit is None:
             limit = account.default_allowed_discount
@@ -53,9 +57,15 @@ def store_recommendations(account, *, now=None):
             over_limit_examples.sort(key=lambda x: (-x[0], x[1]))
             del over_limit_examples[4:]
 
-    age_limit = timedelta(minutes=max(30, 2 * account.interval_minutes))
-    is_stale = not last_observed_at or now - last_observed_at > age_limit
-    if is_stale and last_observed_at:
+    is_stale = not last_observed_at or metrics["stale_products"] > 0
+    if metrics["stale_products"]:
+        add(
+            1, "Перепроверьте устаревшие товары",
+            f"Данные {metrics['stale_products']} из {metrics['active_products']} товаров старше ожидаемого интервала. "
+            "Нельзя считать весь магазин проверенным только по одному обновлённому товару.",
+            observed_at=last_observed_at, source="NoSale: время последнего снимка по SKU",
+        )
+    elif is_stale and last_observed_at:
         add(1, "Обновите данные магазина", "С последнего подтверждённого снимка WB прошло больше обычного интервала. Цены и скидки могли измениться.", observed_at=last_observed_at)
 
     if metrics["over_limit"]:
