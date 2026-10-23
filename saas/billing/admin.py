@@ -21,8 +21,15 @@ class OwnerAISettingsAdmin(admin.ModelAdmin):
     fieldsets = (
         ("AI Platform", {"fields": ("ai_enabled", "gateway_model_id", "prompt_version",
                                      "system_instructions", "timeout_seconds", "max_output_tokens")}),
-        ("Лимиты и бюджет", {"fields": ("standard_questions_per_day", "smart_questions_per_day",
-                                       "smart_briefs_per_day", "monthly_budget_kopeks")}),
+        ("Лимиты и бюджет", {
+            "fields": ("standard_questions_per_day", "smart_questions_per_day",
+                       "smart_briefs_per_day", "monthly_budget_kopeks"),
+            "description": (
+                "Бюджет в копейках ограничивает локальные резервы AI-запросов, "
+                "но не является точным счётом провайдера. Фактические расходы "
+                "и независимый месячный лимит должны быть настроены в AI Platform."
+            ),
+        }),
         ("Состояние", {"fields": ("updated_at",)}),
     )
 
