@@ -1,3 +1,5 @@
+from decimal import Decimal
+from django import forms
 from django.contrib import admin
 from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer
 
@@ -49,8 +51,33 @@ class OwnerAISettingsAdmin(admin.ModelAdmin):
         return False
 
 
+class OwnerTariffOfferForm(forms.ModelForm):
+    price_rub = forms.DecimalField(
+        label="Цена за месяц, ₽", max_digits=8, decimal_places=2,
+        min_value=Decimal("1.00"), max_value=Decimal("100000.00"),
+    )
+
+    class Meta:
+        model = OwnerTariffOffer
+        fields = ("slug", "name", "enabled")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields["price_rub"].initial = Decimal(self.instance.price_kopeks) / 100
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        obj.price_kopeks = int(self.cleaned_data["price_rub"] * 100)
+        if commit:
+            obj.save()
+        return obj
+
+
 @admin.register(OwnerTariffOffer)
 class OwnerTariffOfferAdmin(admin.ModelAdmin):
+    form = OwnerTariffOfferForm
+    fields = ("slug", "name", "price_rub", "enabled", "updated_at")
     list_display = ("slug", "name", "price_kopeks", "enabled", "updated_at")
     list_filter = ("enabled",)
     readonly_fields = ("updated_at",)
@@ -76,8 +103,3 @@ class OwnerTariffOfferAdmin(admin.ModelAdmin):
             fields.append("slug")
         return fields
 
-    def save_model(self, request, obj, form, change):
-        if obj.slug not in ("standard", "smart") or not 100 <= obj.price_kopeks <= 10_000_000:
-            from django.core.exceptions import ValidationError
-            raise ValidationError("Для NoSale допустимы только Standard/Smart и положительная цена до 100 000 ₽.")
-        super().save_model(request, obj, form, change)
