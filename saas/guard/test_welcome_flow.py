@@ -19,6 +19,15 @@ class EmailFirstWelcomeTests(TestCase):
         self.assertContains(response, "5 дней бесплатно")
         self.assertContains(response, 'name="email"')
         self.assertNotContains(response, 'name="pin"')
+        self.assertContains(response, 'class="welcome-title-secondary"')
+        self.assertContains(response, "Даже когда вы отдыхаете.")
+        self.assertContains(response, 'class="welcome-trial-card"')
+        html = response.content.decode()
+        self.assertLess(html.index("NoSale проверяет скидки"), html.index("5 дней бесплатно"))
+        self.assertLess(html.index("5 дней бесплатно"), html.index("Три простых шага"))
+        self.assertEqual(html.count("5 дней бесплатно"), 1)
+        self.assertNotContains(response, "Начать бесплатно")
+        self.assertEqual(html.count('class="welcome-submit"'), 1)
 
     def test_known_email_moves_to_pin_without_sending_message(self):
         user = User.objects.create_user(
