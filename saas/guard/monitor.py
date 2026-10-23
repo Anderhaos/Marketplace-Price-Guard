@@ -247,11 +247,16 @@ def run_due_checks():
         try:
             outcome = check_account(account)
             delay = timedelta(minutes=max(15, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
+            finished_at = timezone.now()
             changes = dict(
-                lock_until=None, last_check_at=timezone.now(), last_error="",
-                next_check_at=timezone.now() + delay,
+                lock_until=None, last_check_at=finished_at, last_error="",
+                next_check_at=finished_at + delay,
                 enabled=False if token_type == "base" else account.enabled,
             )
+            # Only a completed read of the WB inventory may unlock the cabinet.
+            # "waiting_upload" returned before the inventory fetch is not success.
+            if outcome != "waiting_upload" and account.initial_sync_completed_at is None:
+                changes["initial_sync_completed_at"] = finished_at
             if outcome in ("waiting_upload", "remaining"):
                 changes["check_requested"] = True
             else:
