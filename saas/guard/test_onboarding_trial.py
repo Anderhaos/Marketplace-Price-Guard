@@ -132,7 +132,11 @@ class FirstRunOnboardingTests(TestCase):
         self.assertTrue(has_active_access(self.user.pk))
         GuardAccount.objects.filter(user=self.user).update(initial_sync_completed_at=timezone.now())
         response = self.client.post(reverse("settings"), {"action":"token", "token":token_for()})
-        self.assertRedirects(response, reverse("settings"))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("settings"))
+        # Replacing credentials necessarily restarts the first inventory import.
+        self.assertRedirects(self.client.get(reverse("settings")), reverse("dashboard"))
+        self.assertIsNone(GuardAccount.objects.get(user=self.user).initial_sync_completed_at)
         self.assertEqual(AccessGrant.objects.filter(user=self.user).count(), 1)
         self.assertEqual(mock_wb.return_value.validate_token.call_count, 2)
 
