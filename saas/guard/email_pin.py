@@ -213,38 +213,70 @@ def finish_pin(request):
     return render(request, "guard/auth_pin.html", {"form": form, "purpose": challenge.purpose})
 
 
+SESSION_LOGIN_EMAIL = "nosale_login_email"
+
+
 def pin_login(request):
+    """Email-first gateway: known sellers enter PIN, new sellers get a code.
+
+    Existing two-field POSTs remain valid for users already at the PIN step
+    and for compatibility with password recovery and prior clients.
+    """
     if request.user.is_authenticated:
         return redirect("dashboard")
     if request.method not in ("GET", "POST"):
         return HttpResponseNotAllowed(["GET", "POST"])
-    form = PinLoginForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        email = form.cleaned_data["email"]
-        pin = form.cleaned_data["pin"]
-        now = timezone.now()
-        with transaction.atomic():
-            throttle, _ = EmailPinLoginThrottle.objects.select_for_update().get_or_create(email=email)
-            if throttle.locked_until and throttle.locked_until > now:
-                form.add_error(None, "Слишком много попыток. Попробуйте через 15 минут.")
-            else:
-                user = authenticate(request, username=email, password=pin)
-                if user is None:
-                    if not throttle.first_failed_at or now - throttle.first_failed_at > PIN_LOCK_TTL:
-                        throttle.first_failed_at = now
-                        throttle.attempts = 0
-                    throttle.attempts += 1
-                    if throttle.attempts >= MAX_PIN_ATTEMPTS:
-                        throttle.lock_count = min(throttle.lock_count + 1, 3)
-                        lock_times = (timedelta(minutes=15), timedelta(hours=1), timedelta(hours=24))
-                        throttle.locked_until = now + lock_times[throttle.lock_count - 1]
-                    throttle.save()
-                    form.add_error(None, "Неверный email или PIN.")
+
+    stage = "email"
+    email = ""
+    if request.method == "GET":
+        request.session.pop(SESSION_LOGIN_EMAIL, None)
+        form = EmailForm()
+    elif "pin" not in request.POST:
+        form = EmailForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data["email"]
+            if _existing_user(email) is None:
+                request.session.pop(SESSION_LOGIN_EMAIL, None)
+                # Registration uses the same verified-email challenge as the
+                # existing explicit /register/ route; no account is created yet.
+                return _start(request, EmailPinChallenge.PURPOSE_REGISTER)
+            request.session[SESSION_LOGIN_EMAIL] = email
+            stage = "pin"
+            form = PinLoginForm(initial={"email": email})
+    else:
+        stage = "pin"
+        form = PinLoginForm(request.POST)
+        email = request.POST.get("email", "").strip().lower()
+        if form.is_valid():
+            email = form.cleaned_data["email"]
+            pin = form.cleaned_data["pin"]
+            now = timezone.now()
+            with transaction.atomic():
+                throttle, _ = EmailPinLoginThrottle.objects.select_for_update().get_or_create(email=email)
+                if throttle.locked_until and throttle.locked_until > now:
+                    form.add_error(None, "Слишком много попыток входа. Попробуйте позже или восстановите PIN.")
                 else:
-                    throttle.delete()
-                    login(request, user)
-                    return redirect("dashboard")
-    return render(request, "guard/login_pin.html", {"form": form})
+                    user = authenticate(request, username=email, password=pin)
+                    if user is None:
+                        if not throttle.first_failed_at or now - throttle.first_failed_at > PIN_LOCK_TTL:
+                            throttle.first_failed_at = now
+                            throttle.attempts = 0
+                        throttle.attempts += 1
+                        if throttle.attempts >= MAX_PIN_ATTEMPTS:
+                            throttle.lock_count = min(throttle.lock_count + 1, 3)
+                            lock_times = (timedelta(minutes=15), timedelta(hours=1), timedelta(hours=24))
+                            throttle.locked_until = now + lock_times[throttle.lock_count - 1]
+                        throttle.save()
+                        form.add_error(None, "Неверный email или PIN.")
+                    else:
+                        throttle.delete()
+                        request.session.pop(SESSION_LOGIN_EMAIL, None)
+                        login(request, user)
+                        return redirect("dashboard")
+    return render(request, "guard/login_pin.html", {
+        "form": form, "stage": stage, "email": email,
+    })
 
 
 def legacy_link_disabled(request, *args, **kwargs):

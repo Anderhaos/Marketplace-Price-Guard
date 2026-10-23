@@ -232,7 +232,11 @@
           {% endif %}
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondary">Выйти</button></form>
         {% else %}
-          <a href="{% url 'login' %}">Войти</a><a class="nav-accent" href="{% url 'register' %}">Регистрация</a>
+          {% if request.path == '/login/' %}
+            <a href="#welcome-headline">Как это работает</a><a class="nav-accent" href="#welcome-email">Начать бесплатно</a>
+          {% else %}
+            <a href="{% url 'login' %}">Войти</a><a class="nav-accent" href="{% url 'register' %}">Регистрация</a>
+          {% endif %}
         {% endif %}
       </nav>
     </div>

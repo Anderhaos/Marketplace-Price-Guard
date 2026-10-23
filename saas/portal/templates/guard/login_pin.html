@@ -1,11 +1,55 @@
 {% extends 'guard/base.html' %}
-{% block title %}Вход — MP NoSale{% endblock %}
+{% block title %}NoSale — контроль скидок Wildberries{% endblock %}
 {% block content %}
-<div class="auth-wrap"><section class="card">
-  <span class="eyebrow">MP NoSale / вход</span>
-  <h1>Войти в кабинет</h1>
-  <p class="lead">Введите email и PIN, заданный после подтверждения почты.</p>
-  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Войти</button></form>
-  <p style="margin-top:18px"><a href="{% url 'password_reset' %}">Забыли PIN?</a> · <a href="{% url 'register' %}">Зарегистрироваться</a></p>
-</section></div>
+<link rel="stylesheet" href="/static/welcome.css">
+<div class="welcome-layout">
+  <section class="welcome-story" aria-labelledby="welcome-headline">
+    <div class="welcome-kicker">NoSale · защита цен Wildberries</div>
+    <h1 class="welcome-title" id="welcome-headline">Ваши скидки под контролем. <em>Даже когда вы отдыхаете.</em></h1>
+    <p class="welcome-text">NoSale проверяет скидки на товары Wildberries и помогает возвращать превышения к установленным вами пределам. Вы определяете правила — сервис следит за ними.</p>
+    <h2 class="welcome-heading">Три простых шага</h2>
+    <ol class="welcome-steps">
+      <li><span class="step-number">01</span><div><strong>Введите email</strong><span class="step-caption">Войдите в существующий аккаунт или подтвердите почту для нового.</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Подключите магазин</strong><span class="step-caption">Добавьте API-ключ Wildberries. Пароль от вашего кабинета не нужен.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>Установите предел скидок</strong><span class="step-caption">Включите защиту, когда будете готовы. Правила и изменения видны в кабинете.</span></div></li>
+    </ol>
+    <p class="welcome-safety"><svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>Вы сами управляете доступом и можете остановить автоматическую защиту.</p>
+    <a class="button welcome-start" href="#welcome-email" onclick="document.getElementById('welcome-email')?.focus()">
+      Начать бесплатно
+      <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+    </a>
+  </section>
+  <section class="welcome-panel" id="welcome-auth" aria-labelledby="welcome-auth-title">
+    <div class="welcome-panel-top">
+      <span class="welcome-label">Личный кабинет</span>
+      <span class="welcome-stage">{% if stage == 'pin' %}Шаг 2 из 2{% else %}Шаг 1 из 2{% endif %}</span>
+    </div>
+    {% if stage == 'pin' %}
+      <h2 id="welcome-auth-title">Введите ваш PIN</h2>
+      <p class="welcome-explainer">Аккаунт найден. Для входа осталось ввести PIN, который вы создали после подтверждения email.</p>
+      <div class="welcome-email-confirm"><span>{{ email }}</span><a href="{% url 'login' %}">Изменить</a></div>
+      <form method="post" class="welcome-form" novalidate>{% csrf_token %}
+        <input type="hidden" name="email" value="{{ email }}">
+        {{ form.non_field_errors }}
+        <label for="welcome-pin">PIN-код</label>
+        <input id="welcome-pin" type="password" name="pin" inputmode="numeric" autocomplete="current-password" maxlength="6" placeholder="4 цифры" required autofocus>
+        {% if form.pin.errors %}<ul class="welcome-form-errors">{{ form.pin.errors }}</ul>{% endif %}
+        <button class="welcome-submit" type="submit">Войти в кабинет →</button>
+      </form>
+      <div class="welcome-form-help"><a href="{% url 'password_reset' %}">Забыли PIN?</a><a href="{% url 'login' %}">Другой email</a></div>
+    {% else %}
+      <h2 id="welcome-auth-title">Начнём с email</h2>
+      <p class="welcome-explainer">Не нужно выбирать между входом и регистрацией. Введите свою почту — NoSale подскажет следующий шаг.</p>
+      <form method="post" class="welcome-form" novalidate>{% csrf_token %}
+        {{ form.non_field_errors }}
+        <label for="welcome-email">Ваш email</label>
+        <input id="welcome-email" type="email" name="email" value="{{ form.email.value|default_if_none:'' }}" autocomplete="email" inputmode="email" placeholder="name@example.com" required autofocus>
+        {% if form.email.errors %}<ul class="welcome-form-errors">{{ form.email.errors }}</ul>{% endif %}
+        <button class="welcome-submit" type="submit">Продолжить →</button>
+      </form>
+      <div class="welcome-form-help"><span>Вход и регистрация — в одном месте</span></div>
+    {% endif %}
+    <div class="welcome-trial"><strong>5 дней бесплатно после подключения магазина</strong><p>Карта не требуется. Автоматических списаний нет.</p></div>
+  </section>
+</div>
 {% endblock %}

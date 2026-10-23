@@ -1,0 +1,43 @@
+/* NoSale welcome and email-first sign-in: isolated from authenticated dashboard. */
+.welcome-layout{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(390px,.92fr);gap:clamp(34px,5vw,88px);align-items:center;max-width:1160px;margin:clamp(38px,6vh,78px) auto 58px}
+.welcome-story{position:relative;padding:25px 0 30px}
+.welcome-story:before{content:"";position:absolute;top:-60px;left:-95px;width:350px;height:350px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,31,.09),transparent 65%);pointer-events:none;z-index:-1}
+.welcome-kicker{font-size:11px;letter-spacing:.13em;font-weight:800;color:#ff865e;text-transform:uppercase;display:flex;align-items:center;gap:10px;margin-bottom:23px}
+.welcome-kicker:before{content:"";width:7px;height:7px;border-radius:50%;background:#ff5a1f;box-shadow:0 0 15px rgba(255,90,31,.6)}
+.welcome-title{font-size:clamp(39px,4.1vw,65px);line-height:1.08;letter-spacing:-.055em;max-width:700px;margin:0 0 22px;font-weight:760}
+.welcome-title em{font-style:normal;color:#ff7848}
+.welcome-text{font-size:clamp(15px,1.4vw,17px);line-height:1.68;color:#acaab0;max-width:520px;margin:0 0 30px}
+.welcome-heading{margin:0 0 19px;color:#e9e7e7;font-weight:750;font-size:15px}
+.welcome-steps{list-style:none;margin:0 0 25px;padding:0;display:grid;gap:19px}
+.welcome-steps li{display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;align-items:start}
+.welcome-steps .step-number{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;background:rgba(255,90,31,.11);border:1px solid rgba(255,90,31,.24);color:#ff8a63;font-size:13px;font-weight:800}
+.welcome-steps strong{display:block;color:#eee;font-size:14px;margin:0 0 3px}
+.welcome-steps span.step-caption{display:block;color:#96939b;font-size:13px;line-height:1.5}
+.welcome-safety{display:flex;gap:10px;align-items:center;color:#a5a3aa;font-size:12px;line-height:1.5;margin-bottom:22px}
+.welcome-safety svg{flex:0 0 auto;color:#65d4a3;width:17px;height:17px}
+.welcome-start{min-height:52px;padding:13px 27px;font-size:15px;border-radius:14px;box-shadow:0 8px 22px rgba(255,90,31,.17)}
+.welcome-start svg{width:17px;height:17px}
+.welcome-panel{background:#161619;border:1px solid #303034;border-radius:24px;padding:clamp(24px,3.2vw,42px);box-shadow:0 28px 70px rgba(0,0,0,.26)}
+.welcome-panel-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:22px}
+.welcome-label{font-size:11px;letter-spacing:.115em;text-transform:uppercase;font-weight:800;color:#ff8054}
+.welcome-stage{border:1px solid #424045;border-radius:100px;font-size:11px;color:#99979d;padding:5px 11px;white-space:nowrap}
+.welcome-panel h2{font-size:clamp(27px,2.3vw,34px);line-height:1.15;letter-spacing:-.035em;margin:0 0 11px;font-weight:760}
+.welcome-panel .welcome-explainer{font-size:14px;line-height:1.65;color:#a7a4ab;margin:0 0 25px}
+.welcome-panel .welcome-form{display:grid;gap:10px}
+.welcome-panel label{color:#c2bfc3;font-weight:600;font-size:13px}
+.welcome-panel input[type="email"],.welcome-panel input[type="password"]{min-height:53px;background:#101013;border:1px solid #353339;border-radius:13px;padding:12px 15px;font-size:16px;width:100%;outline:none;color:#f2f1ee}
+.welcome-panel input:focus-visible{border-color:#ff7848;box-shadow:0 0 0 3px rgba(255,90,31,.15)}
+.welcome-panel input::placeholder{color:#77737c}
+.welcome-panel .welcome-submit{margin-top:8px;border-radius:13px;min-height:51px;width:100%;font-weight:750;font-size:14px}
+.welcome-form-errors{font-size:13px;color:#ffaaa0;line-height:1.5;margin:0;list-style:none;padding:0}
+.welcome-form-errors li{margin:5px 0}
+.welcome-form-help{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:18px;color:#9d99a0;font-size:12px}
+.welcome-form-help a{font-size:12px}
+.welcome-email-confirm{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #38353a;border-radius:12px;background:#101013;padding:13px 14px;font-size:14px;color:#ddd;overflow-wrap:anywhere;margin-bottom:16px}
+.welcome-email-confirm a{white-space:nowrap;font-size:12px}
+.welcome-trial{padding-top:22px;margin-top:23px;border-top:1px solid #303035;color:#949198;font-size:12px;line-height:1.6}
+.welcome-trial strong{display:block;color:#75daa8;font-size:13px;font-weight:700;margin-bottom:2px}
+.welcome-trial p{margin:0}
+.welcome-panel input::-ms-reveal{display:none}
+@media(max-width:900px){.welcome-layout{grid-template-columns:1fr;max-width:640px;gap:20px;margin-top:10px}.welcome-story{padding:20px 0 0}.welcome-title{font-size:clamp(34px,7vw,51px)}.welcome-panel{padding:28px}.welcome-text{max-width:560px}}
+@media(max-width:520px){.welcome-layout{margin-top:2px;gap:18px}.welcome-story{padding:8px 0 0}.welcome-title{font-size:36px}.welcome-kicker{margin-bottom:14px}.welcome-text{font-size:14px;margin-bottom:19px}.welcome-steps{gap:12px;margin-bottom:17px}.welcome-panel{padding:23px 20px;border-radius:18px}.welcome-panel h2{font-size:27px}.welcome-panel-top{margin-bottom:15px}.welcome-safety{margin-bottom:16px}.welcome-story .welcome-start{width:100%}}
