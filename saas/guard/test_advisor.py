@@ -48,14 +48,25 @@ class StoreAdvisorTests(TestCase):
         self.assertIn("не подтверждение финансового убытка", text)
 
     def test_staleness_and_pending_operations_are_not_called_success(self):
-        self.account.last_check_at = timezone.now()-timedelta(days=2)
+        old = timezone.now()-timedelta(days=2)
+        self.account.last_check_at = old
         self.account.save(update_fields=["last_check_at"])
+        Product.objects.filter(account=self.account).update(checked_at=old)
         Upload.objects.create(account=self.account, upload_id=77, status="pending")
         result = store_recommendations(self.account)
         self.assertTrue(result["is_stale"])
         text = " ".join(x["title"] for x in result["recommendations"])
         self.assertIn("Обновите данные магазина", text)
         self.assertIn("Проверьте подтверждение операций", text)
+
+    def test_failed_check_does_not_make_old_wb_data_current(self):
+        Product.objects.filter(account=self.account).update(checked_at=timezone.now()-timedelta(days=3))
+        self.account.last_error = "error"
+        self.account.last_check_at = timezone.now()
+        self.account.save(update_fields=["last_error", "last_check_at"])
+        result = store_recommendations(self.account)
+        self.assertTrue(result["is_stale"])
+        self.assertGreater(timezone.now()-result["last_observed_at"], timedelta(days=2))
 
     def test_only_active_smart_grant_permits_advisor(self):
         self.client.force_login(self.seller)
