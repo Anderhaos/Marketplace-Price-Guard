@@ -75,3 +75,9 @@
 .auth-flow-footer-note{color:#9d99a0;font-size:12px;line-height:1.65;border-top:1px solid #303035;padding-top:19px;margin:24px 0 0}
 @media(max-width:900px){.auth-flow-layout{margin-top:18px;gap:24px}.auth-flow-story{padding-block:12px 0}.auth-flow-title{font-size:clamp(35px,6vw,48px)}}
 @media(max-width:520px){.auth-flow-layout{margin-top:0;gap:16px}.auth-flow-story{padding-top:4px}.auth-flow-title{font-size:37px;margin-bottom:14px}.auth-flow-title span{font-size:.75em}.auth-flow-email{margin-bottom:22px;padding:12px}.auth-flow-hint{padding:12px}.auth-flow-panel .welcome-form{gap:9px}}
+
+/* Explicitly sandboxed localhost preview OTP. Never used by production. */
+.auth-flow-test-code{display:flex;flex-direction:column;gap:7px;margin:0 0 22px;padding:18px 20px;background:rgba(255,119,70,.075);border:1px solid rgba(255,119,70,.34);border-radius:14px}
+.auth-flow-test-label{color:#ff956e;text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:800}
+.auth-flow-test-digits{color:#fff;font-size:31px;letter-spacing:.24em;font-variant-numeric:tabular-nums;font-weight:780}
+.auth-flow-test-code small{font-size:12px;line-height:1.45;color:#b4acac}
