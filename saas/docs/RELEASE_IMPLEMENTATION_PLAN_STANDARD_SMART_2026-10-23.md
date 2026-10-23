@@ -1,7 +1,7 @@
 # NoSale — план реализации и приёмки первого коммерческого релиза
 
 **Дата:** 2026-10-23. **Статус:** исполнимый план, не акт готовности продукта.
-**Приоритет:** два тарифа, реально работающая защита WB, один Telegram-бот, ограниченный AI-консультант по собственному магазину, управляемый владельцем. Коллективное обучение и глубокая аналитика — **после запуска**.
+**Приоритет:** два тарифа, работающая защита WB, **встроенный в кабинет NoSale помощник**, расширенный Smart AI-консультант с рекомендациями по своему магазину. Берём переносимые элементы существующего ассистента из Telegram, **не создаём для клиентов Telegram-бота**. Коллективное обучение и глубокая аналитика — **после запуска**.
 **Связанные постановки:** [COMMERCIAL_MVP_STANDARD_SMART_TELEGRAM_2026-10-23.md](./COMMERCIAL_MVP_STANDARD_SMART_TELEGRAM_2026-10-23.md), [FIRST_PARTY_COLLECTIVE_INTELLIGENCE_DECISION_2026-10-23.md](./FIRST_PARTY_COLLECTIVE_INTELLIGENCE_DECISION_2026-10-23.md). При расхождении scope MVP — этот план.
 **Базовые инструкции:** `saas/AGENTS.md`: изменения исходного кода **только через GitHub Connector**, feature branches и Draft PR, GitHub Actions, immutable deploy. `mpnosale.svdev.pro` (legacy, реальный продавец, 8891) **не изменять**.
 
@@ -14,10 +14,16 @@
 
 ## B. Неподвижный договор MVP
 
-**Standard** (ориентир 500 ₽/мес): действующая WB price/discount guard + один Telegram бот: `/status`, `/alerts`, `/history`, персональные push/Telegram notifications.
-**Smart** (ориентир 990 ₽/мес): весь Standard + 1–2 короткие meaningful рекомендации/сутки, до 2 ручных вопросов/сутки через управляемый владельцем DeepSeek/AI Platform. Если нет новых фактов — без пустого LLM вызова. Это **гипотезы цен**, не опубликованная оферта.
-**Границы:** все WB операции записи исключительно существующим deterministic guard при явно разрешённой конфигурации; AI/read-only Telegram не изменяет товары/скидки, не обещает фактический финансовый эффект, не обучается на данных Ozon/WB без допустимых прав. Нельзя показывать необоснованные проценты вероятности или финансовую прибыль.
-**Учётный объём:** AccessGrant относится к пользователю и его зарегистрированным магазинам как сейчас; лимиты AI считаются **на пользователя** (не отдельно на каждый магазин), чтобы исключить мультипликацию стоимости. Единица тарификации/лимиты магазинов перед публикацией оферты должны быть согласованы с фактической экономикой.
+**Уточнение владельца от 23.10.2026:** «взять ассистента из Telegram и воткнуть его в базовую версию» означает **переиспользовать подходящую логику/ядро существующего ассистента MiniBook/BeClients, но встроить его в веб-интерфейс NoSale**. Это **не** задача создания Telegram-бота или интеграции пользователей с Telegram. Предыдущие предложения с BotFather, webhook, `chat_id` и Telegram notifications отменены в scope MVP. Телеграм может рассматриваться как отдельный необязательный канал в будущем, не как release dependency.
+
+**Standard** (ориентир **500 ₽/мес.**): действующая защита скидок WB, события и предупреждения, встроенный **базовый помощник в личном кабинете** (помощь по функциям NoSale, статус защиты/проверок и навигация по данным своего магазина; ограниченные ответы через проверенную общую AI инфраструктуру там, где нужны). Не выдавать базовому помощнику функции аналитики Smart. Цену считать предварительной до оферты.
+
+**Smart** (ориентир **990 ₽/мес.**): Standard + **расширенные возможности того же помощника** — персональные советы по фактам WB конкретного магазина, 1–2 содержательных сводки/сутки и небольшое число ручных вопросов (первоначальная гипотеза — 2/день); DeepSeek через централизованный AI Platform Gateway, квоты и бюджет. Без бесконечного опроса WB и вымышленных доказательств прибыльности акций.
+
+**Границы:** существующий deterministic guard и его WB write gates не трогать; AI-помощник read-only, работает только по данным авторизованного аккаунта, не знает коммерческие факты, отсутствующие в WB API; no collective training без прав. Базовый веб-чат и Smart работают в одном UI, а разграничение действует на backend через `AccessGrant.plan` / `PLAN_CAPABILITIES`, не через скрытие кнопок.
+
+**Учётный объём:** `AccessGrant` user-scoped, разрешённые магазины пользователя. Квоты AI считать на пользователя, а не на магазин. Стоимость provider calls Standard и Smart измерять отдельно; Standard может отвечать на типовые вопросы без LLM.
+
 
 ## C. Очерёдность реализации (вертикальные рабочие пакеты)
 
@@ -41,76 +47,82 @@
 
 **Done R1:** тесты Standard purchase, Smart purchase, insufficient payment, tampered `plan/amount`, pending reuse mismatch, duplicated webhook, refund, active future grant, expired grant, trial → paid, overlapping plans; банк не включён в production до отдельной коммерческой приёмки / 54-ФЗ.
 
-### R2. Один Telegram-бот для обоих тарифов (параллелен R1)
+### R2. Встроенный базовый веб-помощник Standard (параллелен R1)
 
-**Переиспользовать из MiniBook:** Telegram ingress identity, dedup patterns, protection of private chat; **не импортировать CRM code/команды**. Реализация компактным Django модулем в SaaS плюс существующие notification workers.
+**Код:** компактный Django web assistant / conversations, текущие SaaS auth и шаблоны; существующий `platform-kits/ai-runtime` + `ai-platform` для inference, где нужно. **Референс:** `Anderhaos/MiniBook/backend/src/modules/tg-admin-assistant` — переносить только независимые подсистемы и методы, **не CRM, не Telegram transport**.
 
-1. Owner создаёт/подключает **одного** бота через BotFather; bot token + webhook secret только server secret storage; `getMe` health в админке; webhook `X-Telegram-Bot-Api-Secret-Token` и POST body validation.
-2. Верифицируемый одноразовый `/start <TTL link-token>` после входа в кабинет, приватный Telegram user ID ↔ NoSale user, unlink/relink, отзыв, запрет group chat, cross-tenant, дублированных updates. Для нескольких магазинов можно выбрать свой store при условии владельца; никакой авторизации по username.
-3. Команды `/help`, `/status`, `/alerts`, `/history` только из существующих WB snapshots / GuardEvent, без нового постоянного WB polling; `/alerts` не меняет скидки. Подписка неактивна → понятное сообщение и путь в кабинет.
-4. Уведомления из уже существующего события/очереди: идемпотентная отправка, ретраи с backoff, уважение Telegram 429, opt-out, no token leakage, метрики доставок; если бот недоступен, guard continue independently.
+1. Провести reuse-аудит реального ассистента MiniBook: handler, conversation/context, prompt/inference gateway, safety/rate limiting; определить, что можно адаптировать к Django SaaS без Node микросервиса.
+2. Встроить помощь/чат прямо в интерфейс NoSale с лёгкой историей текущего диалога. После авторизации получает scoped context выбранного магазина.
+3. Базовые запросы: как настроить защиту, что означает ошибка, когда магазин проверялся последний раз, какие последние события и превышения. Фактологические данные — только из БД пользователя и источников, а не сгенерированные.
+4. Содержательные статусы и FAQ реализовать без LLM, где возможно; если используем модель для обычного чата — короткий ограниченный контекст, базовая квота и отдельная стоимость на пользователя. Никогда не обещать бесплатно неограниченную модель.
+5. Обязательные тесты: session/CSRF, чужой магазин, закрытие подписки, output escaping, rate-limits, модель недоступна, мобильная верстка; никакой записи в WB из ответа AI.
 
-**Done R2:** real Telegram bot smoke на тестовом аккаунте и unit tests spoofed sender/invalid secret/replay/cross-store/disconnect/429; Standard работает без AI.
+**Done R2:** пользователь Standard общается с базовым помощником **веб-кабинета** без регистрации в Telegram; его данные не попадают другим продавцам. Smart использует тот же веб-интерфейс.
 
-### R3. Минимальная owner-admin для подключения и расходов (параллелен R2)
+### R3. Минимальная owner-admin конфигурация AI/цен/квот (параллелен R2)
 
-**Не делать новую самостоятельную панель управления.** Встроить только необходимые экраны в Django `/admin/` (superuser/owner-only, secret masked):
-- `Telegram integration`: enabled, verified bot username/webhook health, failure counters, broker status, не показывать token.
-- `AI`: project role `nosale_seller_advisor`, published gateway model ID, enabled/off, readonly prompt version, max input/output, timeout, daily/monthly token and RUB budget, 1–2 scheduled briefs + 2 manual questions/day; **provider key живёт в общей AI Platform**, NoSale хранит только свой отдельный scoped service-token как серверный secret.
-- `Tariff offers`: видимые цены и доступность, месячный период, server-side capability matrix; не редактировать инвойсы задним числом.
-- `Operational status`: payment/Telegram/AI errors, quotas, counters, emergency disable AI **без выключения Standard**. Secrets and seller PII not logged.
+**Не создавать новую AI-платформу или Telegram-админку.** Достаточна текущая Django `/admin/` c owner-only проверкой.
 
-**Done R3:** non-owner не может открыть/настроить AI или раскрыть secrets; owner может выключить AI из админки; повторное включение не сбрасывает израсходованные квоты.
+- AI Platform: NoSale project role, реально опубликованная и доступная модель, read-only system prompt, optional fallback, таймаут, max input/output, enable/disable. Сервисный ключ только в secret store.
+- Тарифы: approved `Standard` и `Smart`, цена за месяц, включение/выключение, server-side capabilities; snapshot уже купленной цены immutable. Не создавать второй ledger.
+- Usage: счётчик дневных и месячных AI вызовов и фактических расходов, отдельные бюджеты Standard и Smart; кнопка kill-switch AI не выключает WB защиту.
+- Логи: только события, статусы, превышения квоты и без секретов, WB токенов, чужого контекста и платежных деталей.
+- Tests: non-owner denied, settings don't leak keys, quota/disable fail closed.
 
-### R4. Smart AI-консультант, но только по доказуемым данным (зависит R1 + R2 + R3)
+**Done R3:** администратор управляет ценами, моделью и расходами; клиенты подключают только свой WB магазин.
 
-1. Завершить `guard/advisor.py`: stale fraction по каждому SKU (а не только max `checked_at`), топ проблемных товаров, последние настоящие price/discount events, pending vs confirmed WB uploads. Короткий доказательный per-user/store snapshot (`sku_id`, metric, source, observed_at, data_age) c исключением raw seller tokens, credentials и лишней коммерческой информации.
-2. Подключить доступный published DeepSeek model через существующий **AI Platform Gateway** (`/chat/completions`), отдельный project service token, лимиты затрат и таймаут; если шлюз/роль недоступны — fail closed и **показать детерминированные рекомендации**, не молча вызывать публичный сторонний API. Не копировать full Telegram AI агент/semantic training engine MiniBook.
-3. AI отвечает кратко на `/advice` и 2 ручных вопроса/день: «Что изменилось?», «Что проверить первым?», «Какие товары превышают предел?». Программа вычисляет числа, источники и даты; LLM составляет объяснение. Валидировать схему output: только известные metrics/SKUs, no hallucinated payout/competition/seller-funded claims.
-4. **Сводки** max 2/day/user, по часовому поясу пользователя, только при новых значимых фактах; не делать 2 бессмысленных генерации каждый день. Idempotency `(user_id, snapshot_digest, advice_kind, reporting_window)`, лимиты атомарно, ledgers of model/usage/cost, no WB calls triggered by AI.
-5. Персональные store prompts передавать внешнему AI только при подходящем правовом основании/согласии, без личных WB/Ozon токенов, с указанными purpose и retention. No train/collective learning by default.
+### R4. Smart — персональные рекомендации и AI-чат в вебе (после R1+R2+R3)
 
-**Done R4:** реальные 1–2 успешных отчёта с grounded refs, запуск 2 разрешённых вопросов, 3-й отклонён до вызова модели, webhook replay не расходует токены дважды; prompt injection не даёт получить чужой store и не вызывает WB writes; устаревшие WB данные отмечены устаревшими.
+1. Развивать `guard/advisor.py`: свежесть **каждого** SKU (а не только последний `checked_at`), топ превышений, изменения, pending/confirmed WB операций. Рассчитывать реальные метрики backend, не LLM.
+2. Строить короткий контекст `user_id/store_id/sku/observed_at/source` исключительно из своих данных, без токенов, personal secrets и чужих продавцов. Финансирование акций и прибыль = `unknown` без официального WB факта.
+3. Подключить AI Platform authenticated Gateway/DeepSeek, использовать действующий published model; output shape проверять и отделять derived summaries от verified facts. Fail-closed при недоступности AI и показывать deterministic fallback.
+4. Встроить Smart-команды в **тот же веб-помощник**: «Что изменилось за день?», «Что проверить сначала?», «Почему риск по товару?», «Получить рекомендации». Ни одного Telegram webhook/start/чат ID.
+5. Планировщик 1–2 сводок/день только при изменениях; хранение идемпотентности `(user, digest, window)`, атомарные квоты 2 manual questions/day как первоначальный конфиг. Не вызывать WB чтение при каждом LLM вопросе и не включать AI write.
+6. Tests: tenant isolation, stale snapshot, negative/no-data, quota/replay, model timeout/invalid output, no WB write; owner/admin cap.
 
-### R5. Единый UX + интеграционная приёмка (зависит R1–R4)
+**Done R4:** Smart-пользователь получает контекстный ответ и проверяемый совет внутри NoSale, а не стандартные уведомления под вывеской AI.
 
-1. Главный кабинет: Telegram connect/unlink, тариф/expiry, понятный gated Smart upgrade; не показывать ссылку Smart всем с последующим plain 403. Не превращать read-only advice в «подтверждённый финансовый прогноз». UI mobile responsiveness.
-2. Сквозная user journey: email→code→PIN→WB onboarding→5-day Standard trial→Standard/Smart payment→verified entitlement→link Telegram→bot basic→Smart advice→quota→expiry/refund→re-enable после оплаты.
-3. Автоматические CI tests SQLite + **обязательные PostgreSQL migration/integration** на изолированном staging, Docker, backend isolation, actual Telegram Bot API test chat + owner-approved AI Gateway smoke + signed bank sandbox webhook, failure/rollback tests, WB 429/read/write gates.
-4. Проверить коммерческие предпосылки: регистрация/договорные права WB для SaaS, секреты/роли Точки, настоящий merchant/54-ФЗ чеки/оферта/политика данных, лимиты себестоимости AI/Telegram и фактическая цена предложения. Никакой реальной скидочной записи без отдельной разрешённой проверки.
-5. Деплой в отдельный `nosale.svdev.pro` **по SHA** с backup+rollback. Health, workflow, monitoring, owner counters, no regressions legacy. Сначала внутренний тест и закрытая beta; только после приёмки — публичные платежи и объявление Smart.
+### R5. Общий UX, интеграционная приёмка и релиз (после R1–R4)
 
-**Done R5 / Release GO:** пользователь без помощи разработчика может пройти путь, Standard защищает товары, Telegram уведомляет, Smart действительно отвечает по своему магазину, банк покупает правильный тариф, квоты/рефанды работают, бюджет не превышается, legacy не изменён. Любой сломанный пункт — NO GO для соответствующего тарифа.
+1. Понятная единая страница подписок и текущих возможностей; Standard не видит недоступные Smart действия как тупиковую ошибку HTTP 403. Кнопка обновления тарифа, временные периоды и обещанные функции показаны корректно.
+2. Сквозная пользовательская цепочка: email→код→PIN→WB onboarding→5-day Standard trial→выбор Standard/Smart→verified bank grant→встроенный базовый чат→Smart рекомендации→quota→expiry/refund→re-enable. **Telegram не требуется.**
+3. CI: unit/integration SQLite + PostgreSQL, Django migrations, browser web smoke/кроссбраузер, AI Platform real gateway smoke, bank sandbox signed webhook, WB access control/read-only and legacy regression.
+4. Правовые и коммерческие блокеры: WB SaaS API право, merchant Точки и 54-ФЗ, оферта, privacy/consent для внешнего AI, утверждённые цены, cost caps, rollback.
+5. Deploy отдельно на `nosale.svdev.pro` immutable SHA, staging backup+rollback; legacy `mpnosale.svdev.pro` не трогать. Проверить реальные страницы и сценарии, закрытая бета → публичный платный релиз только после evidence.
+
+**Done R5 / Release GO:** пользователь без Telegram может зарегистрироваться, подключить WB, оплатить конкретный тариф, использовать Standard guard/базовый веб-чат и Smart AI по своему магазину. `/health 200` и зелёный unit CI сами по себе не означают готовность.
+
 
 ## D. Структура работ и параллелизм
 
-- **Трек Billing**: R1 — можно выполнять одновременно с R2; только код `saas/billing/*` и billing UI/migrations, отдельный PR.
-- **Трек Telegram**: R2 — новый isolated adapter с owner settings/wiring, отдельный PR; не менять existing WB monitor без явного event hook и regression.
-- **Трек Advisor+AI**: качественные factual snapshots R4-start параллельно, но реальный AI dispatch только после readiness R3 + capability checks R1.
-- **Интеграционный трек**: R3 + R5, единый commit-integrated staging release только после независимых green CI и конкретных code-review мержей. PR #1/#3/#4/#5 — **stacked**; запрещено незаметно мержить их прямо в `master`.
+- **R1 Billing**: существующий `saas/billing/*`, отдельная ветка `feature/nosale-r1-two-plan-billing` и PR. Покупка/возвраты/сроки должны быть независимы от UI ассистента.
+- **R2 Web assistant**: reuse-аудит существующего TG-ассистента, перенос **логики** в Django web кабинет; Telegram transport не переносить. Параллельно R1.
+- **R3 Owner-admin**: AI model + provider routing в общей AI Platform, budget/quotas + approved 2 offers; параллельно R2, без нового слоя администрирования.
+- **R4 Contextual Smart**: расширение существующего adviser, подключение к тому же чату; использовать effective capabilities из R1.
+- **R5 Integration**: после R1–R4 единый staging SHA, E2E и rollback; stacked PR #1/#3/#4/#5 reviewed, мерж только по приёмке.
 
 ### Блокирующие зависимости
 
-```
-R0 baseline+CI
-  ├── R1 billing+effective entitlements ──┐
-  ├── R2 Telegram basic+verified binding ─┤
-  └── R3 owner settings+AI gateway probe ─┤
-                ↓                         │
-        R4 evidence+AI capped adviser <──┘
-                ↓
-          R5 E2E + isolated E5 staging
-                ↓
-       closed beta → accepted paid launch
+```text
+R0 sync/test baseline
+  ├─ R1 two-plan billing + grants ────┐
+  ├─ R2 embedded web helper ──────────┤
+  └─ R3 owner admin + AI gateway ─────┤
+                                   ↓
+                       R4 store-aware Smart
+                                   ↓
+                    R5 web E2E + isolated E5
+                                   ↓
+                     closed beta → paid launch
 ```
 
-## E. Что сознательно НЕ входит в MVP
+## E. Что НЕ входит в MVP
 
-- MPSTATS/Moneyplace/другие vendor BI; никакой reseller analytics.
-- Global seller data pool, machine learning/fine-tuning/LLM training, Ozon and other marketplaces; отдельный legal/workflow в Smart v2+.
-- Автоматическое изменение цены по тексту AI/Telegram, произвольный агент с открытыми tool calls; новый parser/scraper WB.
-- Отдельная панель «AI Platform» внутри NoSale, второй SDK для провайдеров/копия MiniBook AI runtime, второй Telegram-бот.
-- Автоматические recurring charges, годовые/квартальные тарифы, рекламная кампания AI «гарантированно предотвращает убытки».
+- Telegram-бот как отдельный продукт, BotFather, Telegram linking/идентификация, Telegram-webhook/доставка. Существующий Telegram-ассистент является источником reuse, **не каналом общения клиента**.
+- Сложная аналитика, cross-seller memory, pooled ML/fine-tuning, Ozon, внешние BI поставщики, необоснованные оценки прибыльности/расходов.
+- Автоматическая WB запись из ассистента, произвольные tools/агенты, отдельный Node AI bridge, если существующий AI Platform HTTP Gateway доступен.
+- Ещё одна схема/ledger подписок, второй provider registry, много периодов/методов оплаты и автосписание, если это не нужно MVP.
+
 
 ## F. Как организовано управление задачами
 
