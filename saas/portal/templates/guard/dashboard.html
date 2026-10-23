@@ -16,7 +16,8 @@
     <span class="summary-label">Защита скидок</span>
     <form method="post" action="{% url 'dashboard' %}" class="compact-toggle-form">{% csrf_token %}
       <input type="hidden" name="action" value="toggle_autocontrol">
-      <label class="toggle compact-switch"><input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or base_token %}disabled{% endif %} onchange="this.form.submit()"><span class="toggle-track"></span><b>{% if account.enabled %}Вкл{% else %}Выкл{% endif %}</b></label>
+      <input type="hidden" name="confirm_zero_discount" value="0">
+      <label class="toggle compact-switch"><input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or base_token %}disabled{% endif %} onchange="if(this.checked && {{ account.default_allowed_discount }}===0){if(!confirm('Внимание: лимит 0%. NoSale будет убирать скидки в Wildberries. Продолжить?')){this.checked=false;return;}this.form.elements.confirm_zero_discount.value='1';}this.form.submit()"><span class="toggle-track"></span><b>{% if account.enabled %}Вкл{% else %}Выкл{% endif %}</b></label>
     </form>
   </div>
   <a class="summary-cell {% if filter_name == 'all' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=all"><span class="summary-label">Товаров</span><strong>{{ count }}</strong></a>
@@ -24,8 +25,9 @@
   <a class="summary-cell {% if filter_name == 'over_limit' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=over_limit"><span class="summary-label">Выше лимита</span><strong>{{ over_limit_count }}</strong></a>
   <div class="summary-cell summary-cell--limit">
     <span class="summary-label">Предел скидки, %</span>
-    <form method="post" class="compact-limit-form" action="{% url 'dashboard' %}">{% csrf_token %}
+    <form method="post" class="compact-limit-form" action="{% url 'dashboard' %}" onsubmit="if(Number(this.elements.default_allowed_discount.value)===0){if(!confirm('Лимит 0%: будут убраны все превышающие его скидки WB. Подтвердить?'))return false;this.elements.confirm_zero_discount.value='1';}">{% csrf_token %}
       <input type="hidden" name="action" value="apply_all">
+      <input type="hidden" name="confirm_zero_discount" value="0">
       <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active or base_token %}disabled{% endif %}>
       <button type="submit" aria-label="Сохранить и применить предел скидки в WB" title="Сохраняет предел и отправляет изменения в WB" {% if not trial_status.active or base_token %}disabled{% endif %}>Применить</button>
     </form>

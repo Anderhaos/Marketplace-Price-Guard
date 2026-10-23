@@ -13,8 +13,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         while True:
             close_old_connections()
-            count = run_due_checks()
-            if options["once"]:
-                self.stdout.write(f"Processed accounts: {count}")
-                return
+            try:
+                count = run_due_checks()
+            except Exception as error:
+                self.stderr.write(f"WB guard cycle failed: {type(error).__name__}")
+                if options["once"]:
+                    raise
+            else:
+                if options["once"]:
+                    self.stdout.write(f"Processed accounts: {count}")
+                    return
             time.sleep(10)

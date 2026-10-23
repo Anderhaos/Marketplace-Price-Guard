@@ -8,7 +8,7 @@ import binascii
 import json
 import time
 from decimal import Decimal
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from urllib.request import Request, ProxyHandler, build_opener
 
 from cryptography.exceptions import InvalidSignature
@@ -99,6 +99,41 @@ def create_tochka_link(payment):
     if not isinstance(operation, str) or not operation or len(operation) > 128:
         raise AcquiringUnavailable("Missing operation identifier")
     return validate_payment_url(url), operation
+
+
+def get_tochka_operation(operation_id):
+    """Authenticated readback from Tochka when a signed webhook is lost.
+
+    Official response: Data.Operation[0] per Get Payment Operation Info.
+    This is an independent TLS-validated server-to-server read, not an
+    untrusted browser callback or unsigned incoming webhook.
+    """
+    if not configured():
+        raise AcquiringUnavailable("Acquiring disabled")
+    if not isinstance(operation_id, str) or not operation_id or len(operation_id) > 128:
+        raise AcquiringUnavailable("Invalid bank operation identifier")
+    # Whitelist URL-safe identifiers; prevent injection into URL paths.
+    if not all(c.isascii() and (c.isalnum() or c == "-") for c in operation_id):
+        raise AcquiringUnavailable("Invalid bank operation identifier")
+    request = Request(
+        settings.TOCHKA_API_BASE + "/acquiring/v1.0/payments/" + quote(operation_id, safe=""),
+        headers={"Authorization": "Bearer " + settings.TOCHKA_JWT_TOKEN, "Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with build_opener(ProxyHandler({})).open(request, timeout=12) as response:
+            if response.status != 200:
+                raise AcquiringUnavailable("Bank status lookup failed")
+            result = json.loads(response.read(65536))
+    except (OSError, ValueError) as exc:
+        raise AcquiringUnavailable("Bank status lookup temporarily unavailable") from exc
+    operations = result.get("Data", {}).get("Operation") if isinstance(result, dict) else None
+    if not isinstance(operations, list) or len(operations) != 1 or not isinstance(operations[0], dict):
+        raise AcquiringUnavailable("Invalid bank operation response")
+    operation = operations[0]
+    if operation.get("operationId") != operation_id:
+        raise AcquiringUnavailable("Bank returned another operation")
+    return operation
 
 
 def _decoded(part):

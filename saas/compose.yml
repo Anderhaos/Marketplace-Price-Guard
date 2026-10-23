@@ -38,6 +38,14 @@ services:
       db: {condition: service_healthy}
     restart: unless-stopped
     networks: [internal]
+  reconciliation:
+    build: .
+    env_file: .env
+    command: python manage.py reconcile_tochka
+    depends_on:
+      db: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [internal]
   notifications:
     build: .
     env_file: .env

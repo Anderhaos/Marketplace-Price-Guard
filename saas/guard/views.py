@@ -123,8 +123,10 @@ def _check_now(account):
     if not claimed:
         return None
     account.refresh_from_db()
+    rules_version = account.rules_version
+    lease_until = now + timedelta(minutes=15)
     try:
-        check_account(account)
+        outcome = check_account(account)
     except Exception as error:
         delay = timedelta(minutes=account.interval_minutes)
         if isinstance(error, WBApiError) and error.status == 429:
@@ -138,11 +140,20 @@ def _check_now(account):
             last_error=message, next_check_at=now + delay,
         )
         return False
-    GuardAccount.objects.filter(pk=account.pk).update(
-        lock_until=None, check_requested=False, apply_all_requested=False, apply_requested_ids=[],
-        last_check_at=now, last_error="", next_check_at=now + timedelta(minutes=account.interval_minutes),
-    )
-    return True
+    updates = dict(lock_until=None, last_check_at=now, last_error="",
+                   next_check_at=now + timedelta(minutes=account.interval_minutes))
+    if outcome in ("waiting_upload", "remaining"):
+        updates["check_requested"] = True
+    else:
+        updates.update(check_requested=False, apply_all_requested=False, apply_requested_ids=[])
+    updated = GuardAccount.objects.filter(
+        pk=account.pk, lock_until=lease_until, rules_version=rules_version,
+    ).update(**updates)
+    if not updated:
+        GuardAccount.objects.filter(pk=account.pk, lock_until=lease_until).update(
+            lock_until=None, next_check_at=timezone.now()
+        )
+    return outcome if outcome in ("waiting_upload", "remaining") else True
 
 
 _DASHBOARD_FILTERS = frozenset({"all", "over_limit", "corrected"})
@@ -241,12 +252,7 @@ def connect_wb(request):
 def dashboard(request):
     account = _account(request)
     base_token = _account_token_type(account) == "base"
-    if request.method == "GET" and account.token_ciphertext and not base_token:
-        now = timezone.now()
-        stale_before = now - timedelta(minutes=account.interval_minutes)
-        if not account.last_check_at or account.last_check_at <= stale_before:
-            _check_now(account)
-            account.refresh_from_db()
+    # GET never performs network I/O: the dedicated worker refreshes WB data.
     if request.method == "POST":
         action = request.POST.get("action", "apply_all")
         if action == "toggle_autocontrol":
@@ -256,6 +262,9 @@ def dashboard(request):
                 messages.error(request, "Сначала подключите токен Wildberries.")
             elif request.POST.get("enabled") == "on" and base_token:
                 messages.error(request, "Для автоисправления скидок нужен токен с подходящими лимитами WB. Проверьте варианты подключения в настройках.")
+            elif (request.POST.get("enabled") == "on" and account.default_allowed_discount == 0
+                  and request.POST.get("confirm_zero_discount") != "1"):
+                messages.error(request, "Подтвердите отключение всех скидок перед включением защиты.")
             else:
                 enabled = request.POST.get("enabled") == "on"
                 GuardAccount.objects.filter(pk=account.pk).update(enabled=enabled, next_check_at=timezone.now())
@@ -268,6 +277,9 @@ def dashboard(request):
             form = DefaultDiscountForm(request.POST)
             if form.is_valid():
                 discount = form.cleaned_data["default_allowed_discount"]
+                if discount == 0 and request.POST.get("confirm_zero_discount") != "1":
+                    messages.error(request, "Для ограничения скидок до 0% требуется подтверждение.")
+                    return _dashboard_redirect(request)
                 if settings.SAAS_PIN_AUTH_ENABLED and not guard_is_permitted(account):
                     messages.error(request, "Для применения правил требуется действующий пробный или оплаченный доступ.")
                     return _dashboard_redirect(request)

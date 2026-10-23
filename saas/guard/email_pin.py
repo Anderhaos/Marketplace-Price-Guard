@@ -205,6 +205,7 @@ def finish_pin(request):
                 else:
                     user.set_password(form.cleaned_data["pin"])
                     user.save(update_fields=["password"])
+                    EmailPinLoginThrottle.objects.filter(email=challenge.email).delete()
                     challenge.delete()
                     request.session.pop(SESSION_CHALLENGE, None)
                     messages.success(request, "PIN обновлён. Войдите с новым PIN.")
@@ -234,7 +235,9 @@ def pin_login(request):
                         throttle.attempts = 0
                     throttle.attempts += 1
                     if throttle.attempts >= MAX_PIN_ATTEMPTS:
-                        throttle.locked_until = now + PIN_LOCK_TTL
+                        throttle.lock_count = min(throttle.lock_count + 1, 3)
+                        lock_times = (timedelta(minutes=15), timedelta(hours=1), timedelta(hours=24))
+                        throttle.locked_until = now + lock_times[throttle.lock_count - 1]
                     throttle.save()
                     form.add_error(None, "Неверный email или PIN.")
                 else:

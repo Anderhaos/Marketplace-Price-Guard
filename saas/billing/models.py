@@ -25,6 +25,7 @@ class SubscriptionPayment(models.Model):
     period_months = models.PositiveSmallIntegerField(default=1)
     created_at = models.DateTimeField(default=timezone.now)
     paid_at = models.DateTimeField(null=True, blank=True)
+    last_reconciled_at = models.DateTimeField(null=True, blank=True)
     payment_url = models.URLField(max_length=2048, blank=True)
     link_expires_at = models.DateTimeField(null=True, blank=True)
     @property

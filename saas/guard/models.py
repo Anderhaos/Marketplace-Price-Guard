@@ -105,5 +105,6 @@ class EmailPinLoginThrottle(models.Model):
     """Persisted across Gunicorn workers; limits guesses against six-digit PINs."""
     email = models.EmailField(max_length=254, unique=True)
     attempts = models.PositiveSmallIntegerField(default=0)
+    lock_count = models.PositiveSmallIntegerField(default=0)
     first_failed_at = models.DateTimeField(null=True, blank=True)
     locked_until = models.DateTimeField(null=True, blank=True)

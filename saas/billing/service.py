@@ -16,7 +16,7 @@ from django.utils import timezone
 from .models import AccessGrant, SubscriptionPayment
 from .tochka import (
     AcquiringUnavailable, InvalidWebhook, approved_price_kopeks,
-    configured, create_tochka_link, normalize_bank_event,
+    configured, create_tochka_link, normalize_bank_event, get_tochka_operation,
     validate_payment_url,
 )
 
@@ -144,3 +144,25 @@ def apply_verified_event(payload):
     payment.paid_at = now
     payment.save(update_fields=["operation_id", "status", "paid_at"])
     return "activated"
+
+def reconcile_payment(payment):
+    """Fail-closed status reconciliation using Tochka's authenticated GET.
+
+    All monetary/merchant/order checks are reused from apply_verified_event.
+    """
+    if not payment.operation_id:
+        return "missing_bank_operation"
+    operation = get_tochka_operation(payment.operation_id)
+    if operation.get("status") == "REFUNDED_PARTIALLY":
+        # Partial refunds need a separately approved entitlement policy.
+        return "partial_refund_manual_review"
+    event = {"data": {
+        "webhookType": "acquiringInternetPayment",
+        "operationId": operation.get("operationId"),
+        "paymentLinkId": operation.get("paymentLinkId"),
+        "merchantId": operation.get("merchantId"),
+        "customerCode": operation.get("customerCode"),
+        "status": operation.get("status"),
+        "amount": operation.get("amount"),
+    }}
+    return apply_verified_event(event)

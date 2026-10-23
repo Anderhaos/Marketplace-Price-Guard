@@ -1,10 +1,11 @@
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 
 from billing.access import guard_is_permitted
+from billing.models import AccessGrant
 from django.conf import settings
 from .crypto import decrypt_token
 from .models import GuardAccount, GuardEvent, Product, Upload
@@ -102,7 +103,7 @@ def check_account(account):
     else:
         still_pending, successful_upload = _reconcile_uploads(account, client)
     if still_pending:
-        return True
+        return "waiting_upload"
     account.refresh_from_db(fields=["enabled", "check_requested", "apply_all_requested", "apply_requested_ids", "default_allowed_discount"])
     force_apply_all = account.apply_all_requested
     force_apply_ids = {int(nm_id) for nm_id in account.apply_requested_ids}
@@ -114,32 +115,35 @@ def check_account(account):
         _save_card_data(account, card_data)
     except WBApiError:
         pass
-    goods = client.get_products()
+    goods = list({int(item["nmID"]): item for item in client.get_products()}.values())
     checked_at = timezone.now()
+    existing_products = {product.nm_id: product for product in Product.objects.filter(
+        account=account, nm_id__in=[int(item["nmID"]) for item in goods]
+    )}
+    upserts = []
     changes = []
     change_details = []
     corrected_count = 0
     problems = 0
+    more_work = False
     for item in goods:
         nm_id = int(item["nmID"])
         sizes = item.get("sizes") or []
         first_size = sizes[0] if sizes else {}
         discount = int(item.get("discount") or 0)
-        previous = Product.objects.filter(account=account, nm_id=nm_id).first()
-        product, _ = Product.objects.update_or_create(
+        previous = existing_products.get(nm_id)
+        product = Product(
             account=account, nm_id=nm_id,
-            defaults={
-                "vendor_code": str(item.get("vendorCode") or "")[:255],
-                "title": card_data.get(nm_id, {}).get("title", previous.title if previous else ""),
-                "photo_url": card_data.get(nm_id, {}).get("photo_url", previous.photo_url if previous else ""),
-                "price": _price(first_size, "price"),
-                "discounted_price": _price(first_size, "discountedPrice"),
-                "currency": str(item.get("currencyIsoCode4217") or "RUB")[:3],
-                "current_discount": discount,
-                "checked_at": checked_at,
-                "active": True,
-            },
+            allowed_discount_override=previous.allowed_discount_override if previous else None,
+            vendor_code=str(item.get("vendorCode") or "")[:255],
+            title=card_data.get(nm_id, {}).get("title", previous.title if previous else ""),
+            photo_url=card_data.get(nm_id, {}).get("photo_url", previous.photo_url if previous else ""),
+            price=_price(first_size, "price"),
+            discounted_price=_price(first_size, "discountedPrice"),
+            currency=str(item.get("currencyIsoCode4217") or "RUB")[:3],
+            current_discount=discount, checked_at=checked_at, active=True,
         )
+        upserts.append(product)
         if previous:
             if previous.current_discount != discount:
                 _event(
@@ -154,13 +158,26 @@ def check_account(account):
             allowed = account.default_allowed_discount
         if discount > allowed:
             problems += 1
-            if force_apply_all or nm_id in force_apply_ids or (account.enabled and len(changes) < account.max_fixes):
+            manual_requested = force_apply_all or nm_id in force_apply_ids
+            automatic_requested = account.enabled and len(changes) < account.max_fixes
+            if manual_requested or automatic_requested:
+                if len(changes) >= 1000:
+                    more_work = True
+                    continue
                 changes.append((nm_id, allowed))
                 change_details.append({
                     "nm_id": nm_id, "vendor_code": product.vendor_code,
                     "title": product.title, "before": discount, "after": allowed,
                 })
                 corrected_count += 1
+    if upserts:
+        # One batched UPSERT per 500 cards, instead of select+update per SKU.
+        Product.objects.bulk_create(
+            upserts, batch_size=500, update_conflicts=True,
+            unique_fields=["account", "nm_id"],
+            update_fields=["vendor_code", "title", "photo_url", "price",
+                           "discounted_price", "currency", "current_discount", "checked_at", "active"],
+        )
     Product.objects.filter(account=account).exclude(checked_at=checked_at).update(active=False)
     _event(account, "check", f"Проверено товаров: {len(goods)}; скидка выше разрешённой: {problems}.")
     if basic_readonly or not changes or (not account.enabled and not force_apply_all and not force_apply_ids):
@@ -188,14 +205,24 @@ def check_account(account):
         _event(account, "submitted", f"Отправлена задача WB {upload_id}: снизить превышения для {len(changes)} товаров. Ожидается подтверждение.", details={"upload_id": upload_id, "changes": change_details})
     else:
         _event(account, "submitted", f"Отправлена задача WB {upload_id}: {len(changes)} товаров. Ожидается подтверждение.", details={"upload_id": upload_id, "changes": change_details})
-    return True
+    return "remaining" if more_work else True
 
 
 def run_due_checks():
     if not settings.SAAS_WB_NETWORK_ENABLED:
         return 0
     now = timezone.now()
-    due = GuardAccount.objects.filter(token_ciphertext__gt="", next_check_at__lte=now).filter(Q(enabled=True) | Q(check_requested=True) | Q(apply_all_requested=True) | ~Q(apply_requested_ids=[]) | Q(uploads__status="pending")).filter(Q(lock_until__isnull=True) | Q(lock_until__lte=now)).distinct().order_by("next_check_at")[:20]
+    due = GuardAccount.objects.filter(token_ciphertext__gt="", next_check_at__lte=now).filter(
+        Q(enabled=True) | Q(check_requested=True) | Q(apply_all_requested=True) |
+        ~Q(apply_requested_ids=[]) | Q(uploads__status="pending")
+    ).filter(Q(lock_until__isnull=True) | Q(lock_until__lte=now))
+    if settings.SAAS_ACCESS_ENFORCED:
+        active_grant = AccessGrant.objects.filter(
+            user_id=OuterRef("user_id"), starts_at__lte=now,
+            ends_at__gt=now, revoked_at__isnull=True,
+        )
+        due = due.annotate(_active_grant=Exists(active_grant)).filter(_active_grant=True)
+    due = due.distinct().order_by("next_check_at")[:20]
     processed = 0
     for account in due:
         if not guard_is_permitted(account):
@@ -204,6 +231,8 @@ def run_due_checks():
         if not claimed:
             continue
         processed += 1
+        lease_until = now + timedelta(minutes=15)
+        current_version = GuardAccount.objects.only("rules_version").get(pk=account.pk).rules_version
         try:
             token_type = get_token_type(decrypt_token(account.token_ciphertext))
         except (ValueError, TypeError):
@@ -216,14 +245,24 @@ def run_due_checks():
             )
 
         try:
-            pending = check_account(account)
+            outcome = check_account(account)
             delay = timedelta(minutes=max(15, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
-            GuardAccount.objects.filter(pk=account.pk).update(
-                lock_until=None, check_requested=(token_type == "base"),
-                apply_all_requested=False, apply_requested_ids=[], last_check_at=timezone.now(), last_error="",
+            changes = dict(
+                lock_until=None, last_check_at=timezone.now(), last_error="",
                 next_check_at=timezone.now() + delay,
                 enabled=False if token_type == "base" else account.enabled,
             )
+            if outcome in ("waiting_upload", "remaining"):
+                changes["check_requested"] = True
+            else:
+                changes.update(check_requested=(token_type == "base"),
+                               apply_all_requested=False, apply_requested_ids=[])
+            if not GuardAccount.objects.filter(
+                pk=account.pk, lock_until=lease_until, rules_version=current_version,
+            ).update(**changes):
+                GuardAccount.objects.filter(pk=account.pk, lock_until=lease_until).update(
+                    lock_until=None, next_check_at=timezone.now()
+                )
         except Exception as error:
             delay = timedelta(minutes=max(15, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
             if isinstance(error, WBApiError) and error.status == 429:
