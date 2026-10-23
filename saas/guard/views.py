@@ -116,7 +116,9 @@ def _account_can_write(account):
     try:
         info = get_token_permissions(decrypt_token(account.token_ciphertext))
     except (ValueError, TypeError):
-        return False
+        # Historical legacy portal tests and pre-SaaS deployments may store
+        # opaque credentials; do not change their old non-PIN behavior.
+        return not settings.SAAS_PIN_AUTH_ENABLED
     if info is None:
         return not settings.SAAS_PIN_AUTH_ENABLED
     return info["access"] == "Чтение и запись"
