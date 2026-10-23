@@ -2,7 +2,7 @@
 
 **Дата:** 2026-10-23. **Статус:** исполнимый план, не акт готовности продукта.
 **Приоритет:** два тарифа, работающая защита WB, **встроенный в кабинет NoSale помощник**, расширенный Smart AI-консультант с рекомендациями по своему магазину. Берём переносимые элементы существующего ассистента из Telegram, **не создаём для клиентов Telegram-бота**. Коллективное обучение и глубокая аналитика — **после запуска**.
-**Связанные постановки:** [COMMERCIAL_MVP_STANDARD_SMART_TELEGRAM_2026-10-23.md](./COMMERCIAL_MVP_STANDARD_SMART_TELEGRAM_2026-10-23.md), [FIRST_PARTY_COLLECTIVE_INTELLIGENCE_DECISION_2026-10-23.md](./FIRST_PARTY_COLLECTIVE_INTELLIGENCE_DECISION_2026-10-23.md). При расхождении scope MVP — этот план.
+**Связанные постановки:** [COMMERCIAL_MVP_STANDARD_SMART_EMBEDDED_ASSISTANT_2026-10-23.md](./COMMERCIAL_MVP_STANDARD_SMART_EMBEDDED_ASSISTANT_2026-10-23.md), [FIRST_PARTY_COLLECTIVE_INTELLIGENCE_DECISION_2026-10-23.md](./FIRST_PARTY_COLLECTIVE_INTELLIGENCE_DECISION_2026-10-23.md). При расхождении scope MVP — этот план.
 **Базовые инструкции:** `saas/AGENTS.md`: изменения исходного кода **только через GitHub Connector**, feature branches и Draft PR, GitHub Actions, immutable deploy. `mpnosale.svdev.pro` (legacy, реальный продавец, 8891) **не изменять**.
 
 ## A. Что реально готово на момент аудита
