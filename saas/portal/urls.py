@@ -35,6 +35,7 @@ urlpatterns = [
     path("stores/", views.stores, name="stores"),
     path("stores/select/<int:store_id>/", views.select_store, name="select_store"),
     path("advisor/", views.store_advisor, name="store_advisor"),
+    path("helper/", views.store_helper, name="store_helper"),
     path("settings/", views.settings_view, name="settings"),
     path("products/<int:nm_id>/", views.product_rule, name="product_rule"),
     path("products/<int:nm_id>/history-data/", views.product_history_data, name="product_history_data"),
