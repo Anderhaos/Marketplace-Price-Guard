@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="OwnerAISettings",
             fields=[
-                ("id", models.PositiveSmallIntegerField(default=1, editable=False, primary_key=True, serialize=False)),
+                ("id", models.PositiveSmallIntegerField(editable=False, primary_key=True, serialize=False)),
                 ("ai_enabled", models.BooleanField(default=False, help_text="Выключает AI, но не контроль скидок.")),
                 ("gateway_model_id", models.CharField(blank=True, help_text="Точный опубликованный идентификатор модели в AI Platform.", max_length=120)),
                 ("prompt_version", models.CharField(default="v1", max_length=32)),
