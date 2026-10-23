@@ -223,6 +223,20 @@ def select_store(request, store_id):
 
 
 @login_required
+def onboarding_connect(request):
+    """Allow token replacement only while the initial inventory is pending."""
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    account = _account(request)
+    if account.initial_sync_completed_at is not None:
+        return redirect("settings")
+    return render(request, "guard/onboarding_start.html", {
+        "onboarding_required": True,
+        "trial_status": access_snapshot(request.user.pk),
+    })
+
+
+@login_required
 def connect_wb(request):
     """First-run popup and settings share the same secure token verifier."""
     if request.method != "POST":
