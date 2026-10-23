@@ -5,8 +5,13 @@
 <div class="welcome-layout">
   <section class="welcome-story" aria-labelledby="welcome-headline">
     <div class="welcome-kicker">NoSale · защита цен Wildberries</div>
-    <h1 class="welcome-title" id="welcome-headline">Ваши скидки под контролем. <em>Даже когда вы отдыхаете.</em></h1>
+    <h1 class="welcome-title" id="welcome-headline"><span class="welcome-title-primary">Ваши скидки под контролем.</span><span class="welcome-title-secondary">Даже когда вы отдыхаете.</span></h1>
     <p class="welcome-text">NoSale проверяет скидки на товары Wildberries и помогает возвращать превышения к установленным вами пределам. Вы определяете правила — сервис следит за ними.</p>
+    <aside class="welcome-trial-card" aria-label="Пробный доступ">
+      <div class="welcome-trial-head"><span class="welcome-trial-mark" aria-hidden="true">✓</span><strong>5 дней бесплатно</strong></div>
+      <p>После подключения магазина</p>
+      <span class="welcome-trial-note">Без банковской карты · Без автоматических списаний</span>
+    </aside>
     <h2 class="welcome-heading">Три простых шага</h2>
     <ol class="welcome-steps">
       <li><span class="step-number">01</span><div><strong>Введите email</strong><span class="step-caption">Войдите в существующий аккаунт или подтвердите почту для нового.</span></div></li>
@@ -14,10 +19,6 @@
       <li><span class="step-number">03</span><div><strong>Установите предел скидок</strong><span class="step-caption">Включите защиту, когда будете готовы. Правила и изменения видны в кабинете.</span></div></li>
     </ol>
     <p class="welcome-safety"><svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>Вы сами управляете доступом и можете остановить автоматическую защиту.</p>
-    <a class="button welcome-start" href="#welcome-email" onclick="document.getElementById('welcome-email')?.focus()">
-      Начать бесплатно
-      <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-    </a>
   </section>
   <section class="welcome-panel" id="welcome-auth" aria-labelledby="welcome-auth-title">
     <div class="welcome-panel-top">
@@ -49,7 +50,7 @@
       </form>
       <div class="welcome-form-help"><span>Вход и регистрация — в одном месте</span></div>
     {% endif %}
-    <div class="welcome-trial"><strong>5 дней бесплатно после подключения магазина</strong><p>Карта не требуется. Автоматических списаний нет.</p></div>
+    
   </section>
 </div>
 {% endblock %}
