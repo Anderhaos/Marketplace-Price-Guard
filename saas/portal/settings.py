@@ -70,9 +70,6 @@ else:
 SAAS_WB_NETWORK_ENABLED = env_bool("SAAS_WB_NETWORK_ENABLED", False)
 SAAS_WB_TOKEN_VALIDATION_ENABLED = env_bool("SAAS_WB_TOKEN_VALIDATION_ENABLED", False)
 SAAS_WB_READ_ONLY = env_bool("SAAS_WB_READ_ONLY", False)
-# Fail closed if a developer enables live WB reads without the HTTP write guard.
-if DEBUG and SAAS_PIN_AUTH_ENABLED and SAAS_WB_NETWORK_ENABLED and not SAAS_WB_READ_ONLY:
-    raise RuntimeError("DEBUG SaaS WB network access requires SAAS_WB_READ_ONLY=1")
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
 # Same acquiring contract as MiniBook, separate NoSale merchant configuration.
 # Fail closed until a merchant, verified RS256 webhook key, and approved RUB price exist.
@@ -141,6 +138,9 @@ MAIL_RELAY_URL = os.environ.get("MAIL_RELAY_URL", "")
 MAIL_RELAY_TOKEN = os.environ.get("MAIL_RELAY_TOKEN", "")
 REQUIRE_EMAIL_VERIFICATION = env_bool("REQUIRE_EMAIL_VERIFICATION", True)
 SAAS_PIN_AUTH_ENABLED = env_bool("SAAS_PIN_AUTH_ENABLED", False)
+# Fail closed if a developer enables live WB reads without the HTTP write guard.
+if DEBUG and SAAS_PIN_AUTH_ENABLED and SAAS_WB_NETWORK_ENABLED and not SAAS_WB_READ_ONLY:
+    raise RuntimeError("DEBUG SaaS WB network access requires SAAS_WB_READ_ONLY=1")
 EMAIL_HOST = os.environ.get("SMTP_HOST", "")
 EMAIL_PORT = int(os.environ.get("SMTP_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("SMTP_USER", "")
