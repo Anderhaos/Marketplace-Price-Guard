@@ -117,6 +117,7 @@ class AssistantMessage(models.Model):
     account = models.ForeignKey(GuardAccount, on_delete=models.CASCADE, related_name="assistant_messages")
     question = models.CharField(max_length=400)
     answer = models.TextField(max_length=2000)
+    mode = models.CharField(max_length=8, choices=[("basic", "Базовый"), ("smart", "AI Smart")], default="basic")
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
