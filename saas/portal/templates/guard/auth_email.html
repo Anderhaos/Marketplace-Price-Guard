@@ -1,11 +1,38 @@
 {% extends 'guard/base.html' %}
-{% block title %}{% if purpose == 'recover' %}Восстановление PIN{% else %}Регистрация{% endif %} — MP NoSale{% endblock %}
+{% block title %}{% if purpose == 'recover' %}Восстановление PIN{% else %}Регистрация{% endif %} — NoSale{% endblock %}
 {% block content %}
-<div class="auth-wrap"><section class="card">
-  <span class="eyebrow">MP NoSale / {% if purpose == 'recover' %}восстановление{% else %}регистрация{% endif %}</span>
-  <h1>{% if purpose == 'recover' %}Восстановить PIN{% else %}Создать аккаунт{% endif %}</h1>
-  <p class="lead">Введите email. Мы отправим четырёхзначный код подтверждения, действующий 10 минут.</p>
-  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Получить код</button></form>
-  <p style="margin-top:18px"><a href="{% url 'login' %}">Уже есть аккаунт? Войти</a></p>
-</section></div>
+<link rel="stylesheet" href="/static/welcome.css">
+<div class="welcome-layout auth-flow-layout">
+  <section class="welcome-story auth-flow-story" aria-labelledby="auth-guide-title">
+    <div class="welcome-kicker">NoSale · {% if purpose == 'recover' %}восстановление доступа{% else %}создание аккаунта{% endif %}</div>
+    <p class="auth-flow-progress">Шаг 1 из 3</p>
+    {% if purpose == 'recover' %}
+    <h1 class="auth-flow-title" id="auth-guide-title">Вернём доступ <span>к вашему аккаунту.</span></h1>
+    <p class="welcome-text">Забыли PIN? Достаточно подтвердить адрес электронной почты, указанный при регистрации. После этого вы сможете установить новый PIN.</p>
+    {% else %}
+    <h1 class="auth-flow-title" id="auth-guide-title">Начнём с <span>вашей почты.</span></h1>
+    <p class="welcome-text">NoSale использует email, чтобы защитить ваш аккаунт. Никаких паролей от кабинета Wildberries — только ваш адрес и PIN для входа.</p>
+    {% endif %}
+    <h2 class="welcome-heading">Как это работает?</h2>
+    <ol class="welcome-steps auth-flow-steps">
+      <li><span class="step-number">01</span><div><strong>Введите email</strong><span class="step-caption">Тот, к которому у вас есть доступ.{% if purpose == 'recover' %} Укажите адрес вашего аккаунта NoSale.{% endif %}</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Получите код</strong><span class="step-caption">Проверьте почту и введите четыре цифры из письма.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>{% if purpose == 'recover' %}Задайте новый PIN{% else %}Создайте PIN для входа{% endif %}</strong><span class="step-caption">{% if purpose == 'recover' %}Замените забытый PIN и вернитесь к работе.{% else %}После этого откроется кабинет подключения магазина.{% endif %}</span></div></li>
+    </ol>
+    <div class="auth-flow-hint"><span aria-hidden="true">✉</span> Код подтверждения действует 10 минут.</div>
+  </section>
+  <section class="welcome-panel auth-flow-panel" aria-labelledby="auth-email-title">
+    <div class="welcome-panel-top"><span class="welcome-label">{% if purpose == 'recover' %}Восстановление PIN{% else %}Регистрация NoSale{% endif %}</span><span class="welcome-stage">Шаг 1 из 3</span></div>
+    <h2 id="auth-email-title">Введите ваш email</h2>
+    <p class="welcome-explainer">Мы поможем вам перейти к следующему шагу. Подтвердите доступ к своей почте, прежде чем создавать PIN.</p>
+    <form method="post" class="welcome-form" novalidate>{% csrf_token %}
+      {% if form.non_field_errors %}<div class="welcome-form-errors">{{ form.non_field_errors }}</div>{% endif %}
+      <label for="auth-email">Ваш email</label>
+      <input id="auth-email" type="email" name="email" value="{{ form.email.value|default_if_none:'' }}" autocomplete="email" inputmode="email" placeholder="name@example.com" required autofocus>
+      {% if form.email.errors %}<div class="welcome-form-errors">{{ form.email.errors }}</div>{% endif %}
+      <button class="welcome-submit" type="submit">Продолжить →</button>
+    </form>
+    <div class="auth-flow-help"><a href="{% url 'login' %}">Вернуться к входу</a></div>
+  </section>
+</div>
 {% endblock %}
