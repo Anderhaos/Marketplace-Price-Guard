@@ -233,7 +233,7 @@
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondary">Выйти</button></form>
         {% else %}
           {% if request.path == '/login/' %}
-            <a href="#welcome-headline">Как это работает</a><a class="nav-accent" href="#welcome-email">Начать бесплатно</a>
+            <a href="#welcome-headline">Как это работает</a>
           {% else %}
             <a href="{% url 'login' %}">Войти</a><a class="nav-accent" href="{% url 'register' %}">Регистрация</a>
           {% endif %}
