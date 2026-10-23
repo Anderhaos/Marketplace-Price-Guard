@@ -288,7 +288,7 @@ def run_due_checks():
             if isinstance(error, WBApiError) and error.status == 429:
                 if error.retry_after:
                     delay = max(delay, timedelta(seconds=error.retry_after + 5))
-                message = f"WB ограничил запрос {error}. Повтор через {int(delay.total_seconds() // 60)} мин."
+                message = "Wildberries ограничил частоту запросов (HTTP 429). NoSale автоматически повторит загрузку после разрешённой паузы."
             else:
                 message = f"Не удалось обновить данные WB: {type(error).__name__}."
             _event(account, "error", message)
