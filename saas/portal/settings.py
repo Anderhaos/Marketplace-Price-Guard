@@ -47,7 +47,14 @@ TEMPLATES = [{
 WSGI_APPLICATION = "portal.wsgi.application"
 # SaaS is isolated from the legacy database; sqlite permitted only for tests.
 if DEBUG and env_bool("SAAS_TEST_SQLITE"):
-    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "saas-test.sqlite3"}}
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "saas-test.sqlite3",
+        # SQLite is only for isolated localhost dev. IMMEDIATE acquires the
+        # write reservation at BEGIN and avoids mid-transaction lock upgrades
+        # when PIN creation overlaps the browser's other requests.
+        "OPTIONS": {"timeout": 30, "transaction_mode": "IMMEDIATE"},
+    }}
 else:
     DATABASES = {"default": {
         "ENGINE": "django.db.backends.postgresql",
