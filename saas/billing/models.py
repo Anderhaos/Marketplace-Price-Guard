@@ -44,7 +44,7 @@ class OwnerAISettings(models.Model):
     Service credentials belong in the environment/AI Platform, never in this
     table or an editable Django Admin form. Unused until R2/R4 AI integration.
     """
-    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    id = models.PositiveSmallIntegerField(primary_key=True, editable=False)
     ai_enabled = models.BooleanField(default=False, help_text="Выключает AI, но не контроль скидок.")
     gateway_model_id = models.CharField(max_length=120, blank=True, help_text="Точный опубликованный идентификатор модели в AI Platform.")
     prompt_version = models.CharField(max_length=32, default="v1")
