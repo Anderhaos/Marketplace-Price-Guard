@@ -228,6 +228,56 @@ class FirstRunOnboardingTests(TestCase):
         self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 59*60)
         self.assertEqual(run_due_checks(), 0)
 
+    @override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=False)
+    @patch("guard.integrations.WBClient")
+    @patch("guard.monitor.WBClient")
+    def test_basic_token_with_write_scope_can_queue_and_submit_discount_fix(self, wb_mock, connection_mock):
+        from guard.models import Upload
+        from guard.monitor import run_due_checks
+        self.client.post(reverse("connect_wb"), {"token": token_for(kind=1)})
+        account = GuardAccount.objects.get(user=self.user)
+        client = wb_mock.return_value
+        client.get_product_cards.return_value = []
+        client.get_products.return_value = [
+            {"nmID": 804, "vendorCode": "sku", "discount": 30,
+             "sizes": [{"price": 1000, "discountedPrice": 700}]}
+        ]
+        client.submit_discounts.return_value = 87436
+        self.assertEqual(run_due_checks(), 1)
+        account.refresh_from_db()
+        self.assertIsNotNone(account.initial_sync_completed_at)
+        self.assertFalse(account.enabled)
+        self.assertEqual(account.check_requested, False)
+        account.enabled = True
+        account.default_allowed_discount = 10
+        account.check_requested = True
+        account.next_check_at = timezone.now()
+        account.save(update_fields=["enabled", "default_allowed_discount", "check_requested", "next_check_at"])
+        self.assertEqual(run_due_checks(), 1)
+        client.submit_discounts.assert_called_once_with([(804, 10)])
+        self.assertEqual(Upload.objects.filter(account=account, upload_id=87436).count(), 1)
+
+    @override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=True)
+    @patch("guard.integrations.WBClient")
+    @patch("guard.monitor.WBClient")
+    def test_basic_write_scope_does_not_bypass_preview_write_block(self, wb_mock, connection_mock):
+        from guard.monitor import run_due_checks
+        self.client.post(reverse("connect_wb"), {"token": token_for(kind=1)})
+        account = GuardAccount.objects.get(user=self.user)
+        account.enabled = True
+        account.default_allowed_discount = 10
+        account.save(update_fields=["enabled", "default_allowed_discount"])
+        client = wb_mock.return_value
+        client.get_product_cards.return_value = []
+        client.get_products.return_value = [
+            {"nmID": 804, "discount": 30,
+             "sizes": [{"price": 1000, "discountedPrice": 700}]}
+        ]
+        self.assertEqual(run_due_checks(), 1)
+        account.refresh_from_db()
+        self.assertFalse(account.enabled)
+        client.submit_discounts.assert_not_called()
+
     @patch("guard.integrations.WBClient")
     def test_basic_readonly_token_rejected_before_trial(self, mock_wb):
         limited = token_for(kind=1, scopes=(1 << 1) | (1 << 3) | (1 << 30))
