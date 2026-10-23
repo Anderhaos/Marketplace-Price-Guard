@@ -32,8 +32,10 @@ def connect_wb_token(account, token):
     required = {"Цены и скидки", "Контент"}
     if not required.issubset(set(permissions["categories"])):
         raise ConnectError("Добавьте категории «Цены и скидки» и «Контент» при создании токена.")
-    if permissions["token_type"] != "base" and permissions["access"] != "Чтение и запись":
-        raise ConnectError("Для сервисного токена выберите «Чтение и запись». Базовый токен поддерживает просмотр.")
+    # WB allows both access levels for Basic tokens. A read-only token can
+    # display products but can never restore an excessive discount.
+    if permissions["access"] != "Чтение и запись":
+        raise ConnectError("Для защиты скидок нужен уровень «Чтение и запись». Создайте токен с правом изменения скидок.")
 
     # First validate read-only: never send discount changes during onboarding.
     try:
