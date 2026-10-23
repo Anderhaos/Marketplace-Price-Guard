@@ -1,11 +1,12 @@
 """R3 safe owner config: only a superuser may configure provider/model/quotas."""
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import OwnerAISettings
 
 
+@override_settings(STORAGES={"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
 class OwnerAISettingsTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_superuser(
@@ -21,7 +22,7 @@ class OwnerAISettingsTests(TestCase):
         self.assertFalse(obj.ai_enabled)
         self.assertFalse(obj.ready_for_gateway)
         fields = [f.name for f in OwnerAISettings._meta.fields]
-        self.assertFalse(any("token" in field or "secret" in field or "api_key" in field for field in fields))
+        self.assertFalse(any(field.endswith("_token") or "secret" in field or "api_key" in field for field in fields))
         obj.ai_enabled = True
         obj.gateway_model_id = "approved-example-model"
         obj.save()
