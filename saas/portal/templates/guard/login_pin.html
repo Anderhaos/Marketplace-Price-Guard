@@ -3,6 +3,22 @@
 {% block content %}
 <link rel="stylesheet" href="/static/welcome.css">
 <div class="welcome-layout">
+  {% if stage == 'pin' %}
+  <section class="welcome-story auth-flow-story" aria-labelledby="login-guide-title">
+    <div class="welcome-kicker">NoSale · возвращение в кабинет</div>
+    <p class="auth-flow-progress">Вход · шаг 2 из 2</p>
+    <h1 class="auth-flow-title" id="login-guide-title">С возвращением. <span>Остался ваш PIN.</span></h1>
+    <p class="welcome-text">Мы нашли ваш аккаунт. Чтобы убедиться, что вход выполняете именно вы, введите PIN, который задали после подтверждения email.</p>
+    <div class="auth-flow-email auth-flow-email--success"><span class="auth-flow-email-icon" aria-hidden="true">✓</span><div><small>Аккаунт найден</small><strong>{{ email }}</strong></div></div>
+    <h2 class="welcome-heading">Как войти?</h2>
+    <ol class="welcome-steps auth-flow-steps">
+      <li><span class="step-number">01</span><div><strong>Вспомните свой PIN</strong><span class="step-caption">Четыре цифры, которые вы выбрали при регистрации.</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Введите PIN справа</strong><span class="step-caption">После проверки откроется кабинет вашего магазина.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>Не помните PIN?</strong><span class="step-caption">Восстановите его через код на подтверждённый email.</span></div></li>
+    </ol>
+    <div class="auth-flow-hint"><span aria-hidden="true">✦</span> Никому не передавайте PIN. Сотрудникам NoSale он не нужен.</div>
+  </section>
+  {% else %}
   <section class="welcome-story" aria-labelledby="welcome-headline">
     <div class="welcome-kicker">NoSale · защита цен Wildberries</div>
     <h1 class="welcome-title" id="welcome-headline"><span class="welcome-title-primary">Ваши скидки под контролем.</span><span class="welcome-title-secondary">Даже когда вы отдыхаете.</span></h1>
@@ -20,6 +36,7 @@
     </ol>
     <p class="welcome-safety"><svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>Вы сами управляете доступом и можете остановить автоматическую защиту.</p>
   </section>
+  {% endif %}
   <section class="welcome-panel" id="welcome-auth" aria-labelledby="welcome-auth-title">
     <div class="welcome-panel-top">
       <span class="welcome-label">Личный кабинет</span>
