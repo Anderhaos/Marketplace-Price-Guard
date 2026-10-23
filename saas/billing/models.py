@@ -36,3 +36,38 @@ class SubscriptionPayment(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["provider","operation_id"], condition=~models.Q(operation_id=""), name="unique_provider_operation")]
+
+
+class OwnerAISettings(models.Model):
+    """Singleton NoSale AI control plane (non-secret configuration only).
+
+    Service credentials belong in the environment/AI Platform, never in this
+    table or an editable Django Admin form. Unused until R2/R4 AI integration.
+    """
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    ai_enabled = models.BooleanField(default=False, help_text="Выключает AI, но не контроль скидок.")
+    gateway_model_id = models.CharField(max_length=120, blank=True, help_text="Точный опубликованный идентификатор модели в AI Platform.")
+    prompt_version = models.CharField(max_length=32, default="v1")
+    system_instructions = models.TextField(blank=True, help_text="Дополнительные инструкции ассистенту. Запрещено давать право записи в WB.")
+    standard_questions_per_day = models.PositiveSmallIntegerField(default=1)
+    smart_questions_per_day = models.PositiveSmallIntegerField(default=2)
+    smart_briefs_per_day = models.PositiveSmallIntegerField(default=2)
+    max_output_tokens = models.PositiveSmallIntegerField(default=500)
+    timeout_seconds = models.PositiveSmallIntegerField(default=20)
+    monthly_budget_kopeks = models.PositiveIntegerField(default=0, help_text="0 = AI вызовы запрещены даже при включённом переключателе.")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "NoSale — AI и лимиты"
+
+    @property
+    def ready_for_gateway(self):
+        return bool(self.ai_enabled and self.gateway_model_id.strip() and self.monthly_budget_kopeks > 0)
+
+    class Meta:
+        verbose_name = "Настройки AI владельца"
+        verbose_name_plural = "Настройки AI владельца"
