@@ -36,6 +36,19 @@ def grant_trial_once(user_id, *, at=None):
     return grant, created
 
 
+def next_paid_period_start(user_id, *, at=None):
+    """Earliest new paid period under the deferred-upgrade policy.
+
+    Include already scheduled future grants; ignore revoked or expired ones.
+    Payment approval serializes on the user before using this same rule.
+    """
+    now = at or timezone.now()
+    latest_end = AccessGrant.objects.filter(
+        user_id=user_id, revoked_at__isnull=True, ends_at__gt=now,
+    ).order_by("-ends_at").values_list("ends_at", flat=True).first()
+    return max(now, latest_end) if latest_end else now
+
+
 def access_snapshot(user_id, *, at=None):
     now = at or timezone.now()
     active = AccessGrant.objects.filter(
@@ -56,6 +69,7 @@ def access_snapshot(user_id, *, at=None):
         "active_plan": active.plan if active else None,
         "upcoming_plan": upcoming.plan if upcoming else None,
         "upcoming_starts_at": upcoming.starts_at if upcoming else None,
+        "next_purchase_starts_at": next_paid_period_start(user_id, at=now),
         "expires_at": active.ends_at if active else None,
         "days_left": max(0, ceil((active.ends_at - now).total_seconds() / 86400)) if active else 0,
         "trial_started": bool(trial),
