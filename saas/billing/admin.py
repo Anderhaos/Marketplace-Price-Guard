@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django import forms
 from django.contrib import admin, messages
-from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection
+from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings
 from .ai_platform_connection import (
     PlatformConnectionError, normalize_base_url, save_gateway_token, verify_gateway,
 )
@@ -224,6 +224,55 @@ class OwnerAIGatewayConnectionAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return self.has_module_permission(request) and not OwnerAIGatewayConnection.objects.exists()
+
+    def has_change_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(OwnerMCPSettings)
+class OwnerMCPSettingsAdmin(admin.ModelAdmin):
+    """Only the actual NoSale superuser controls MCP and marketplace modules."""
+    list_display = (
+        "__str__", "enabled", "wb_enabled", "wb_products_enabled",
+        "wb_events_enabled", "wb_promotions_enabled", "updated_at",
+    )
+    readonly_fields = ("updated_at",)
+    fieldsets = (
+        ("Внутренний MCP", {
+            "fields": ("enabled",),
+            "description": (
+                "Единый сервер NoSale MCP. Только чтение, внутренний Docker-доступ. "
+                "Он не заменяет прямой WB API и не меняет цены продавцов."
+            ),
+        }),
+        ("Wildberries — разрешённые инструменты", {
+            "fields": (
+                "wb_enabled", "wb_overview_enabled", "wb_products_enabled",
+                "wb_events_enabled", "wb_promotions_enabled",
+            ),
+        }),
+        ("Лимиты запросов Smart / MCP", {
+            "fields": ("max_products", "max_events", "max_promotions"),
+            "description": "Действуют немедленно на сервере, включая прямые вызовы MCP.",
+        }),
+        ("Ozon", {
+            "fields": ("ozon_status_enabled",),
+            "description": "Пока доступен только честный статус not_implemented. Реального Ozon API ещё нет.",
+        }),
+        ("История конфигурации", {"fields": ("updated_at",)}),
+    )
+
+    def has_module_permission(self, request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return self.has_module_permission(request) and not OwnerMCPSettings.objects.exists()
 
     def has_change_permission(self, request, obj=None):
         return self.has_module_permission(request)
