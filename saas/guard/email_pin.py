@@ -35,7 +35,9 @@ def _preview_code_permitted(request):
         settings.DEBUG
         and os.environ.get("NOSALE_LOCAL_EMAIL_PREVIEW") == "1"
         and settings.EMAIL_BACKEND == "django.core.mail.backends.console.EmailBackend"
-        and not settings.SAAS_WB_NETWORK_ENABLED
+        # SSH-only preview may read WB inventory; real WB writes remain forbidden.
+        # Network-enabled writable deployments must NEVER expose test codes.
+        and (not settings.SAAS_WB_NETWORK_ENABLED or settings.SAAS_WB_READ_ONLY)
         and not settings.TOCHKA_BILLING_ENABLED
         and request.get_host().split(":")[0] in ("127.0.0.1", "localhost")
     )
