@@ -19,6 +19,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl
 
 from django.db import close_old_connections, connections
+from billing.models import OwnerMCPSettings
 from .auth import RESOURCE, scope_account, verify_store_token
 from .adapters import ozon, wb
 
@@ -70,8 +71,25 @@ def _principal():
     return token.claims
 
 
-def _call(fn, **kwargs):
-    return _invoke(fn, scope_account(_principal()), **kwargs)
+def _read_allowed(claims, name, fn, **kwargs):
+    account = scope_account(claims)
+    policy = OwnerMCPSettings.runtime()
+    if policy is None or not policy.allows(name):
+        raise PermissionError("This MCP tool is disabled by the SaaS owner")
+    max_by_tool = {
+        "wb_products": policy.max_products,
+        "wb_events": policy.max_events,
+        "wb_promotions": policy.max_promotions,
+    }
+    if name in max_by_tool and "limit" in kwargs:
+        if type(kwargs["limit"]) is not int or kwargs["limit"] > max_by_tool[name]:
+            raise PermissionError("MCP request exceeds current owner limit")
+    return fn(account, **kwargs)
+
+
+def _call(fn, *, tool_name, **kwargs):
+    claims = _principal()
+    return _invoke(_read_allowed, claims, tool_name, fn, **kwargs)
 
 
 @mcp.tool()
@@ -80,13 +98,19 @@ async def marketplace_capabilities() -> dict:
     claims = _principal()
     def build():
         scope_account(claims)
+        policy = OwnerMCPSettings.runtime()
+        if policy is None or not policy.enabled:
+            raise PermissionError("NoSale MCP is disabled by owner")
+        permitted = [
+            name for name in ("wb_overview", "wb_products", "wb_events", "wb_promotions")
+            if policy.allows(name)
+        ]
         return {
             "server": "NoSale MCP", "read_only": True,
             "marketplaces": {
-                "wb": {"state": "available", "tools": [
-                    "wb_overview", "wb_products", "wb_events", "wb_promotions",
-                ]},
-                "ozon": {"state": "not_implemented", "tools": []},
+                "wb": {"state": "available" if permitted else "disabled", "tools": permitted},
+                "ozon": {"state": "not_implemented" if policy.ozon_status_enabled else "disabled",
+                         "tools": ["ozon_adapter_status"] if policy.ozon_status_enabled else []},
             },
         }
     return await asyncio.to_thread(_invoke, build)
@@ -98,6 +122,9 @@ async def seller_stores() -> dict:
     claims = _principal()
     def collect():
         selected = scope_account(claims)
+        policy = OwnerMCPSettings.runtime()
+        if policy is None or not policy.enabled:
+            raise PermissionError("NoSale MCP is disabled by owner")
         rows = list(selected.user.seller_stores.order_by("pk").values("pk", "name", "marketplace")[:20])
         return {"selected_store_id": selected.pk,
                 "stores": [{"id": row["pk"], "name": row["name"][:90],
@@ -108,31 +135,31 @@ async def seller_stores() -> dict:
 @mcp.tool()
 async def wb_overview() -> dict:
     """Seller-owned WB discount guard overview from cached observations."""
-    return await asyncio.to_thread(_call, wb.overview)
+    return await asyncio.to_thread(_call, wb.overview, tool_name="wb_overview")
 
 
 @mcp.tool()
 async def wb_products(limit: int = 20, offset: int = 0) -> dict:
     """Read at most 50 owned WB products; never query WB or return API tokens."""
-    return await asyncio.to_thread(_call, wb.products, limit=limit, offset=offset)
+    return await asyncio.to_thread(_call, wb.products, tool_name="wb_products", limit=limit, offset=offset)
 
 
 @mcp.tool()
 async def wb_events(limit: int = 20) -> dict:
     """Read at most 50 owned WB event timestamps and kinds, no raw messages."""
-    return await asyncio.to_thread(_call, wb.events, limit=limit)
+    return await asyncio.to_thread(_call, wb.events, tool_name="wb_events", limit=limit)
 
 
 @mcp.tool()
 async def wb_promotions(limit: int = 15) -> dict:
     """Read last seller-owned promotion audit; funding/margin always unverified."""
-    return await asyncio.to_thread(_call, wb.promotions, limit=limit)
+    return await asyncio.to_thread(_call, wb.promotions, tool_name="wb_promotions", limit=limit)
 
 
 @mcp.tool()
 async def ozon_adapter_status() -> dict:
     """Report planned Ozon adapter only; do not invent Ozon inventory or prices."""
-    return await asyncio.to_thread(_call, ozon.status)
+    return await asyncio.to_thread(_call, ozon.status, tool_name="ozon_adapter_status")
 
 
 if __name__ == "__main__":

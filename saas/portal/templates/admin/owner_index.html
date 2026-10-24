@@ -1,0 +1,52 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+{% block content %}
+<style>
+.owner-console{margin:0 0 24px;padding:20px;border:1px solid var(--hairline-color,#d7d7d7);border-radius:10px;background:var(--darkened-bg,#f7f7f7)}
+.owner-console h2{font-size:21px;margin:0 0 10px}
+.owner-console p{max-width:780px;margin:0 0 18px;color:var(--body-quiet-color,#555);line-height:1.55}
+.owner-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.owner-tile{padding:16px;background:var(--body-bg,#fff);border:1px solid var(--hairline-color,#ddd);border-radius:10px;min-height:118px}
+.owner-tile strong{font-size:16px;display:block;margin-bottom:7px}
+.owner-tile a{font-weight:700;text-decoration:underline}
+.owner-tile small{display:block;line-height:1.5;margin-top:8px;color:var(--body-quiet-color,#666)}
+</style>
+<section class="owner-console" aria-label="Панель владельца NoSale">
+  <h2>Управление SaaS NoSale</h2>
+  <p>Этот раздел доступен только владельцу с подтверждёнными правами. Настройки сохраняются в базе данных и действуют без редактирования файлов. Данные продавцов и подключение их маркетплейсов находятся в клиентском кабинете, не здесь.</p>
+  <div class="owner-tiles">
+    <div class="owner-tile">
+      <strong>MCP и площадки</strong>
+      <a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Управлять инструментами</a>
+      <small>WB и Ozon, включение, инструменты, объём данных. MCP только внутри сервера.</small>
+    </div>
+    <div class="owner-tile">
+      <strong>AI Platform</strong>
+      <a href="{% url 'admin:billing_owneraigatewayconnection_changelist' %}">Подключить AI</a>
+      <small>Шифрованный ключ проекта, проверка соединения и доступных моделей.</small>
+    </div>
+    <div class="owner-tile">
+      <strong>Модели и лимиты Smart</strong>
+      <a href="{% url 'admin:billing_owneraisettings_changelist' %}">Настроить помощника</a>
+      <small>Модель, инструкции, суточные лимиты, месячный бюджет и выключатель AI.</small>
+    </div>
+    <div class="owner-tile">
+      <strong>Тарифы</strong>
+      <a href="{% url 'admin:billing_ownertariffoffer_changelist' %}">Управлять предложениями</a>
+      <small>Standard / Smart: цена и доступность. Не изменяет уже совершённые платежи.</small>
+    </div>
+    <div class="owner-tile">
+      <strong>Клиенты и подписки</strong>
+      <a href="{% url 'admin:auth_user_changelist' %}">Пользователи</a>
+      <small>Учётные записи; настройки конкретного WB-магазина выполняет сам продавец.</small>
+      <a href="{% url 'admin:billing_accessgrant_changelist' %}">Права подписок</a>
+    </div>
+    <div class="owner-tile">
+      <strong>Мониторинг</strong>
+      <a href="{% url 'admin:guard_guardevent_changelist' %}">События Guard</a>
+      <small>Аудит событий, сохранённые отчёты и интеграционные сбои.</small>
+    </div>
+  </div>
+</section>
+{{ block.super }}
+{% endblock %}

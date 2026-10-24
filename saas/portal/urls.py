@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.urls import path
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponseNotAllowed, HttpResponseForbidden
 from django.shortcuts import redirect
 from django.views.generic import RedirectView
 
@@ -10,6 +10,23 @@ from guard import views, email_pin, promotions_views
 from guard.forms import EmailLoginForm
 from push import views as push_views
 from billing import views as billing_views
+
+def owner_admin_permission(request):
+    """Owner only. Return explicit 403 for logged-in sellers/staff, not login loops."""
+    from django.core.exceptions import PermissionDenied
+    if request.user.is_authenticated and not (
+        request.user.is_active and request.user.is_superuser
+    ):
+        raise PermissionDenied("NoSale owner permission required")
+    return bool(request.user.is_authenticated and request.user.is_active and request.user.is_superuser)
+
+
+admin.site.has_permission = owner_admin_permission
+admin.site.site_header = "NoSale · Панель владельца SaaS"
+admin.site.site_title = "NoSale · Управление сервисом"
+admin.site.index_title = "Управление NoSale"
+admin.site.index_template = "admin/owner_index.html"
+
 
 def admin_login_gateway(request):
     """Use the rate-limited email/PIN login instead of Django's raw password form.
@@ -22,7 +39,9 @@ def admin_login_gateway(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
     if request.user.is_authenticated:
-        return redirect("admin:index" if request.user.is_staff else "dashboard")
+        if not owner_admin_permission(request):
+            return HttpResponseForbidden("Owner access only")
+        return redirect("admin:index")
     return redirect("/login/?next=/admin/")
 
 

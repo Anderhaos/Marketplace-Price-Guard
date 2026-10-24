@@ -8,6 +8,7 @@ import json
 
 import httpx2
 from django.db import close_old_connections, connections
+from billing.models import OwnerMCPSettings
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
@@ -44,7 +45,7 @@ def validated_request(name, arguments):
     return name, clean
 
 
-def definitions(marketplace):
+def definitions(marketplace, policy=None):
     """Compact OpenAI tool specification; no parameters for user/store IDs."""
     names = ("ozon_adapter_status",) if marketplace == "ozon" else (
         "wb_overview", "wb_products", "wb_events", "wb_promotions",
@@ -57,8 +58,18 @@ def definitions(marketplace):
         "ozon_adapter_status": "Ozon is not connected yet; return not_implemented status.",
     }
     items = []
+    if policy is not None and not policy.enabled:
+        return []
+    owner_caps = {
+        "wb_products": policy.max_products,
+        "wb_events": policy.max_events,
+        "wb_promotions": policy.max_promotions,
+    } if policy is not None else {}
     for name in names:
-        props = {key: {"type": "integer", "minimum": lo, "maximum": hi}
+        if policy is not None and not policy.allows(name):
+            continue
+        props = {key: {"type": "integer", "minimum": lo,
+                       "maximum": min(hi, owner_caps[name]) if key == "limit" and name in owner_caps else hi}
                  for key, (lo, hi) in TOOL_LIMITS[name].items()}
         items.append({
             "type": "function", "function": {
@@ -102,6 +113,16 @@ async def _call_tool(token, name, arguments):
 def call_owned_tool(user, account, name, arguments):
     """Sync Django entrypoint; always validates ownership and active plan first."""
     name, arguments = validated_request(name, arguments)
+    policy = OwnerMCPSettings.runtime()
+    if policy is None or not policy.allows(name):
+        raise MCPToolUnavailable("MCP tool is disabled by owner")
+    caps = {
+        "wb_products": policy.max_products,
+        "wb_events": policy.max_events,
+        "wb_promotions": policy.max_promotions,
+    }
+    if name in caps and arguments.get("limit", 1) > caps[name]:
+        raise MCPToolUnavailable("MCP tool limit reduced by owner")
     if account.marketplace == "wb" and name == "ozon_adapter_status":
         raise MCPToolUnavailable("Ozon tool cannot run on a selected WB store")
     if account.marketplace == "ozon" and name != "ozon_adapter_status":

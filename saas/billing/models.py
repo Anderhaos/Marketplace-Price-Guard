@@ -132,3 +132,68 @@ class OwnerAIGatewayConnection(models.Model):
     class Meta:
         verbose_name = "Подключение AI Platform"
         verbose_name_plural = "Подключение AI Platform"
+
+
+class OwnerMCPSettings(models.Model):
+    """Singleton owner-operated policy for installed read-only MCP tools.
+
+    Endpoint host, credential handling and write bans remain non-configurable
+    security invariants, but operational toggles and query sizes live in DB.
+    """
+    id = models.PositiveSmallIntegerField(primary_key=True, editable=False)
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Общий переключатель внутренних MCP-инструментов. Выключение не останавливает прямую защиту скидок WB.",
+    )
+    wb_enabled = models.BooleanField(default=True, help_text="Разрешить чтение сохранённых данных WB через MCP.")
+    wb_overview_enabled = models.BooleanField(default=True, verbose_name="WB: сводка магазина")
+    wb_products_enabled = models.BooleanField(default=True, verbose_name="WB: товары и скидки")
+    wb_events_enabled = models.BooleanField(default=True, verbose_name="WB: события")
+    wb_promotions_enabled = models.BooleanField(default=True, verbose_name="WB: акции")
+    ozon_status_enabled = models.BooleanField(
+        default=True, verbose_name="Ozon: только состояние адаптера",
+        help_text="Пока API Ozon не подключён, инструмент сообщает только статус not_implemented.",
+    )
+    max_products = models.PositiveSmallIntegerField(
+        default=20, validators=[MinValueValidator(1), MaxValueValidator(20)],
+        help_text="Максимум товаров, которые Smart может запросить за один MCP-вызов (1–20).",
+    )
+    max_events = models.PositiveSmallIntegerField(
+        default=20, validators=[MinValueValidator(1), MaxValueValidator(20)],
+        help_text="Максимум событий в одном MCP-вызове (1–20).",
+    )
+    max_promotions = models.PositiveSmallIntegerField(
+        default=15, validators=[MinValueValidator(1), MaxValueValidator(15)],
+        help_text="Максимум акций в одном MCP-вызове (1–15).",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "NoSale — MCP и маркетплейсы"
+
+    @classmethod
+    def runtime(cls):
+        # Fail closed if the singleton was deleted or the migration not applied.
+        return cls.objects.filter(pk=1).first()
+
+    def allows(self, name):
+        names = {
+            "wb_overview": "wb_overview_enabled",
+            "wb_products": "wb_products_enabled",
+            "wb_events": "wb_events_enabled",
+            "wb_promotions": "wb_promotions_enabled",
+            "ozon_adapter_status": "ozon_status_enabled",
+        }
+        if name not in names or not self.enabled:
+            return False
+        if name.startswith("wb_") and not self.wb_enabled:
+            return False
+        return bool(getattr(self, names[name]))
+
+    class Meta:
+        verbose_name = "Инструменты MCP владельца"
+        verbose_name_plural = "Инструменты MCP владельца"
