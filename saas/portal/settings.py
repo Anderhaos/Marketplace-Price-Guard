@@ -85,6 +85,13 @@ NOSALE_STANDARD_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_STANDARD_MONTHLY_PRIC
 NOSALE_SMART_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_SMART_MONTHLY_PRICE_RUB", "0")
 NOSALE_FISCALIZATION_CONFIRMED = env_bool("NOSALE_FISCALIZATION_CONFIRMED", False)
 NOSALE_PAYMENT_RETURN_BASE = "https://nosale.svdev.pro"
+# Central AI Platform Gateway; independent of bank, WB and seller API tokens.
+# Disabled until NoSale project enrollment issues its own service token.
+NOSALE_AI_GATEWAY_URL = os.environ.get("NOSALE_AI_GATEWAY_URL", "")
+NOSALE_AI_SERVICE_TOKEN = os.environ.get("NOSALE_AI_SERVICE_TOKEN", "")
+# Conservative local per-call budget reservation, not an actual provider invoice.
+# Provider billing/actual USD budget are enforced by AI Platform.
+NOSALE_AI_RESERVE_KOPEKS_PER_CALL = int(os.environ.get("NOSALE_AI_RESERVE_KOPEKS_PER_CALL", "100"))
 if TOCHKA_BILLING_ENABLED:
     if not NOSALE_FISCALIZATION_CONFIRMED:
         raise RuntimeError("NoSale acquiring requires configured 54-FZ fiscal receipt issuance")

@@ -15,7 +15,9 @@ from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
-from guard.models import GuardEvent, Product
+from guard.models import GuardAccount, GuardEvent, Product
+from guard.advisor import store_recommendations
+from billing.access import has_smart_access
 from .models import NotificationPreference, PushDelivery, PushMessage, PushSubscription
 
 IMPORTANT_KINDS = ("confirmed", "error", "upload_error")
@@ -153,6 +155,10 @@ def create_daily_digests(now=None):
         if local_now.hour < pref.daily_hour:
             continue
         day = local_now.date()
+        # This cycle runs every 30 seconds: never recompute a delivered daily
+        # digest or scan a seller's product catalog over and over.
+        if PushMessage.objects.filter(user=user, digest_date=day).exists():
+            continue
         start = datetime.combine(day, time.min, tzinfo=tz).astimezone(dt_timezone.utc)
         checks = GuardEvent.objects.filter(account__user=user, kind="check", created_at__gte=start, created_at__lte=now).count()
         confirmed = GuardEvent.objects.filter(
@@ -166,9 +172,24 @@ def create_daily_digests(now=None):
         active_products = Product.objects.filter(account__user=user, active=True).count()
         title = f"MPNO Sale — отчёт за {day:%d.%m}"
         body = f"Товаров под контролем: {active_products}; проверок: {checks}; исправлений: {corrected}; ошибок: {errors}."
+        link = URL
+        if has_smart_access(user.pk, at=now):
+            # Smart's first daily advice is deterministic: no extra WB request
+            # and no LLM invoice just to populate a routine notification.
+            shop = (GuardAccount.objects.filter(user=user, marketplace="wb")
+                    .exclude(token_ciphertext="").order_by("id").first())
+            if shop:
+                advice = store_recommendations(shop, now=now)
+                meaningful = next(
+                    (item for item in advice["recommendations"] if item["priority"] <= 2), None
+                )
+                if meaningful:
+                    title = f"NoSale Smart — отчёт за {day:%d.%m}"
+                    body += f" Smart · {shop.name}: {meaningful['title']}."
+                    link = "/advisor/"
         message, created = PushMessage.objects.get_or_create(
             user=user, digest_date=day,
-            defaults={"kind": "digest", "title": title, "body": body, "url": URL},
+            defaults={"kind": "digest", "title": title, "body": body[:400], "url": link},
         )
         if created:
             _enqueue_for_devices(message)
@@ -209,7 +230,7 @@ def deliver_due_pushes(now=None, send=None):
                 }},
                 data=json.dumps({
                     "title": delivery.message.title, "body": delivery.message.body,
-                    "url": URL,
+                    "url": delivery.message.url if delivery.message.url in (URL, "/advisor/") else URL,
                 }, ensure_ascii=False),
                 vapid_private_key=settings.PUSH_VAPID_PRIVATE_KEY,
                 vapid_claims={"sub": settings.PUSH_VAPID_SUBJECT},

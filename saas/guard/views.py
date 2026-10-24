@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -19,6 +20,8 @@ from django.conf import settings
 from billing.access import guard_is_permitted, has_smart_access, has_plan_capability
 from .advisor import store_recommendations
 from .assistant import basic_assistant_reply
+from .ai_gateway import AIGatewayUnavailable
+from .smart_assistant import smart_store_reply
 from billing.trial import access_snapshot
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
@@ -446,29 +449,59 @@ def assistant_chat(request):
     account = _account(request)  # exclusively selected via current user's stores
     if request.method == "POST":
         question = request.POST.get("question", "")
+        mode = request.POST.get("mode", "basic")
         if not isinstance(question, str) or not question.strip() or len(question) > 400:
             return HttpResponse("Введите вопрос длиной от 1 до 400 символов.", status=400)
+        # Do not persist pasted JWT-like marketplace tokens in chat history.
+        if re.search(r"\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}", question):
+            return HttpResponse("Не отправляйте ключи WB или API-токены в помощник.", status=400)
+        if mode not in ("basic", "smart"):
+            return HttpResponse("Неизвестный режим помощника.", status=400)
+        if mode == "smart" and not has_smart_access(request.user.pk):
+            return render(request, "guard/assistant_access.html", {
+                "access_title": "Smart недоступен в вашем тарифе",
+                "access_explanation": "Для AI-вопросов по магазину нужна действующая подписка Smart."
+            }, status=403)
+        if mode == "smart" and request.POST.get("ai_consent") != "yes":
+            return HttpResponse("Подтвердите отправку вопроса и обезличенных данных в AI.", status=400)
 
-        # Serialize seller requests across Gunicorn workers: no store-switch or
-        # concurrent request can bypass the per-user rate limit.
-        with transaction.atomic():
-            User.objects.select_for_update().get(pk=request.user.pk)
-            now = timezone.now()
-            recent = AssistantMessage.objects.filter(
-                user_id=request.user.pk, created_at__gte=now - timedelta(minutes=1)
-            ).count()
-            daily = AssistantMessage.objects.filter(
-                user_id=request.user.pk, created_at__gte=now - timedelta(hours=24)
-            ).count()
-            if recent >= 8 or daily >= 80:
-                return HttpResponse(
-                    "Слишком много вопросов. Повторите немного позже.", status=429
+        if mode == "smart":
+            # Provider I/O never runs inside a DB transaction or with a seller
+            # row lock held; quotas are separately reserved atomically.
+            try:
+                answer = smart_store_reply(request.user.pk, account, question.strip())
+            except AIGatewayUnavailable:
+                mode = "basic"
+                answer = (
+                    "Расширенный AI-ответ сейчас недоступен или достигнут лимит. "
+                    "Базовые сведения из NoSale: "
+                    + basic_assistant_reply(request.user.pk, account, question.strip())
                 )
-            answer = basic_assistant_reply(request.user.pk, account, question.strip(), now=now)
-            AssistantMessage.objects.create(
-                user_id=request.user.pk, account=account, question=question.strip(),
-                answer=answer, created_at=now,
-            )
+            with transaction.atomic():
+                User.objects.select_for_update().get(pk=request.user.pk)
+                AssistantMessage.objects.create(
+                    user_id=request.user.pk, account=account, question=question.strip(),
+                    answer=answer[:2000], mode=mode,
+                )
+        else:
+            # Serialize seller requests across Gunicorn workers: no store-switch
+            # or concurrent basic question may bypass the limit.
+            with transaction.atomic():
+                User.objects.select_for_update().get(pk=request.user.pk)
+                now = timezone.now()
+                recent = AssistantMessage.objects.filter(
+                    user_id=request.user.pk, created_at__gte=now - timedelta(minutes=1)
+                ).count()
+                daily = AssistantMessage.objects.filter(
+                    user_id=request.user.pk, created_at__gte=now - timedelta(hours=24)
+                ).count()
+                if recent >= 8 or daily >= 80:
+                    return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
+                answer = basic_assistant_reply(request.user.pk, account, question.strip(), now=now)
+                AssistantMessage.objects.create(
+                    user_id=request.user.pk, account=account, question=question.strip(),
+                    answer=answer, mode="basic", created_at=now,
+                )
         return redirect("assistant_chat")
 
     history = list(AssistantMessage.objects.filter(

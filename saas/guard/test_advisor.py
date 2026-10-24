@@ -56,7 +56,8 @@ class StoreAdvisorTests(TestCase):
         result = store_recommendations(self.account)
         self.assertTrue(result["is_stale"])
         text = " ".join(x["title"] for x in result["recommendations"])
-        self.assertIn("Обновите данные магазина", text)
+        self.assertIn("Перепроверьте устаревшие товары", text)
+        self.assertEqual(result["metrics"]["stale_products"], 2)
         self.assertIn("Проверьте подтверждение операций", text)
 
     def test_failed_check_does_not_make_old_wb_data_current(self):
@@ -67,6 +68,16 @@ class StoreAdvisorTests(TestCase):
         result = store_recommendations(self.account)
         self.assertTrue(result["is_stale"])
         self.assertGreater(timezone.now()-result["last_observed_at"], timedelta(days=2))
+
+    def test_one_fresh_sku_does_not_mask_stale_rest_of_store(self):
+        old = timezone.now() - timedelta(days=2)
+        Product.objects.filter(account=self.account, nm_id=120).update(checked_at=old)
+        Product.objects.filter(account=self.account, nm_id=121).update(checked_at=timezone.now())
+        result = store_recommendations(self.account)
+        self.assertEqual(result["metrics"]["stale_products"], 1)
+        self.assertTrue(result["is_stale"])
+        self.assertEqual(result["metrics"]["active_products"], 2)
+        self.assertTrue(any("устаревшие" in item["title"] for item in result["recommendations"]))
 
     def test_only_active_smart_grant_permits_advisor(self):
         self.client.force_login(self.seller)

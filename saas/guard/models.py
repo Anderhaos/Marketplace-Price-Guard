@@ -117,6 +117,7 @@ class AssistantMessage(models.Model):
     account = models.ForeignKey(GuardAccount, on_delete=models.CASCADE, related_name="assistant_messages")
     question = models.CharField(max_length=400)
     answer = models.TextField(max_length=2000)
+    mode = models.CharField(max_length=8, choices=[("basic", "Базовый"), ("smart", "AI Smart")], default="basic")
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -125,3 +126,23 @@ class AssistantMessage(models.Model):
 
     def __str__(self):
         return f"Помощник: магазин {self.account_id}, {self.created_at:%Y-%m-%d}"
+
+
+class AssistantAIRequest(models.Model):
+    """Atomic server-side reservation for paid AI questions. Never stores prompts."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="nosale_ai_requests")
+    account = models.ForeignKey(GuardAccount, on_delete=models.CASCADE, related_name="ai_requests")
+    created_at = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=12, default="reserved", choices=[
+        ("reserved", "Reserved"), ("success", "Success"), ("failed", "Failed"),
+    ])
+    model_id = models.CharField(max_length=120)
+    reserved_kopeks = models.PositiveIntegerField(default=0)
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "created_at"], name="guard_ai_req_user_time_idx")]
+
+    def __str__(self):
+        return f"Smart AI request {self.pk} ({self.status})"
