@@ -5,7 +5,7 @@ from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 
 from billing.access import guard_is_permitted
-from billing.models import AccessGrant
+from billing.models import AccessGrant, OwnerOperationsSettings
 from django.conf import settings
 from .crypto import decrypt_token
 from .models import GuardAccount, GuardEvent, Product, Upload
@@ -218,7 +218,12 @@ def check_account(account):
 
 
 def run_due_checks():
+    # Checked every cycle and between seller accounts; dynamic owner pause.
+    # A running HTTP call cannot be interrupted safely mid-request.
     if not settings.SAAS_WB_NETWORK_ENABLED:
+        return 0
+    policy = OwnerOperationsSettings.runtime()
+    if policy is None or not policy.guard_checks_enabled:
         return 0
     now = timezone.now()
     due = GuardAccount.objects.filter(token_ciphertext__gt="", next_check_at__lte=now).filter(
@@ -234,6 +239,11 @@ def run_due_checks():
     due = due.distinct().order_by("next_check_at")[:20]
     processed = 0
     for account in due:
+        # Fresh DB policy per account ensures a pause stops subsequent work
+        # without accidentally unlocking or mutating an in-flight seller.
+        live_policy = OwnerOperationsSettings.runtime()
+        if live_policy is None or not live_policy.guard_checks_enabled:
+            break
         if not guard_is_permitted(account):
             continue
         claimed = GuardAccount.objects.filter(pk=account.pk, next_check_at__lte=now).filter(Q(enabled=True) | Q(check_requested=True) | Q(apply_all_requested=True) | ~Q(apply_requested_ids=[]) | Q(uploads__status="pending")).filter(Q(lock_until__isnull=True) | Q(lock_until__lte=now)).update(lock_until=now + timedelta(minutes=15))
