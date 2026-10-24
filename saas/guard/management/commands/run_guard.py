@@ -2,6 +2,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 from guard.monitor import run_due_checks
+from billing.models import OwnerOperationsSettings
 
 
 class Command(BaseCommand):
@@ -23,4 +24,7 @@ class Command(BaseCommand):
                 if options["once"]:
                     self.stdout.write(f"Processed accounts: {count}")
                     return
-            time.sleep(10)
+            # Owner changes this in PostgreSQL; next loop uses new interval.
+            policy = OwnerOperationsSettings.runtime()
+            seconds = policy.guard_poll_seconds if policy is not None else 10
+            time.sleep(max(5, min(60, seconds)))
