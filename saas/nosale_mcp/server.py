@@ -109,8 +109,8 @@ async def marketplace_capabilities() -> dict:
             "server": "NoSale MCP", "read_only": True,
             "marketplaces": {
                 "wb": {"state": "available" if permitted else "disabled", "tools": permitted},
-                "ozon": {"state": "not_implemented" if policy.ozon_status_enabled else "disabled",
-                         "tools": ["ozon_adapter_status"] if policy.ozon_status_enabled else []},
+                "ozon": {"state": "not_implemented" if policy.allows("ozon_adapter_status") else "disabled",
+                         "tools": ["ozon_adapter_status"] if policy.allows("ozon_adapter_status") else []},
             },
         }
     return await asyncio.to_thread(_invoke, build)
