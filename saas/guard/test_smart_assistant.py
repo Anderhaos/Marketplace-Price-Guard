@@ -17,7 +17,7 @@ from .stores import SESSION_KEY
 
 @override_settings(
     SAAS_PIN_AUTH_ENABLED=False, SAAS_ACCESS_ENFORCED=True,
-    NOSALE_AI_GATEWAY_URL="https://ai.svdev.pro/v1/chat/completions",
+    NOSALE_AI_GATEWAY_URL="https://platform.svdev.pro/v1/chat/completions",
     NOSALE_AI_SERVICE_TOKEN="test-only-nosale-service-token",
     NOSALE_AI_RESERVE_KOPEKS_PER_CALL=100,
 )
@@ -201,7 +201,7 @@ class GatewayTransportTests(SimpleTestCase):
 
 
 @override_settings(
-    NOSALE_AI_GATEWAY_URL="https://ai.svdev.pro/v1/chat/completions",
+    NOSALE_AI_GATEWAY_URL="https://platform.svdev.pro/v1/chat/completions",
     NOSALE_AI_SERVICE_TOKEN="test-service-token",
 )
 class GatewayWireContractTests(SimpleTestCase):
@@ -226,8 +226,9 @@ class GatewayWireContractTests(SimpleTestCase):
             )
         self.assertEqual(answer, "Проверьте статус")
         self.assertEqual(usage, {"input_tokens": 101, "output_tokens": 12})
-        self.assertEqual(opener.request.full_url, "https://ai.svdev.pro/v1/chat/completions")
+        self.assertEqual(opener.request.full_url, "https://platform.svdev.pro/v1/chat/completions")
         self.assertEqual(opener.request.get_header("Authorization"), "Bearer test-service-token")
+        self.assertEqual(opener.request.get_header("X-ai-project-key"), "nosale")
         self.assertEqual(opener.timeout, 20)
         posted = json.loads(opener.request.data)
         self.assertEqual(posted["model"], "published-model")
