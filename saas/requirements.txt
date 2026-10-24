@@ -4,3 +4,5 @@ whitenoise>=6.8,<7
 psycopg[binary]>=3.2,<4
 gunicorn>=23,<24; platform_system != "Windows"
 pywebpush>=2.0,<3.0
+# Internal authenticated MCP client for Smart, same supported SDK as MCP server.
+mcp>=2.0,<3.0
