@@ -22,6 +22,7 @@ from .advisor import store_recommendations
 from .assistant import basic_assistant_reply
 from .ai_gateway import AIGatewayUnavailable
 from .smart_assistant import smart_store_reply
+from .ai_safety import contains_credential
 from billing.trial import access_snapshot
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
@@ -453,7 +454,7 @@ def assistant_chat(request):
         if not isinstance(question, str) or not question.strip() or len(question) > 400:
             return HttpResponse("Введите вопрос длиной от 1 до 400 символов.", status=400)
         # Do not persist pasted JWT-like marketplace tokens in chat history.
-        if re.search(r"\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}", question):
+        if contains_credential(question):
             return HttpResponse("Не отправляйте ключи WB или API-токены в помощник.", status=400)
         if mode not in ("basic", "smart"):
             return HttpResponse("Неизвестный режим помощника.", status=400)
