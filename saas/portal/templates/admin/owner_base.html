@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c0d10">
+  <title>{% block page_title %}Панель владельца{% endblock %} · NoSale</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="{% static 'owner-console.css' %}">
+</head>
+<body>
+  <div class="owner-shell">
+    <aside class="owner-sidebar" aria-label="Главная навигация">
+      <a class="owner-brand" href="{% url 'nosale_owner_home' %}">
+        <span class="owner-brandmark">N<span>.</span></span>
+        <span class="owner-brandname">NoSale <small>CONTROL CENTER</small></span>
+      </a>
+      <div class="owner-workspace"><span class="owner-dot"></span> <span>Рабочая панель SaaS</span><span class="owner-chevron">⌄</span></div>
+      <p class="owner-navtitle">УПРАВЛЕНИЕ</p>
+      <nav class="owner-navigation">
+        {% for key,label,link in nav %}
+          <a href="{{ link }}" class="owner-navlink{% if current == key %} is-active{% endif %}" {% if current == key %}aria-current="page"{% endif %}>
+            <span class="owner-navbullet" aria-hidden="true"></span><span>{{ label }}</span>
+            {% if current == key %}<span class="owner-navarrow">↗</span>{% endif %}
+          </a>
+        {% endfor %}
+      </nav>
+      <p class="owner-navtitle owner-navtitle--secondary">ДОПОЛНИТЕЛЬНО</p>
+      <nav class="owner-navigation">
+        <a href="{% url 'admin:auth_user_changelist' %}" class="owner-navlink"><span class="owner-navbullet" aria-hidden="true"></span>Клиенты и подписки</a>
+        <a href="{% url 'admin:guard_guardevent_changelist' %}" class="owner-navlink"><span class="owner-navbullet" aria-hidden="true"></span>Мониторинг</a>
+        <a href="{% url 'admin:admin_logentry_changelist' %}" class="owner-navlink"><span class="owner-navbullet" aria-hidden="true"></span>Журнал изменений</a>
+      </nav>
+      <div class="owner-sidebar-foot">
+        <span class="owner-sidebar-foot-dot"></span><strong>Настройки из PostgreSQL</strong>
+        <small>Сетевой статус провайдеров определяется отдельной проверкой.</small>
+      </div>
+    </aside>
+    <div class="owner-content">
+      <header class="owner-topbar">
+        <div class="owner-topbar-left"><span class="owner-crumb">NoSale</span><span class="owner-slash">/</span><span class="owner-crumb-active">{% block crumb %}Обзор{% endblock %}</span></div>
+        <div class="owner-topbar-right">
+          <span class="owner-identity" title="Авторизованная учётная запись">{{ request.user.email }}</span>
+          <a class="owner-website-link" href="/" title="Клиентский кабинет">Сайт ↗</a>
+          <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="owner-logout" type="submit">Выйти</button></form>
+        </div>
+      </header>
+      <main class="owner-main">
+        {% if messages %}
+        <div class="owner-flashes" aria-live="polite">
+          {% for message in messages %}<div class="owner-flash{% if message.tags == 'error' %} is-error{% endif %}">{{ message }}</div>{% endfor %}
+        </div>
+        {% endif %}
+        {% block owner_content %}{% endblock %}
+        <footer class="owner-footer">NoSale · Панель владельца <span>Изменения фиксируются в журнале. Конфигурация не подтверждает работоспособность внешних API.</span></footer>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

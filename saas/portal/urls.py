@@ -10,7 +10,7 @@ from guard import views, email_pin, promotions_views
 from guard.forms import EmailLoginForm
 from push import views as push_views
 from billing import views as billing_views
-from billing.owner_console import owner_integrations
+from billing.owner_console import owner_home, owner_section, owner_integrations
 
 def owner_admin_permission(request):
     """Owner only. Return explicit 403 for logged-in sellers/staff, not login loops."""
@@ -52,6 +52,8 @@ urlpatterns = [
     path("admin/login/", admin_login_gateway, name="nosale_admin_pin_login"),
     path("admin/code/", email_pin.owner_admin_code, name="nosale_owner_admin_code"),
     path("admin/integrations/", admin.site.admin_view(owner_integrations), name="nosale_owner_integrations"),
+    path("admin/control/<str:section>/", admin.site.admin_view(owner_section), name="nosale_owner_section"),
+    path("admin/", admin.site.admin_view(owner_home), name="nosale_owner_home"),
     path("favicon.ico", RedirectView.as_view(url="/favicon.svg", permanent=False)),
     path("favicon.svg", views.favicon, name="favicon"),
     path("manifest.webmanifest", views.pwa_manifest, name="pwa_manifest"),
