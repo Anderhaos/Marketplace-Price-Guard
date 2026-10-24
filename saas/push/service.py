@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from guard.models import GuardAccount, GuardEvent, Product
 from guard.advisor import store_recommendations
-from billing.access import has_smart_access
+from billing.access import has_active_access, has_smart_access
 from .models import NotificationPreference, PushDelivery, PushMessage, PushSubscription
 
 IMPORTANT_KINDS = ("confirmed", "error", "upload_error")
@@ -174,6 +174,12 @@ def create_daily_digests(now=None):
     count = 0
     User = get_user_model()
     for user in User.objects.filter(is_active=True).iterator(chunk_size=100):
+        # Seller access is the canonical entitlement for both Standard and Smart.
+        # A user with expired/future/revoked access must not keep receiving
+        # automated daily store reports. Legacy deployments with access
+        # enforcement explicitly disabled retain their previous behavior.
+        if not has_active_access(user.pk, at=now):
+            continue
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         if not pref.daily_enabled:
             continue
