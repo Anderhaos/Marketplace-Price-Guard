@@ -47,6 +47,13 @@ class OwnerAISettings(models.Model):
     """
     id = models.PositiveSmallIntegerField(primary_key=True, editable=False)
     ai_enabled = models.BooleanField(default=False, help_text="Выключает AI, но не контроль скидок.")
+    web_assistant_enabled = models.BooleanField(
+        default=True, help_text="Включает встроенный чат Standard и Smart; не влияет на защиту WB."
+    )
+    web_messages_per_day = models.PositiveSmallIntegerField(
+        default=80, validators=[MinValueValidator(1), MaxValueValidator(1000)],
+        help_text="Общий лимит сообщений Standard и Smart за 24 часа (1–1000). Ограничение 8/мин остаётся обязательным.",
+    )
     gateway_model_id = models.CharField(max_length=120, blank=True, help_text="Точный опубликованный идентификатор модели в AI Platform.")
     prompt_version = models.CharField(max_length=32, default="v1")
     system_instructions = models.TextField(blank=True, help_text="Дополнительные инструкции ассистенту. Запрещено давать право записи в WB.")
