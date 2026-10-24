@@ -263,6 +263,7 @@ def finish_pin(request):
 
 
 SESSION_LOGIN_EMAIL = "nosale_login_email"
+SESSION_LOGIN_NEXT = "nosale_login_next"
 
 
 def pin_login(request):
@@ -272,6 +273,8 @@ def pin_login(request):
     and for compatibility with password recovery and prior clients.
     """
     if request.user.is_authenticated:
+        if request.GET.get("next") == "/admin/" and request.user.is_staff:
+            return redirect("/admin/")
         return redirect("dashboard")
     if request.method not in ("GET", "POST"):
         return HttpResponseNotAllowed(["GET", "POST"])
@@ -280,6 +283,12 @@ def pin_login(request):
     email = ""
     if request.method == "GET":
         request.session.pop(SESSION_LOGIN_EMAIL, None)
+        # Only the exact internal admin URL may be restored post-login.
+        # Never trust user-provided external or scheme-relative next URLs.
+        if request.GET.get("next") == "/admin/":
+            request.session[SESSION_LOGIN_NEXT] = "/admin/"
+        else:
+            request.session.pop(SESSION_LOGIN_NEXT, None)
         form = EmailForm()
     elif "pin" not in request.POST:
         form = EmailForm(request.POST)
@@ -321,7 +330,10 @@ def pin_login(request):
                     else:
                         throttle.delete()
                         request.session.pop(SESSION_LOGIN_EMAIL, None)
+                        requested = request.session.pop(SESSION_LOGIN_NEXT, "")
                         login(request, user)
+                        if requested == "/admin/" and user.is_staff:
+                            return redirect("/admin/")
                         return redirect("dashboard")
     return render(request, "guard/login_pin.html", {
         "form": form, "stage": stage, "email": email,
