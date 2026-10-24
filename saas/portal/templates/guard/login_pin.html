@@ -1,11 +1,74 @@
 {% extends 'guard/base.html' %}
-{% block title %}Вход — MP NoSale{% endblock %}
+{% block title %}NoSale — контроль скидок Wildberries{% endblock %}
 {% block content %}
-<div class="auth-wrap"><section class="card">
-  <span class="eyebrow">MP NoSale / вход</span>
-  <h1>Войти в кабинет</h1>
-  <p class="lead">Введите email и PIN, заданный после подтверждения почты.</p>
-  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Войти</button></form>
-  <p style="margin-top:18px"><a href="{% url 'password_reset' %}">Забыли PIN?</a> · <a href="{% url 'register' %}">Зарегистрироваться</a></p>
-</section></div>
+<script src="/static/pin-visibility.js" defer></script>
+<link rel="stylesheet" href="/static/welcome.css">
+<div class="welcome-layout">
+  {% if stage == 'pin' %}
+  <section class="welcome-story auth-flow-story" aria-labelledby="login-guide-title">
+    <div class="welcome-kicker">NoSale · возвращение в кабинет</div>
+    <p class="auth-flow-progress">Вход · шаг 2 из 2</p>
+    <h1 class="auth-flow-title" id="login-guide-title">С возвращением. <span>Остался ваш PIN.</span></h1>
+    <p class="welcome-text">Мы нашли ваш аккаунт. Чтобы убедиться, что вход выполняете именно вы, введите PIN, который задали после подтверждения email.</p>
+    <div class="auth-flow-email auth-flow-email--success"><span class="auth-flow-email-icon" aria-hidden="true">✓</span><div><small>Аккаунт найден</small><strong>{{ email }}</strong></div></div>
+    <h2 class="welcome-heading">Как войти?</h2>
+    <ol class="welcome-steps auth-flow-steps">
+      <li><span class="step-number">01</span><div><strong>Вспомните свой PIN</strong><span class="step-caption">Четыре цифры, которые вы выбрали при регистрации.</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Введите PIN справа</strong><span class="step-caption">После проверки откроется кабинет вашего магазина.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>Не помните PIN?</strong><span class="step-caption">Восстановите его через код на подтверждённый email.</span></div></li>
+    </ol>
+    <div class="auth-flow-hint"><span aria-hidden="true">✦</span> Никому не передавайте PIN. Сотрудникам NoSale он не нужен.</div>
+  </section>
+  {% else %}
+  <section class="welcome-story" aria-labelledby="welcome-headline">
+    <div class="welcome-kicker">NoSale · защита цен Wildberries</div>
+    <h1 class="welcome-title" id="welcome-headline"><span class="welcome-title-primary">Ваши скидки под контролем.</span><span class="welcome-title-secondary">Даже когда вы отдыхаете.</span></h1>
+    <p class="welcome-text">NoSale проверяет скидки на товары Wildberries и помогает возвращать превышения к установленным вами пределам. Вы определяете правила — сервис следит за ними.</p>
+    <aside class="welcome-trial-card" aria-label="Пробный доступ">
+      <div class="welcome-trial-head"><span class="welcome-trial-mark" aria-hidden="true">✓</span><strong>5 дней бесплатно</strong></div>
+      <p>После подключения магазина</p>
+      <span class="welcome-trial-note">Без банковской карты · Без автоматических списаний</span>
+    </aside>
+    <h2 class="welcome-heading">Три простых шага</h2>
+    <ol class="welcome-steps">
+      <li><span class="step-number">01</span><div><strong>Введите email</strong><span class="step-caption">Войдите в существующий аккаунт или подтвердите почту для нового.</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Подключите магазин</strong><span class="step-caption">Добавьте API-ключ Wildberries. Пароль от вашего кабинета не нужен.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>Установите предел скидок</strong><span class="step-caption">Включите защиту, когда будете готовы. Правила и изменения видны в кабинете.</span></div></li>
+    </ol>
+    <p class="welcome-safety"><svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>Вы сами управляете доступом и можете остановить автоматическую защиту.</p>
+  </section>
+  {% endif %}
+  <section class="welcome-panel" id="welcome-auth" aria-labelledby="welcome-auth-title">
+    <div class="welcome-panel-top">
+      <span class="welcome-label">Личный кабинет</span>
+      <span class="welcome-stage">{% if stage == 'pin' %}Шаг 2 из 2{% else %}Начало{% endif %}</span>
+    </div>
+    {% if stage == 'pin' %}
+      <h2 id="welcome-auth-title">Введите ваш PIN</h2>
+      <p class="welcome-explainer">Аккаунт найден. Для входа осталось ввести PIN, который вы создали после подтверждения email.</p>
+      <div class="welcome-email-confirm"><span>{{ email }}</span><a href="{% url 'login' %}">Изменить</a></div>
+      <form method="post" class="welcome-form" novalidate data-pin-visibility-root>{% csrf_token %}
+        <input type="hidden" name="email" value="{{ email }}">
+        {{ form.non_field_errors }}
+        <label for="welcome-pin">PIN-код</label>
+        <div class="pin-field"><input id="welcome-pin" type="password" name="pin" data-pin-secret inputmode="numeric" autocomplete="current-password" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры" required autofocus><button class="pin-visibility-toggle" type="button" data-pin-toggle aria-pressed="false" aria-label="Показать PIN" aria-controls="welcome-pin" title="Показать PIN"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="pin-eye-visible"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></g><g class="pin-eye-hidden"><path d="m3 3 18 18M10.5 5.6a10.8 10.8 0 0 1 1.5-.1c6.4 0 10 6.5 10 6.5a16.7 16.7 0 0 1-3 3.6M6 6.9C3.5 8.5 2 12 2 12s3.6 6.5 10 6.5c1.7 0 3.2-.5 4.5-1.2"/><path d="M10.3 10.3a2.5 2.5 0 0 0 3.4 3.4"/></g></svg></button></div>
+        {% if form.pin.errors %}<ul class="welcome-form-errors">{{ form.pin.errors }}</ul>{% endif %}
+        <button class="welcome-submit" type="submit">Войти в кабинет →</button>
+      </form>
+      <div class="welcome-form-help"><a href="{% url 'password_reset' %}">Забыли PIN?</a><a href="{% url 'login' %}">Другой email</a></div>
+    {% else %}
+      <h2 id="welcome-auth-title">Начнём с email</h2>
+      <p class="welcome-explainer">Не нужно выбирать между входом и регистрацией. Введите свою почту — NoSale подскажет следующий шаг.</p>
+      <form method="post" class="welcome-form" novalidate>{% csrf_token %}
+        {{ form.non_field_errors }}
+        <label for="welcome-email">Ваш email</label>
+        <input id="welcome-email" type="email" name="email" value="{{ form.email.value|default_if_none:'' }}" autocomplete="email" inputmode="email" placeholder="name@example.com" required autofocus>
+        {% if form.email.errors %}<ul class="welcome-form-errors">{{ form.email.errors }}</ul>{% endif %}
+        <button class="welcome-submit" type="submit">Продолжить →</button>
+      </form>
+      <div class="welcome-form-help"><span>Вход и регистрация — в одном месте</span></div>
+    {% endif %}
+    
+  </section>
+</div>
 {% endblock %}

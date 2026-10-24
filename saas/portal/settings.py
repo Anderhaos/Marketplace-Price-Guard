@@ -47,7 +47,14 @@ TEMPLATES = [{
 WSGI_APPLICATION = "portal.wsgi.application"
 # SaaS is isolated from the legacy database; sqlite permitted only for tests.
 if DEBUG and env_bool("SAAS_TEST_SQLITE"):
-    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "saas-test.sqlite3"}}
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "saas-test.sqlite3",
+        # SQLite is only for isolated localhost dev. IMMEDIATE acquires the
+        # write reservation at BEGIN and avoids mid-transaction lock upgrades
+        # when PIN creation overlaps the browser's other requests.
+        "OPTIONS": {"timeout": 30, "transaction_mode": "IMMEDIATE"},
+    }}
 else:
     DATABASES = {"default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -62,6 +69,7 @@ else:
         raise RuntimeError("Generated SAAS_DB_PASSWORD required for production")
 SAAS_WB_NETWORK_ENABLED = env_bool("SAAS_WB_NETWORK_ENABLED", False)
 SAAS_WB_TOKEN_VALIDATION_ENABLED = env_bool("SAAS_WB_TOKEN_VALIDATION_ENABLED", False)
+SAAS_WB_READ_ONLY = env_bool("SAAS_WB_READ_ONLY", False)
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
 # Same acquiring contract as MiniBook, separate NoSale merchant configuration.
 # Fail closed until a merchant, verified RS256 webhook key, and approved RUB price exist.
@@ -105,6 +113,8 @@ TIME_ZONE = "Europe/Moscow"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
+# Dashboard assets live in portal/static (portal is not an installed Django app).
+STATICFILES_DIRS = [BASE_DIR / "portal" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {"staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 # Diagnostic boundary: record HTTPS relay acceptance latency only.
@@ -128,6 +138,9 @@ MAIL_RELAY_URL = os.environ.get("MAIL_RELAY_URL", "")
 MAIL_RELAY_TOKEN = os.environ.get("MAIL_RELAY_TOKEN", "")
 REQUIRE_EMAIL_VERIFICATION = env_bool("REQUIRE_EMAIL_VERIFICATION", True)
 SAAS_PIN_AUTH_ENABLED = env_bool("SAAS_PIN_AUTH_ENABLED", False)
+# Fail closed if a developer enables live WB reads without the HTTP write guard.
+if DEBUG and SAAS_PIN_AUTH_ENABLED and SAAS_WB_NETWORK_ENABLED and not SAAS_WB_READ_ONLY:
+    raise RuntimeError("DEBUG SaaS WB network access requires SAAS_WB_READ_ONLY=1")
 EMAIL_HOST = os.environ.get("SMTP_HOST", "")
 EMAIL_PORT = int(os.environ.get("SMTP_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("SMTP_USER", "")

@@ -259,4 +259,4 @@ class WBClientTests(TestCase):
 
         client._request = fake_request
         self.assertEqual(len(client.get_products()), 1001)
-        self.assertEqual(calls, [0, 1000, 2000])
+        self.assertEqual(calls, [0, 1000])

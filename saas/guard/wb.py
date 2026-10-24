@@ -2,6 +2,7 @@ import base64
 import binascii
 import json
 import time
+from django.conf import settings
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -75,6 +76,17 @@ class WBClient:
         return self._request_to(self.BASE_URL, method, path, params, body)
 
     def _request_to(self, base_url, method, path, params=None, body=None):
+        # Defense in depth for preview: allow GET and the WB content *read*
+        # endpoint (which happens to use POST). Never allow discount uploads
+        # or any other write-oriented request, regardless of UI state.
+        if settings.SAAS_WB_READ_ONLY:
+            safe_get = method == "GET"
+            safe_cards_read = (
+                method == "POST" and base_url == self.CONTENT_BASE_URL
+                and path == "/content/v2/get/cards/list"
+            )
+            if not (safe_get or safe_cards_read):
+                raise WBApiError("Изменение цен Wildberries запрещено в тестовом режиме.")
         url = base_url + path
         if params:
             url += "?" + urlencode(params)
@@ -154,6 +166,11 @@ class WBClient:
             if not page:
                 return products
             products.extend(page)
+            # If a page is shorter than the requested batch, there is no
+            # next page. An unnecessary extra call can exhaust the basic
+            # token's shared four-requests-per-hour price API allowance.
+            if len(page) < 1000:
+                return products
             offset += 1000
 
     def submit_discounts(self, changes):

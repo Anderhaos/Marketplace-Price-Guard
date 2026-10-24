@@ -1,10 +1,38 @@
 {% extends 'guard/base.html' %}
-{% block title %}Настройка PIN — MP NoSale{% endblock %}
+{% block title %}{% if purpose == 'recover' %}Новый PIN{% else %}Создание PIN{% endif %} — NoSale{% endblock %}
 {% block content %}
-<div class="auth-wrap"><section class="card">
-  <span class="eyebrow">MP NoSale / безопасность</span>
-  <h1>{% if purpose == 'recover' %}Установите новый PIN{% else %}Создайте PIN для входа{% endif %}</h1>
-  <p class="lead">Email подтверждён. Для последующих входов используйте email и четырёхзначный PIN. Не используйте одинаковые цифры.</p>
-  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Сохранить PIN</button></form>
-</section></div>
+<script src="/static/pin-visibility.js" defer></script>
+<link rel="stylesheet" href="/static/welcome.css">
+<div class="welcome-layout auth-flow-layout">
+  <section class="welcome-story auth-flow-story" aria-labelledby="auth-guide-title">
+    <div class="welcome-kicker">NoSale · защита вашего аккаунта</div>
+    <p class="auth-flow-progress">{% if purpose == 'recover' %}Восстановление доступа · шаг 3 из 3{% else %}Создание аккаунта · шаг 3 из 3{% endif %}</p>
+    <h1 class="auth-flow-title" id="auth-guide-title">Почта подтверждена. <span>Почти готово.</span></h1>
+    <p class="welcome-text">{% if purpose == 'recover' %}Теперь создайте новый PIN. Он заменит старый и будет использоваться вместе с email для входа в NoSale.{% else %}Остался последний шаг — создать короткий PIN для входа. В дальнейшем достаточно будет указать email и ваш PIN.{% endif %}</p>
+    <div class="auth-flow-email auth-flow-email--success"><span class="auth-flow-email-icon" aria-hidden="true">✓</span><div><small>Email подтверждён</small><strong>{{ email }}</strong></div></div>
+    <h2 class="welcome-heading">Как выбрать PIN?</h2>
+    <ol class="welcome-steps auth-flow-steps">
+      <li><span class="step-number">01</span><div><strong>Придумайте 4 цифры</strong><span class="step-caption">Не используйте последовательности вроде 1234 и очевидные комбинации.</span></div></li>
+      <li><span class="step-number">02</span><div><strong>Введите их ещё раз</strong><span class="step-caption">Это поможет избежать случайной ошибки при вводе.</span></div></li>
+      <li><span class="step-number">03</span><div><strong>Продолжайте работу</strong><span class="step-caption">{% if purpose == 'recover' %}С новым PIN вы сможете снова войти в аккаунт.{% else %}Откроется кабинет, где можно подключить магазин Wildberries.{% endif %}</span></div></li>
+    </ol>
+    <div class="auth-flow-hint"><span aria-hidden="true">✦</span> Никому не сообщайте ваш PIN, даже сотрудникам поддержки.</div>
+  </section>
+  <section class="welcome-panel auth-flow-panel" aria-labelledby="pin-title">
+    <div class="welcome-panel-top"><span class="welcome-label">Защита входа</span><span class="welcome-stage">Шаг 3 из 3</span></div>
+    <h2 id="pin-title">{% if purpose == 'recover' %}Установите новый PIN{% else %}Создайте PIN для входа{% endif %}</h2>
+    <p class="welcome-explainer">Выберите четыре цифры, которые сможете вспомнить. PIN понадобится вместе с email для следующего входа.</p>
+    <form method="post" class="welcome-form" novalidate data-pin-visibility-root>{% csrf_token %}
+      {% if form.non_field_errors %}<div class="welcome-form-errors">{{ form.non_field_errors }}</div>{% endif %}
+      <label for="auth-new-pin">Ваш PIN (4 цифры)</label>
+      <div class="pin-field"><input id="auth-new-pin" type="password" name="pin" data-pin-secret inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="••••" required autofocus><button class="pin-visibility-toggle" type="button" data-pin-toggle aria-pressed="false" aria-label="Показать PIN" aria-controls="auth-new-pin" title="Показать PIN"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="pin-eye-visible"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></g><g class="pin-eye-hidden"><path d="m3 3 18 18M10.5 5.6a10.8 10.8 0 0 1 1.5-.1c6.4 0 10 6.5 10 6.5a16.7 16.7 0 0 1-3 3.6M6 6.9C3.5 8.5 2 12 2 12s3.6 6.5 10 6.5c1.7 0 3.2-.5 4.5-1.2"/><path d="M10.3 10.3a2.5 2.5 0 0 0 3.4 3.4"/></g></svg></button></div>
+      {% if form.pin.errors %}<div class="welcome-form-errors">{{ form.pin.errors }}</div>{% endif %}
+      <label for="auth-confirm-pin">Повторите PIN</label>
+      <div class="pin-field"><input id="auth-confirm-pin" type="password" name="confirm_pin" data-pin-secret inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="••••" required><button class="pin-visibility-toggle" type="button" data-pin-toggle aria-pressed="false" aria-label="Показать PIN" aria-controls="auth-confirm-pin" title="Показать PIN"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="pin-eye-visible"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></g><g class="pin-eye-hidden"><path d="m3 3 18 18M10.5 5.6a10.8 10.8 0 0 1 1.5-.1c6.4 0 10 6.5 10 6.5a16.7 16.7 0 0 1-3 3.6M6 6.9C3.5 8.5 2 12 2 12s3.6 6.5 10 6.5c1.7 0 3.2-.5 4.5-1.2"/><path d="M10.3 10.3a2.5 2.5 0 0 0 3.4 3.4"/></g></svg></button></div>
+      {% if form.confirm_pin.errors %}<div class="welcome-form-errors">{{ form.confirm_pin.errors }}</div>{% endif %}
+      <button class="welcome-submit" type="submit">{% if purpose == 'recover' %}Сохранить новый PIN{% else %}Создать аккаунт →{% endif %}</button>
+    </form>
+    <p class="auth-flow-footer-note">PIN хранится в защищённом виде. При необходимости его можно восстановить через подтверждение email.</p>
+  </section>
+</div>
 {% endblock %}

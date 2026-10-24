@@ -9,7 +9,7 @@ from billing.models import AccessGrant
 from django.conf import settings
 from .crypto import decrypt_token
 from .models import GuardAccount, GuardEvent, Product, Upload
-from .wb import WBApiError, WBClient, get_token_type
+from .wb import WBApiError, WBClient, get_token_type, get_token_permissions
 
 
 def _event(account, kind, message, nm_id=None, details=None):
@@ -95,10 +95,16 @@ def check_account(account):
     token_ciphertext = account.token_ciphertext
     rules_version = account.rules_version
     raw_token = decrypt_token(token_ciphertext)
-    basic_readonly = get_token_type(raw_token) == "base"
+    permission = get_token_permissions(raw_token)
+    # Historical non-SaaS accounts have legacy credential formats. Only
+    # SaaS accounts must prove write permissions in the WB JWT scope.
+    token_readonly = (
+        permission["access"] != "Чтение и запись" if permission
+        else settings.SAAS_PIN_AUTH_ENABLED
+    )
     client = WBClient(raw_token)
-    # Basic credentials never reconcile or submit price-change tasks.
-    if basic_readonly:
+    # The actual access scope, not the token class, controls write access.
+    if token_readonly:
         still_pending, successful_upload = False, False
     else:
         still_pending, successful_upload = _reconcile_uploads(account, client)
@@ -114,7 +120,10 @@ def check_account(account):
         card_data = _card_data(client)
         _save_card_data(account, card_data)
     except WBApiError:
-        pass
+        # Initial import must include catalog metadata, not just prices.
+        # Subsequent refreshes may retain previously fetched card details.
+        if account.initial_sync_completed_at is None:
+            raise
     goods = list({int(item["nmID"]): item for item in client.get_products()}.values())
     checked_at = timezone.now()
     existing_products = {product.nm_id: product for product in Product.objects.filter(
@@ -180,7 +189,7 @@ def check_account(account):
         )
     Product.objects.filter(account=account).exclude(checked_at=checked_at).update(active=False)
     _event(account, "check", f"Проверено товаров: {len(goods)}; скидка выше разрешённой: {problems}.")
-    if basic_readonly or not changes or (not account.enabled and not force_apply_all and not force_apply_ids):
+    if token_readonly or settings.SAAS_WB_READ_ONLY or not changes or (not account.enabled and not force_apply_all and not force_apply_ids):
         return False
     account.refresh_from_db(fields=["enabled", "apply_all_requested", "apply_requested_ids", "token_ciphertext", "rules_version"])
     if (not account.enabled and not account.apply_all_requested and not account.apply_requested_ids) or account.token_ciphertext != token_ciphertext or account.rules_version != rules_version:
@@ -234,28 +243,39 @@ def run_due_checks():
         lease_until = now + timedelta(minutes=15)
         current_version = GuardAccount.objects.only("rules_version").get(pk=account.pk).rules_version
         try:
-            token_type = get_token_type(decrypt_token(account.token_ciphertext))
+            raw_token = decrypt_token(account.token_ciphertext)
+            token_type = get_token_type(raw_token)
+            permission = get_token_permissions(raw_token)
+            token_readonly = (
+                permission["access"] != "Чтение и запись" if permission
+                else settings.SAAS_PIN_AUTH_ENABLED
+            )
         except (ValueError, TypeError):
-            token_type = None
-        # A basic token may monitor prices read-only at most every 15 minutes.
-        # Discard all write intents before calling the shared checker.
-        if token_type == "base":
+            token_type, token_readonly = None, True
+        # A basic token can carry write access. Only a truly read-only token
+        # or the explicit E5 preview guard must discard pending write intents.
+        if token_readonly or settings.SAAS_WB_READ_ONLY:
             GuardAccount.objects.filter(pk=account.pk).update(
                 enabled=False, apply_all_requested=False, apply_requested_ids=[],
             )
 
         try:
             outcome = check_account(account)
-            delay = timedelta(minutes=max(15, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
+            delay = timedelta(minutes=max(60, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
+            finished_at = timezone.now()
             changes = dict(
-                lock_until=None, last_check_at=timezone.now(), last_error="",
-                next_check_at=timezone.now() + delay,
-                enabled=False if token_type == "base" else account.enabled,
+                lock_until=None, last_check_at=finished_at, last_error="",
+                next_check_at=finished_at + delay,
+                enabled=False if (token_readonly or settings.SAAS_WB_READ_ONLY) else account.enabled,
             )
+            # Only a completed read of the WB inventory may unlock the cabinet.
+            # "waiting_upload" returned before the inventory fetch is not success.
+            if outcome != "waiting_upload" and account.initial_sync_completed_at is None:
+                changes["initial_sync_completed_at"] = finished_at
             if outcome in ("waiting_upload", "remaining"):
                 changes["check_requested"] = True
             else:
-                changes.update(check_requested=(token_type == "base"),
+                changes.update(check_requested=token_readonly,
                                apply_all_requested=False, apply_requested_ids=[])
             if not GuardAccount.objects.filter(
                 pk=account.pk, lock_until=lease_until, rules_version=current_version,
@@ -264,11 +284,11 @@ def run_due_checks():
                     lock_until=None, next_check_at=timezone.now()
                 )
         except Exception as error:
-            delay = timedelta(minutes=max(15, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
+            delay = timedelta(minutes=max(60, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
             if isinstance(error, WBApiError) and error.status == 429:
                 if error.retry_after:
                     delay = max(delay, timedelta(seconds=error.retry_after + 5))
-                message = f"WB ограничил запрос {error}. Повтор через {int(delay.total_seconds() // 60)} мин."
+                message = "Wildberries ограничил частоту запросов (HTTP 429). NoSale автоматически повторит загрузку после разрешённой паузы."
             else:
                 message = f"Не удалось обновить данные WB: {type(error).__name__}."
             _event(account, "error", message)

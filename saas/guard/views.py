@@ -110,12 +110,37 @@ def _account_token_type(account):
         return None
 
 
+def _account_can_write(account):
+    if not account.token_ciphertext:
+        return False
+    try:
+        info = get_token_permissions(decrypt_token(account.token_ciphertext))
+    except (ValueError, TypeError):
+        # Historical legacy portal tests and pre-SaaS deployments may store
+        # opaque credentials; do not change their old non-PIN behavior.
+        return not settings.SAAS_PIN_AUTH_ENABLED
+    if info is None:
+        return not settings.SAAS_PIN_AUTH_ENABLED
+    return info["access"] == "Чтение и запись"
+
+
 def _check_now(account):
     """Never talk to WB without an active grant and explicit network approval."""
     if not guard_is_permitted(account):
         return "no_access"
+    if not _account_can_write(account):
+        return "read_only_token"
+    # Basic tokens allow writes, but have much stricter WB API limits.
+    # Queue corrections for the existing worker instead of issuing a burst
+    # of price requests synchronously from the user's browser.
     if _account_token_type(account) == "base":
-        return "base_token"
+        now = timezone.now()
+        min_due = ((account.last_check_at + timedelta(minutes=60))
+                   if account.last_check_at else now)
+        GuardAccount.objects.filter(pk=account.pk).update(
+            check_requested=True, next_check_at=max(now, min_due),
+        )
+        return "queued_basic"
     now = timezone.now()
     claimed = GuardAccount.objects.filter(pk=account.pk).filter(
         Q(lock_until__isnull=True) | Q(lock_until__lte=now),
@@ -223,6 +248,20 @@ def select_store(request, store_id):
 
 
 @login_required
+def onboarding_connect(request):
+    """Allow token replacement only while the initial inventory is pending."""
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    account = _account(request)
+    if account.initial_sync_completed_at is not None:
+        return redirect("settings")
+    return render(request, "guard/onboarding_start.html", {
+        "onboarding_required": True,
+        "trial_status": access_snapshot(request.user.pk),
+    })
+
+
+@login_required
 def connect_wb(request):
     """First-run popup and settings share the same secure token verifier."""
     if request.method != "POST":
@@ -238,29 +277,83 @@ def connect_wb(request):
         messages.error(request, str(error))
         return redirect("dashboard")
     if started:
-        messages.success(request, "Магазин подключён. Ваши 5 бесплатных дней начались.")
+        messages.success(request, "API проверен. Началась первичная загрузка товаров. Ваши 5 бесплатных дней начались.")
     elif access_snapshot(request.user.pk)["active"]:
         messages.success(request, "Токен проверен и сохранён.")
     else:
         messages.info(request, "Токен сохранён. Пробный период уже завершён — для мониторинга нужен активный доступ.")
     if permissions["token_type"] == "base":
-        messages.info(request, "Базовый токен WB ограничен: для автоматической защиты нужен сервисный токен.")
+        messages.info(request, "Базовый токен с правом записи подключён. Из-за лимитов WB проверка и исправление скидок будут выполняться реже. Для частой защиты нужен сервисный токен.")
     return redirect("dashboard")
 
 
 @login_required
 def dashboard(request):
     account = _account(request)
-    base_token = _account_token_type(account) == "base"
+    if settings.SAAS_PIN_AUTH_ENABLED:
+        if not account.token_ciphertext:
+            if request.method != "GET":
+                return HttpResponseNotAllowed(["GET"])
+            return render(request, "guard/onboarding_start.html", {
+                "onboarding_required": True,
+                "trial_status": access_snapshot(request.user.pk),
+            })
+        if account.initial_sync_completed_at is None:
+            if request.method == "POST":
+                if request.POST.get("action") != "retry_initial_sync":
+                    return HttpResponseNotAllowed(["GET"])
+                if not settings.SAAS_WB_NETWORK_ENABLED:
+                    messages.error(request, "В тестовой среде запросы WB отключены. Реальная синхронизация недоступна.")
+                elif account.lock_until and account.lock_until > timezone.now():
+                    messages.info(request, "Синхронизация уже выполняется.")
+                elif account.next_check_at > timezone.now():
+                    # HTTP 429 must never be bypassed just because an error was
+                    # recorded. The WB token limit applies to the seller,
+                    # including manual retries and concurrent sessions.
+                    messages.info(request, "WB ограничил частоту запросов. Повторная загрузка уже запланирована.")
+                else:
+                    now = timezone.now()
+                    # Atomic guard against two browser tabs racing to requeue.
+                    queued = GuardAccount.objects.filter(
+                        pk=account.pk, user_id=request.user.pk,
+                        next_check_at__lte=now,
+                    ).filter(
+                        Q(lock_until__isnull=True) | Q(lock_until__lte=now)
+                    ).update(
+                        check_requested=True, last_error="",
+                        next_check_at=now, lock_until=None,
+                    )
+                    messages.info(
+                        request,
+                        "Загрузка поставлена в очередь." if queued
+                        else "Загрузка уже выполняется или ожидает разрешённого времени.",
+                    )
+                return redirect("dashboard")
+            return render(request, "guard/onboarding_sync.html", {
+                "account": account, "onboarding_required": True,
+                "trial_status": access_snapshot(request.user.pk),
+                "wb_sync_available": settings.SAAS_WB_NETWORK_ENABLED,
+                "retry_waiting": bool(
+                    account.last_error and account.next_check_at > timezone.now()
+                ),
+                "rate_limited": (
+                    "429" in account.last_error
+                    and account.next_check_at > timezone.now()
+                ),
+            })
+    token_readonly = not _account_can_write(account)
     # GET never performs network I/O: the dedicated worker refreshes WB data.
     if request.method == "POST":
         action = request.POST.get("action", "apply_all")
+        if settings.SAAS_WB_READ_ONLY and action in ("toggle_autocontrol", "apply_all"):
+            messages.error(request, "В тестовом режиме изменения цен и скидок Wildberries отключены.")
+            return _dashboard_redirect(request)
         if action == "toggle_autocontrol":
             if not guard_is_permitted(account):
                 messages.error(request, "Для запуска защиты нужна активная подписка и подключённый сервис.")
             elif not account.token_ciphertext:
                 messages.error(request, "Сначала подключите токен Wildberries.")
-            elif request.POST.get("enabled") == "on" and base_token:
+            elif request.POST.get("enabled") == "on" and token_readonly:
                 messages.error(request, "Для автоисправления скидок нужен токен с подходящими лимитами WB. Проверьте варианты подключения в настройках.")
             elif (request.POST.get("enabled") == "on" and account.default_allowed_discount == 0
                   and request.POST.get("confirm_zero_discount") != "1"):
@@ -271,8 +364,8 @@ def dashboard(request):
                 messages.success(request, "Автоисправление включено." if enabled else "Автоисправление выключено.")
             return _dashboard_redirect(request)
         if action == "apply_all":
-            if base_token:
-                messages.error(request, "Базовый токен поддерживает только просмотр. Для изменения скидок нужен сервисный API.")
+            if token_readonly:
+                messages.error(request, "Для изменения скидок требуется токен с уровнем «Чтение и запись».")
                 return _dashboard_redirect(request)
             form = DefaultDiscountForm(request.POST)
             if form.is_valid():
@@ -296,8 +389,10 @@ def dashboard(request):
                     messages.success(request, f"Максимум {discount}% сохранён. Превышения отправлены в Wildberries.")
                 elif result is False:
                     messages.error(request, f"Максимум {discount}% сохранён. WB пока не ответил; превышения будут проверены в следующий интервал.")
-                elif result == "base_token":
-                    messages.error(request, f"Максимум {discount}% сохранён. Для отправки изменений нужен токен с подходящими лимитами WB. Подробности в настройках.")
+                elif result == "queued_basic":
+                    messages.info(request, f"Максимум {discount}% сохранён. Изменения поставлены в очередь с учётом лимитов базового токена WB.")
+                elif result == "read_only_token":
+                    messages.error(request, "Для изменения скидок необходим токен с уровнем «Чтение и запись».")
                 else:
                     messages.success(request, f"Максимальная скидка {discount}% сохранена; текущая проверка отправит её в Wildberries.")
             else:
@@ -322,13 +417,14 @@ def dashboard(request):
     }
     return render(request, "guard/dashboard.html", {
         "account": account, "products": products, "count": len(active_products),
-        "data_checked_at": data_checked_at, "base_token": base_token,
+        "data_checked_at": data_checked_at, "token_readonly": token_readonly,
         "shown_count": len(filtered_products), "filter_name": filter_name, "filter_label": filter_labels[filter_name],
         "corrected_count": corrected_count, "corrected_card_count": len(corrected_ids), "over_limit_count": over_limit_count,
         "pending_product_ids": pending_product_ids,
         "product_cards_missing": bool(active_products) and not any(product.title or product.photo_url for product in active_products),
         "refresh_error": "",
         "onboarding_required": settings.SAAS_PIN_AUTH_ENABLED and not bool(account.token_ciphertext),
+        "wb_read_only": settings.SAAS_WB_READ_ONLY,
         "wb_token_form": TokenForm(),
         "trial_status": access_snapshot(request.user.pk),
     })
@@ -401,8 +497,11 @@ def product_rule(request, nm_id):
     product = get_object_or_404(Product, account=account, nm_id=nm_id, active=True)
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
-    if _account_token_type(account) == "base":
-        messages.error(request, "Базовый токен WB разрешает только просмотр товаров.")
+    if settings.SAAS_WB_READ_ONLY:
+        messages.error(request, "В тестовом режиме изменение скидок Wildberries отключено.")
+        return _dashboard_redirect(request)
+    if not _account_can_write(account):
+        messages.error(request, "Для изменения скидки необходим токен с правами «Чтение и запись».")
         return _dashboard_redirect(request)
     if settings.SAAS_PIN_AUTH_ENABLED and not guard_is_permitted(account):
         messages.error(request, "Пробный период закончился или защита WB временно недоступна.")
@@ -438,8 +537,10 @@ def product_rule(request, nm_id):
             messages.success(request, f"{message} Изменение отправлено в Wildberries.")
         elif result is False:
             messages.error(request, f"{message} Wildberries пока не ответил; изменение поставлено в очередь до следующего интервала.")
-        elif result == "base_token":
-            messages.error(request, f"{message} Для отправки скидки нужен токен с подходящими лимитами WB. Подробности в настройках.")
+        elif result == "queued_basic":
+            messages.info(request, f"{message} Изменение поставлено в очередь с учётом лимитов базового токена WB.")
+        elif result == "read_only_token":
+            messages.error(request, f"{message} Для изменения скидки нужен токен с правами «Чтение и запись».")
         else:
             messages.success(request, f"{message} Проверка уже выполняется; правило будет применено в её ходе.")
     else:
