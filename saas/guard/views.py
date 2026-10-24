@@ -502,7 +502,10 @@ def assistant_chat(request):
             # Provider I/O never runs inside a DB transaction or with a seller
             # row lock held; AI quotas are reserved separately and atomically.
             try:
-                answer = smart_store_reply(request.user.pk, account, question.strip())
+                answer = smart_store_reply(
+                    request.user.pk, account, question.strip(),
+                    use_mcp=(request.POST.get("mcp_consent") == "yes"),
+                )
             except AIGatewayUnavailable:
                 mode = "basic"
                 answer = (
