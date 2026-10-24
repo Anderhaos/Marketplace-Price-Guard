@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from billing.access import has_plan_capability
-from billing.models import AccessGrant
+from billing.models import AccessGrant, OwnerAISettings
 from .assistant import basic_assistant_reply
 from .models import AssistantMessage, GuardAccount, GuardEvent, Product, Upload
 from .stores import SESSION_KEY
@@ -118,6 +118,32 @@ class WebAssistantTests(TestCase):
             self.assertEqual(self.client.post(url, {"question": "статус"}).status_code, 302)
         self.assertEqual(self.client.post(url, {"question": "статус"}).status_code, 429)
         self.assertEqual(AssistantMessage.objects.filter(user=self.seller).count(), 8)
+
+    def test_owner_can_pause_chat_without_affecting_guard_or_history(self):
+        self.grant()
+        owner = OwnerAISettings.objects.create(web_assistant_enabled=False)
+        url = reverse("assistant_chat")
+        self.assertContains(self.client.get(url), "Веб-помощник временно отключён", status_code=503)
+        with patch("guard.views.WBClient") as wb:
+            self.assertEqual(self.client.post(url, {"question": "Статус магазина"}).status_code, 503)
+            wb.assert_not_called()
+        self.assertFalse(AssistantMessage.objects.exists())
+        owner.web_assistant_enabled = True
+        owner.save(update_fields=["web_assistant_enabled"])
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.post(url, {"question": "Статус магазина"}).status_code, 302)
+
+    def test_owner_daily_limit_change_applies_without_deploy(self):
+        self.grant()
+        owner = OwnerAISettings.objects.create(web_messages_per_day=2)
+        url = reverse("assistant_chat")
+        self.assertEqual(self.client.post(url, {"question": "товары"}).status_code, 302)
+        self.assertEqual(self.client.post(url, {"question": "статус"}).status_code, 302)
+        self.assertEqual(self.client.post(url, {"question": "скидка"}).status_code, 429)
+        self.assertEqual(AssistantMessage.objects.filter(user=self.seller).count(), 2)
+        owner.web_messages_per_day = 80
+        owner.save(update_fields=["web_messages_per_day"])
+        self.assertEqual(self.client.post(url, {"question": "скидка"}).status_code, 302)
 
     def test_daily_limit_across_store_switches(self):
         self.grant()

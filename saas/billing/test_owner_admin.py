@@ -47,6 +47,8 @@ class OwnerAISettingsTests(TestCase):
         add = reverse("admin:billing_owneraisettings_add")
         self.assertEqual(self.client.get(add).status_code, 200)
         self.client.post(add, {
+            "web_assistant_enabled": "on",
+            "web_messages_per_day": "12",
             "ai_enabled": "on",
             "gateway_model_id": "published-model-id",
             "prompt_version": "v1",
@@ -61,6 +63,8 @@ class OwnerAISettingsTests(TestCase):
         })
         item = OwnerAISettings.objects.get()
         self.assertTrue(item.ready_for_gateway)
+        self.assertTrue(item.web_assistant_enabled)
+        self.assertEqual(item.web_messages_per_day, 12)
         self.assertEqual(item.gateway_model_id, "published-model-id")
         self.assertEqual(self.client.get(add).status_code, 403)
         self.assertEqual(
