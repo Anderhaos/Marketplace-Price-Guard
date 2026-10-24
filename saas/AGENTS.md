@@ -31,3 +31,11 @@
 
 ## Consolidation record
 - 2026-10-24: owner directed the end of stacked feature branches, adoption of `main`, one-task/one-branch/merge, and staging-only deployments from `main`. The 16 accepted PRs #1, #3–#5, #13–#17, #19–#25 were merged in order to `main`. Superseded PR #18 was intentionally not merged.
+
+
+## Owner control plane versus seller portal (2026-10-24 binding decision)
+- One SaaS origin: `/admin/` is **owner-only**. All registered SaaS system admin views require an active superuser; ordinary customers and staff must be denied, even when they guess direct admin URLs. Owner authentication is the same NoSale verified email/PIN flow as normal sign-in; **never use public owner-select buttons or user-controlled privilege elevation**.
+- `/`, `/stores/`, `/settings/`, `/assistant/` and related seller pages contain only **that seller's store/account controls**. Sellers never choose AI providers, models, MCP servers, global rates, budgets, commercial tariffs or integration credentials.
+- Changeable operating settings belong in PostgreSQL-backed owner admin models and must be enforced on the backend, not in `.env`, editable code, or visually hidden buttons. Owner already controls AI Platform project connection (encrypted), verified model, assistant limits/budget and tariff offers. MCP per-marketplace/tool switches and data limits are owner-managed in `OwnerMCPSettings` and enforced at the internal MCP endpoint as well as the Smart caller.
+- Technical invariants are **not operational settings**: exact internal MCP endpoint/allowed hosts, read-only tool allowlist, authentication enforcement, encryption keys, merchant fiscalization safety, schema and immutable code remain secure deployment/code-managed constraints. An owner toggle may **disable**, but must not bypass statutory payment controls, WB write authorizations, approval, secret isolation or external provider onboarding.
+- Separate AI Platform enrollment and real owner identity are external release gates. Do not make up credentials, enable live AI/WB/payment access or grant superuser rights without the verified pre-existing owner email/PIN account and explicit operator confirmation.
