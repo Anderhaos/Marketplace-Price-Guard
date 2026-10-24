@@ -69,8 +69,10 @@ def runtime_gateway():
             return normalize_base_url(env_url.removesuffix("/chat/completions")), env_token
         except (PlatformConnectionError, ValueError):
             return None
-    conn = OwnerAIGatewayConnection.objects.filter(pk=1).first()
-    if not conn or not conn.encrypted_service_token:
+    # The owner must explicitly verify credentials and authorized chat models.
+    # Saving an unverified key does not make Smart send commercial seller data.
+    conn = OwnerAIGatewayConnection.objects.filter(pk=1, last_check_ok=True).first()
+    if not conn or not conn.encrypted_service_token or not conn.catalog_models:
         return None
     try:
         return normalize_base_url(conn.base_url), decrypt_token(conn.encrypted_service_token)
