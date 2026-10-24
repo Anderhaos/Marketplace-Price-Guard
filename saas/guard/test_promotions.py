@@ -163,7 +163,7 @@ class PromotionPortalTests(TestCase):
         self.assertEqual(snap.promotions[0]["type"], "auto")
         self.assertGreater(snap.next_refresh_at, timezone.now()+timedelta(minutes=14))
         self.assertContains(self.client.get(self.url), "Автоматическая")
-        self.assertFalse(PromotionSnapshot.objects.filter(account=self.other_store, promotions__contains=[{"id": 71}]).exists())
+        self.assertFalse(PromotionSnapshot.objects.filter(account=self.other_store).exists())
 
     def test_network_disabled_rejects_refresh_without_wb_calls(self):
         with override_settings(SAAS_WB_NETWORK_ENABLED=False):
