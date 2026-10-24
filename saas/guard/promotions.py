@@ -132,7 +132,7 @@ def inspect_promotions(client, *, token_type=None, at=None):
         results.append(detail)
     # Full page or bounded detail sampling means some campaign/item risks unknown.
     skipped_regular = sum(1 for row in results if row["type"] == "regular" and row["participation"] is None)
-    partial = len(promos) >= 40 or skipped_regular > 0 or any(
+    partial = len(promos) >= 40 or skipped_regular > 0 or any(row["type"] == "auto" for row in results) or any(
         row["participation"] and row["participation"]["possibly_incomplete"] for row in results
     )
     return {"promotions": results, "partial": partial,
