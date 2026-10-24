@@ -1,0 +1,28 @@
+{% extends "guard/base.html" %}
+{% block title %}Рекомендации — NoSale Smart{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <span class="eyebrow">NoSale Smart · по фактам магазина</span>
+  <h1>Рекомендации для «{{ account.name }}»</h1>
+  <p class="lead">Советы основаны на проверках цен, скидок и журнале событий вашего магазина. Это не финансовый прогноз и не утверждение, что скидка убыточна.</p>
+  {% if advice.last_observed_at %}
+    <p class="muted" style="font-size:13px">Последние данные WB: {{ advice.last_observed_at|date:"d.m.Y H:i" }}{% if advice.is_stale %} · могут быть устаревшими{% endif %}</p>
+  {% endif %}
+</section>
+<div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <section class="card"><span class="stat-label">Товаров под наблюдением</span><strong class="value">{{ advice.metrics.active_products }}</strong></section>
+  <section class="card"><span class="stat-label">Выше вашего предела</span><strong class="value">{{ advice.metrics.over_limit }}</strong></section>
+  <section class="card"><span class="stat-label">Изменений цены за 24 часа</span><strong class="value">{{ advice.metrics.price_changes_24h }}</strong></section>
+</div>
+<section class="card">
+  <div class="section-head"><div><h2>Что проверить</h2><p>Приоритетные факты и следующие действия. Выводы не запускают изменения в WB.</p></div></div>
+  {% for item in advice.recommendations %}
+  <div style="border-top:1px solid var(--line);padding:18px 0">
+    <h3 style="margin:0 0 6px;font-size:17px">{{ item.title }}</h3>
+    <p style="margin:0 0 6px">{{ item.detail }}</p>
+    <p class="muted" style="font-size:12px;margin:0">Источник: {{ item.source }}{% if item.observed_at %} · данные на {{ item.observed_at|date:"d.m.Y H:i" }}{% endif %}</p>
+  </div>
+  {% endfor %}
+</section>
+<a class="button secondary" href="{% url 'dashboard' %}">Вернуться к товарам</a>
+{% endblock %}

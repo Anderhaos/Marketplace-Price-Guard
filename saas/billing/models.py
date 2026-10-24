@@ -8,6 +8,7 @@ class AccessGrant(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saas_access_grants")
     source = models.CharField(max_length=24, choices=[("trial","Trial"),("payment","Payment"),("admin","Admin")])
     source_ref = models.CharField(max_length=128, unique=True)
+    plan = models.CharField(max_length=16, choices=[("standard", "Standard"), ("smart", "Smart")], default="standard")
     starts_at = models.DateTimeField(default=timezone.now)
     ends_at = models.DateTimeField()
     revoked_at = models.DateTimeField(null=True, blank=True)
@@ -17,6 +18,7 @@ class AccessGrant(models.Model):
 class SubscriptionPayment(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saas_payments")
     provider = models.CharField(max_length=24, default="tochka")
+    plan = models.CharField(max_length=16, choices=[("standard", "Standard"), ("smart", "Smart")], default="standard")
     operation_id = models.CharField(max_length=128, blank=True)
     amount_kopeks = models.PositiveIntegerField()
     currency = models.CharField(max_length=3, default="RUB")

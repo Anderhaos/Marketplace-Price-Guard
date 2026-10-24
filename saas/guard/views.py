@@ -16,7 +16,8 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.conf import settings
 
-from billing.access import guard_is_permitted
+from billing.access import guard_is_permitted, has_smart_access
+from .advisor import store_recommendations
 from billing.trial import access_snapshot
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
@@ -427,6 +428,20 @@ def dashboard(request):
         "wb_read_only": settings.SAAS_WB_READ_ONLY,
         "wb_token_form": TokenForm(),
         "trial_status": access_snapshot(request.user.pk),
+    })
+
+
+@login_required
+def store_advisor(request):
+    """Smart-only, read-only recommendations from the selected user's WB store."""
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    if not has_smart_access(request.user.pk):
+        return HttpResponse("Для рекомендаций NoSale Smart необходим активный тариф Smart.", status=403)
+    account = _account(request)
+    return render(request, "guard/advisor.html", {
+        "account": account,
+        "advice": store_recommendations(account),
     })
 
 
