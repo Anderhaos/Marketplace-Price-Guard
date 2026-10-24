@@ -104,6 +104,30 @@ class SmartAssistantTests(TestCase):
         self.assertEqual(AssistantAIRequest.objects.count(), 0)
         self.assertEqual(AssistantMessage.objects.get().mode, "basic")
 
+    def test_disabled_smart_fallback_obeys_shared_chat_limit(self):
+        self.ai.ai_enabled = False
+        self.ai.save(update_fields=["ai_enabled"])
+        with patch("guard.smart_assistant.gateway_chat") as gateway:
+            for index in range(8):
+                self.assertEqual(self.ask(f"Статус магазина {index}").status_code, 302)
+            self.assertEqual(self.ask("Девятый вопрос").status_code, 429)
+            gateway.assert_not_called()
+        self.assertEqual(AssistantMessage.objects.filter(user=self.seller).count(), 8)
+        self.assertEqual(AssistantAIRequest.objects.filter(user=self.seller).count(), 0)
+
+    def test_switching_basic_and_smart_cannot_bypass_message_limit(self):
+        basic_url = reverse("assistant_chat")
+        for index in range(8):
+            response = self.client.post(basic_url, {
+                "question": f"Покажи товары {index}", "mode": "basic",
+            })
+            self.assertEqual(response.status_code, 302)
+        with patch("guard.smart_assistant.gateway_chat") as gateway:
+            self.assertEqual(self.ask("Обойди лимит в Smart").status_code, 429)
+            gateway.assert_not_called()
+        self.assertEqual(AssistantAIRequest.objects.count(), 0)
+        self.assertEqual(AssistantMessage.objects.count(), 8)
+
     def test_no_consent_no_outbound_ai(self):
         with patch("guard.smart_assistant.gateway_chat") as gateway:
             self.assertEqual(self.ask(ai_consent="").status_code, 400)
