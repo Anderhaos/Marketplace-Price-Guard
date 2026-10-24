@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.urls import path
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponseNotAllowed, HttpResponseForbidden
 from django.shortcuts import redirect
 from django.views.generic import RedirectView
 
@@ -12,7 +12,12 @@ from push import views as push_views
 from billing import views as billing_views
 
 def owner_admin_permission(request):
-    """Customers and ordinary staff cannot access any SaaS system-admin page."""
+    """Owner only. Return explicit 403 for logged-in sellers/staff, not login loops."""
+    from django.core.exceptions import PermissionDenied
+    if request.user.is_authenticated and not (
+        request.user.is_active and request.user.is_superuser
+    ):
+        raise PermissionDenied("NoSale owner permission required")
     return bool(request.user.is_authenticated and request.user.is_active and request.user.is_superuser)
 
 
@@ -34,7 +39,9 @@ def admin_login_gateway(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
     if request.user.is_authenticated:
-        return redirect("admin:index" if request.user.is_staff else "dashboard")
+        if not owner_admin_permission(request):
+            return HttpResponseForbidden("Owner access only")
+        return redirect("admin:index")
     return redirect("/login/?next=/admin/")
 
 
