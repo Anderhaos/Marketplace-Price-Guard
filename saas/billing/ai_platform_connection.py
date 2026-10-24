@@ -58,8 +58,13 @@ def save_gateway_token(connection, raw_token):
     connection.last_check_message = ""
 
 
-def runtime_gateway():
-    """Runtime preference: deployment emergency override, then encrypted owner UI."""
+def runtime_gateway(*, model_id=None):
+    """Return gateway only when enabled model belongs to the verified catalog.
+
+    Deployment-only environment credentials are explicitly managed outside the
+    owner UI and remain the emergency override. Owner-managed connections fail
+    closed if their stored model is withdrawn, unverified, or unavailable.
+    """
     env_url = getattr(settings, "NOSALE_AI_GATEWAY_URL", "")
     env_token = getattr(settings, "NOSALE_AI_SERVICE_TOKEN", "")
     if env_url or env_token:
@@ -73,6 +78,8 @@ def runtime_gateway():
     # Saving an unverified key does not make Smart send commercial seller data.
     conn = OwnerAIGatewayConnection.objects.filter(pk=1, last_check_ok=True).first()
     if not conn or not conn.encrypted_service_token or not conn.catalog_models:
+        return None
+    if model_id is not None and (not isinstance(model_id, str) or model_id not in conn.catalog_models):
         return None
     try:
         return normalize_base_url(conn.base_url), decrypt_token(conn.encrypted_service_token)
