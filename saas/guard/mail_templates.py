@@ -8,8 +8,14 @@ from django.core.mail import EmailMultiAlternatives
 def send_pin_verification_email(*, email: str, code: str, purpose: str) -> None:
     if len(code) != 4 or not code.isascii() or not code.isdecimal():
         raise ValueError("Invalid four-digit OTP")
-    subject = ("Код подтверждения MP NoSale"
-               if purpose == "register" else "Восстановление PIN MP NoSale")
+    subjects = {
+        "register": "Код подтверждения MP NoSale",
+        "recover": "Восстановление PIN MP NoSale",
+        "owner": "Код входа в админку NoSale",
+    }
+    if purpose not in subjects:
+        raise ValueError("Invalid verification purpose")
+    subject = subjects[purpose]
     text = (
         f"Код: {code}\n"
         "Код действует 10 минут.\n"
