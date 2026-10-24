@@ -98,4 +98,9 @@ class JournalNotificationsPWATests(TestCase):
         self.assertEqual(worker_response["Service-Worker-Allowed"], "/")
         worker = b"".join(worker_response.streaming_content).decode("utf-8")
         self.assertIn('SAFE_PATHS = ["/favicon.svg"]', worker)
+        self.assertIn('SAFE_NOTIFICATION_TARGETS = ["/notifications/", "/advisor/", "/stores/"]', worker)
+        self.assertIn("SAFE_NOTIFICATION_TARGETS.includes(value)", worker)
+        self.assertIn("safeNotificationPath(event.notification.data?.url)", worker)
+        # No caching of authenticated pages or arbitrary remote navigation.
+        self.assertNotIn('SAFE_PATHS = ["/favicon.svg", "/stores/"]', worker)
         self.assertNotIn("caches.open('/api", worker)
