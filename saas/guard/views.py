@@ -436,6 +436,14 @@ def dashboard(request):
     })
 
 
+def _assistant_message_limit_reached(user_id, now):
+    """One message quota shared by Standard and Smart/fallback modes."""
+    messages = AssistantMessage.objects.filter(user_id=user_id)
+    recent = messages.filter(created_at__gte=now - timedelta(minutes=1)).count()
+    daily = messages.filter(created_at__gte=now - timedelta(hours=24)).count()
+    return recent >= 8 or daily >= 80
+
+
 @login_required
 def assistant_chat(request):
     """Standard assistant lives in NoSale; no Telegram and no marketplace I/O."""
@@ -467,8 +475,14 @@ def assistant_chat(request):
             return HttpResponse("Подтвердите отправку вопроса и обезличенных данных в AI.", status=400)
 
         if mode == "smart":
+            # Check before provider I/O to avoid spending AI budget for a
+            # request already over the shared web-chat message quota.
+            with transaction.atomic():
+                User.objects.select_for_update().get(pk=request.user.pk)
+                if _assistant_message_limit_reached(request.user.pk, timezone.now()):
+                    return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
             # Provider I/O never runs inside a DB transaction or with a seller
-            # row lock held; quotas are separately reserved atomically.
+            # row lock held; AI quotas are reserved separately and atomically.
             try:
                 answer = smart_store_reply(request.user.pk, account, question.strip())
             except AIGatewayUnavailable:
@@ -480,6 +494,10 @@ def assistant_chat(request):
                 )
             with transaction.atomic():
                 User.objects.select_for_update().get(pk=request.user.pk)
+                # Recheck under the row lock: concurrent Standard or Smart
+                # requests must not bypass the limit during a gateway call.
+                if _assistant_message_limit_reached(request.user.pk, timezone.now()):
+                    return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
                 AssistantMessage.objects.create(
                     user_id=request.user.pk, account=account, question=question.strip(),
                     answer=answer[:2000], mode=mode,
@@ -490,13 +508,7 @@ def assistant_chat(request):
             with transaction.atomic():
                 User.objects.select_for_update().get(pk=request.user.pk)
                 now = timezone.now()
-                recent = AssistantMessage.objects.filter(
-                    user_id=request.user.pk, created_at__gte=now - timedelta(minutes=1)
-                ).count()
-                daily = AssistantMessage.objects.filter(
-                    user_id=request.user.pk, created_at__gte=now - timedelta(hours=24)
-                ).count()
-                if recent >= 8 or daily >= 80:
+                if _assistant_message_limit_reached(request.user.pk, now):
                     return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
                 answer = basic_assistant_reply(request.user.pk, account, question.strip(), now=now)
                 AssistantMessage.objects.create(
