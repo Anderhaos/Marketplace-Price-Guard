@@ -149,6 +149,90 @@ class OwnerGatewayConnectionTests(TestCase):
         self.assertEqual(opener.request.get_header("X-ai-project-key"), "nosale")
         self.assertEqual(opener.request.full_url, "https://platform.svdev.pro/v1/chat/completions")
 
+    def test_owner_gateway_denies_model_not_in_verified_catalog(self):
+        from guard.ai_gateway import AIGatewayUnavailable, is_gateway_configured
+        connection = self.add_connection()
+        connection.last_check_ok = True
+        connection.catalog_models = ["deepseek/deepseek-chat"]
+        connection.save(update_fields=["last_check_ok", "catalog_models"])
+        self.assertTrue(is_gateway_configured(model_id="deepseek/deepseek-chat"))
+        self.assertFalse(is_gateway_configured(model_id="not-authorized/model"))
+        self.assertIsNone(runtime_gateway(model_id="not-authorized/model"))
+        with patch("guard.ai_gateway.build_opener") as transport:
+            with self.assertRaises(AIGatewayUnavailable):
+                gateway_chat(model_id="not-authorized/model",
+                             messages=[{"role": "user", "content": "store facts"}],
+                             max_output_tokens=80, timeout_seconds=5)
+            transport.assert_not_called()
+
+    def test_catalog_mode_change_invalidates_verification_until_reverify(self):
+        from guard.ai_gateway import is_gateway_configured
+        connection = self.add_connection()
+        connection.last_check_ok = True
+        connection.catalog_models = ["deepseek/deepseek-chat"]
+        connection.save(update_fields=["last_check_ok", "catalog_models"])
+        self.assertTrue(is_gateway_configured(model_id="deepseek/deepseek-chat"))
+        # Owner changes catalog mode but keeps the same secret.
+        url = reverse("admin:billing_owneraigatewayconnection_change", args=[connection.pk])
+        response = self.client.post(url, {
+            "base_url": connection.base_url,
+            "catalog_mode": "full",
+            "service_token": "",
+            "_save": "Save",
+        })
+        self.assertEqual(response.status_code, 302)
+        connection.refresh_from_db()
+        self.assertEqual(connection.catalog_mode, "full")
+        self.assertIsNone(connection.last_check_ok)
+        self.assertEqual(connection.catalog_models, [])
+        self.assertFalse(is_gateway_configured(model_id="deepseek/deepseek-chat"))
+        self.assertIsNone(runtime_gateway())
+        # Unchanged settings with a valid token must preserve the cleared state.
+        same = self.client.post(url, {
+            "base_url": connection.base_url,
+            "catalog_mode": connection.catalog_mode,
+            "service_token": "",
+            "_save": "Save",
+        })
+        self.assertEqual(same.status_code, 302)
+        self.assertEqual(runtime_gateway(), None)
+
+    def test_removed_model_rejected_before_seller_quota_and_provider_call(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from billing.models import AccessGrant
+        from guard.models import AssistantAIRequest, GuardAccount, Product
+        from guard.smart_assistant import smart_store_reply
+        from guard.ai_gateway import AIGatewayUnavailable
+
+        connection = self.add_connection()
+        connection.last_check_ok = True
+        connection.catalog_models = ["deepseek/approved-model"]
+        connection.save(update_fields=["last_check_ok", "catalog_models"])
+        OwnerAISettings.objects.create(
+            ai_enabled=True, gateway_model_id="old/deauthorized-model",
+            smart_questions_per_day=2, monthly_budget_kopeks=1000,
+        )
+        AccessGrant.objects.create(
+            user=self.owner, source="admin", source_ref="verified-model-test",
+            plan="smart", starts_at=timezone.now() - timedelta(minutes=5),
+            ends_at=timezone.now() + timedelta(days=1),
+        )
+        account = GuardAccount.objects.create(
+            user=self.owner, name="Owner test store", marketplace="wb",
+            token_ciphertext="fake-only", last_check_at=timezone.now(),
+            initial_sync_completed_at=timezone.now(),
+        )
+        Product.objects.create(
+            account=account, nm_id=123, current_discount=18,
+            checked_at=timezone.now(),
+        )
+        with patch("guard.smart_assistant.gateway_chat") as provider:
+            with self.assertRaises(AIGatewayUnavailable):
+                smart_store_reply(self.owner.pk, account, "Какие товары проверить?")
+            provider.assert_not_called()
+        self.assertFalse(AssistantAIRequest.objects.filter(user=self.owner).exists())
+
     def test_env_override_remains_emergency_only(self):
         self.add_connection()
         with override_settings(NOSALE_AI_GATEWAY_URL="https://platform.svdev.pro/v1/chat/completions",

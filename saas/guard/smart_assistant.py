@@ -76,6 +76,10 @@ def smart_store_reply(user_id, account, question):
         ai = OwnerAISettings.objects.select_for_update().filter(pk=1).first()
         if ai is None or not ai.ready_for_gateway or ai.smart_questions_per_day == 0:
             raise AIGatewayUnavailable("AI service is disabled")
+        if not is_gateway_configured(model_id=ai.gateway_model_id):
+            # A removed/deauthorized catalog model must not reserve quota,
+            # incur provider cost or export any seller context.
+            raise AIGatewayUnavailable("Selected AI model is not verified for NoSale")
         now = timezone.now()
         recent = AssistantAIRequest.objects.filter(
             user_id=user_id, created_at__gte=now - timedelta(hours=24),

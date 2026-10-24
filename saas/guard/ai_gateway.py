@@ -19,12 +19,12 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def is_gateway_configured():
-    return runtime_gateway() is not None
+def is_gateway_configured(model_id=None):
+    return runtime_gateway(model_id=model_id) is not None
 
 
 def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds):
-    connection = runtime_gateway()
+    connection = runtime_gateway(model_id=model_id)
     if not connection:
         raise AIGatewayUnavailable("NoSale AI Platform integration is not configured")
     base_url, token = connection
