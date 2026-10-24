@@ -69,3 +69,79 @@ def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds):
         "input_tokens": usage.get("prompt_tokens") if type(usage.get("prompt_tokens")) is int else 0,
         "output_tokens": usage.get("completion_tokens") if type(usage.get("completion_tokens")) is int else 0,
     }
+
+
+def gateway_choose_tool(*, model_id, messages, tools, timeout_seconds):
+    """One OpenAI-compatible function-selection round through verified AI Platform.
+
+    Strictly bounded tool metadata, output and count. No external MCP address or
+    seller bearer is included in any model messages or tool specification.
+    """
+    connection = runtime_gateway(model_id=model_id)
+    if not connection:
+        raise AIGatewayUnavailable("NoSale AI Platform connection not verified")
+    if not isinstance(tools, list) or not (1 <= len(tools) <= 5):
+        raise AIGatewayUnavailable("Invalid AI tool allowlist")
+    allowed_names = set()
+    for item in tools:
+        if not isinstance(item, dict) or item.get("type") != "function":
+            raise AIGatewayUnavailable("Invalid AI tool definition")
+        fn = item.get("function", {})
+        if not isinstance(fn, dict) or not isinstance(fn.get("name"), str):
+            raise AIGatewayUnavailable("Invalid AI tool definition")
+        allowed_names.add(fn["name"])
+    base_url, token = connection
+    payload = {
+        "model": model_id, "messages": messages, "stream": False,
+        "max_tokens": 180, "temperature": 0, "tools": tools,
+        "tool_choice": "auto", "parallel_tool_calls": False,
+    }
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if len(body) > 14500:
+        raise AIGatewayUnavailable("Tool selection context too large")
+    request = Request(base_url + "/chat/completions", data=body, method="POST", headers={
+        "Authorization": f"Bearer {token}", "Content-Type": "application/json",
+        "Accept": "application/json", **project_headers(),
+    })
+    try:
+        with build_opener(ProxyHandler({}), NoRedirect()).open(
+            request, timeout=min(20, max(2, int(timeout_seconds))),
+        ) as response:
+            if response.status != 200:
+                raise AIGatewayUnavailable("AI Platform rejected tool selection")
+            raw = response.read(32769)
+    except (HTTPError, URLError, OSError, TimeoutError) as exc:
+        raise AIGatewayUnavailable("AI Platform tool selection unavailable") from exc
+    if len(raw) > 32768:
+        raise AIGatewayUnavailable("Oversized tool selection response")
+    try:
+        data = json.loads(raw)
+        msg = data["choices"][0]["message"]
+        calls = msg.get("tool_calls") or []
+        usage = data.get("usage") or {}
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
+        raise AIGatewayUnavailable("Malformed tool selection response") from exc
+    if not isinstance(calls, list) or len(calls) > 1:
+        raise AIGatewayUnavailable("Parallel or malformed tool calls prohibited")
+    selected = None
+    if calls:
+        fn = calls[0].get("function") if isinstance(calls[0], dict) else None
+        if not isinstance(fn, dict) or fn.get("name") not in allowed_names:
+            raise AIGatewayUnavailable("AI tried to call an unapproved tool")
+        arg_raw = fn.get("arguments")
+        if not isinstance(arg_raw, str) or len(arg_raw) > 250:
+            raise AIGatewayUnavailable("AI tool arguments invalid")
+        try:
+            args = json.loads(arg_raw)
+        except ValueError as exc:
+            raise AIGatewayUnavailable("AI tool arguments malformed") from exc
+        if not isinstance(args, dict):
+            raise AIGatewayUnavailable("AI tool arguments invalid")
+        selected = {"name": fn["name"], "arguments": args}
+    answer = msg.get("content")
+    if answer is not None and (not isinstance(answer, str) or len(answer) > 1800):
+        raise AIGatewayUnavailable("Invalid preliminary AI reply")
+    return selected, answer, {
+        "input_tokens": usage.get("prompt_tokens") if type(usage.get("prompt_tokens")) is int else 0,
+        "output_tokens": usage.get("completion_tokens") if type(usage.get("completion_tokens")) is int else 0,
+    }

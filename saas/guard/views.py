@@ -502,7 +502,10 @@ def assistant_chat(request):
             # Provider I/O never runs inside a DB transaction or with a seller
             # row lock held; AI quotas are reserved separately and atomically.
             try:
-                answer = smart_store_reply(request.user.pk, account, question.strip())
+                answer = smart_store_reply(
+                    request.user.pk, account, question.strip(),
+                    use_mcp=(request.POST.get("mcp_consent") == "yes"),
+                )
             except AIGatewayUnavailable:
                 mode = "basic"
                 answer = (
@@ -512,6 +515,10 @@ def assistant_chat(request):
                 )
             with transaction.atomic():
                 User.objects.select_for_update().get(pk=request.user.pk)
+                # A paid Smart entitlement may expire or be revoked while the
+                # model/tool call is in flight. Do not persist any stale reply.
+                if not has_plan_capability(request.user.pk, "web_assistant_basic"):
+                    return HttpResponse("Доступ к помощнику завершился.", status=403)
                 # Recheck under the row lock: concurrent Standard or Smart
                 # requests must not bypass the limit during a gateway call.
                 if _assistant_message_limit_reached(request.user.pk, timezone.now(), daily_limit=daily_limit):
