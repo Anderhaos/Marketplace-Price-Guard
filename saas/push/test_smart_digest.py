@@ -97,6 +97,18 @@ class SmartDailyDigestTests(TestCase):
         self.assertNotIn("Проверьте товар WB", digest.body)
         self.assertEqual(digest.url, "/notifications/")
 
+    def test_overlapping_valid_grants_produce_one_smart_digest(self):
+        user = self.create_user_store("overlap-access", plan="standard")
+        now = timezone.now()
+        AccessGrant.objects.create(
+            user=user, source="admin", source_ref="smart-overlap-access",
+            plan="smart", starts_at=now - timedelta(minutes=10),
+            ends_at=now + timedelta(days=3),
+        )
+        self.assertEqual(create_daily_digests(now=now), 1)
+        self.assertEqual(PushMessage.objects.filter(user=user, kind="digest").count(), 1)
+        self.assertIn("NoSale Smart", PushMessage.objects.get(user=user, kind="digest").title)
+
     def test_no_digest_for_expired_revoked_or_future_subscription(self):
         now = timezone.now()
         expired = self.create_user_store("expired-access", plan="smart")
