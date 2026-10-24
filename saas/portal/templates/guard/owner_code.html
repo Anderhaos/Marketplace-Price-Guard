@@ -29,7 +29,7 @@
       <button type="submit" name="action" value="resend" class="welcome-submit">Запросить новый код</button>
     </form>
     <p class="welcome-form-help">Повторная отправка доступна не чаще одного раза в минуту. После пяти ошибок код блокируется до окончания срока действия.</p>
-    <div class="welcome-form-help"><a href="{% url 'logout' %}">Выйти из аккаунта</a></div>
+    <div class="welcome-form-help"><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Выйти из аккаунта</button></form></div>
   </section>
 </div>
 {% endblock %}
