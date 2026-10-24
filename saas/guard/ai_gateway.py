@@ -1,14 +1,13 @@
 """NoSale -> AI Platform Gateway (OpenAI-compatible /v1/chat/completions).
 
 Never calls providers directly and never follows redirects to an arbitrary host.
-All auth is provided by the server environment, not by seller browser requests.
+Auth is provided by the encrypted owner connection or server override, never the seller browser.
 """
 import json
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from django.conf import settings
+from billing.ai_platform_connection import runtime_gateway, project_headers
 
 
 class AIGatewayUnavailable(Exception):
@@ -21,32 +20,15 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def is_gateway_configured():
-    return bool(
-        getattr(settings, "NOSALE_AI_GATEWAY_URL", "")
-        and getattr(settings, "NOSALE_AI_SERVICE_TOKEN", "")
-    )
-
-
-def _gateway_url():
-    url = getattr(settings, "NOSALE_AI_GATEWAY_URL", "")
-    parsed = urlparse(url)
-    host = parsed.hostname or ""
-    try:
-        port = parsed.port
-    except ValueError as exc:
-        raise AIGatewayUnavailable("Invalid AI gateway port") from exc
-    if (parsed.scheme != "https" or parsed.username or parsed.password or port
-            or parsed.query or parsed.fragment or parsed.path != "/v1/chat/completions"
-            or not host.endswith(".svdev.pro")):
-        raise AIGatewayUnavailable("AI Platform endpoint is not trusted")
-    return url
+    return runtime_gateway() is not None
 
 
 def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds):
-    if not is_gateway_configured():
+    connection = runtime_gateway()
+    if not connection:
         raise AIGatewayUnavailable("NoSale AI Platform integration is not configured")
-    url = _gateway_url()
-    token = settings.NOSALE_AI_SERVICE_TOKEN
+    base_url, token = connection
+    url = base_url + "/chat/completions"
     body = {
         "model": model_id,
         "messages": messages,
@@ -61,6 +43,7 @@ def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds):
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
+        **project_headers(),
     })
     try:
         # Refuse proxies and redirects; HTTPError includes 3xx/4xx/5xx.

@@ -1,5 +1,29 @@
 # NoSale Smart — AI Platform Gateway integration runbook
 
+> **Обновление 24.10.2026.** Сверено с работающим подходом MiniBook/BeClients Telegram Administrator:
+> `backend/src/modules/ai-platform/ai-platform-gateway-connection.service.ts`
+> и `ai-platform-project-headers.ts`. Для NoSale реализована **та же семантика**:
+> Django Admin владельца → «Подключение AI Platform» (вход только `is_superuser`) →
+> URL `https://platform.svdev.pro/v1` + сервисный ключ **только своего проекта NoSale** →
+> шифрование ключа существующим `TOKEN_ENCRYPTION_KEY` → действие
+> «Проверить подключение и загрузить модели» → `GET /v1/models?category=chat`
+> → список действительных chat-model IDs → «Настройки AI владельца» →
+> выбор модели из проверенного каталога, budget/quota, включить AI. Подключение
+> использует `X-AI-Project-Key: nosale`, без копирования провайдерских ключей.
+>
+> Ключ теперь **можно вводить в защищённой админке**, как в MiniBook.
+> В переменных окружения `NOSALE_AI_GATEWAY_URL/NOSALE_AI_SERVICE_TOKEN`
+> оставлена только аварийная/обратная совместимость: если они заданы, имеют приоритет
+> над административным подключением. Не хранить одинаковый ключ одновременно в двух местах.
+> Существующие указания ниже о ручном заполнении `.env` считать fallback-инструкцией,
+> а не обязательным пользовательским шагом. Внешние live-подключения нельзя считать
+> проверенными без персонального project service token и позитивного `Verify`.
+>
+> Сервисные ключи не отображаются повторно в Django Admin, а в самой AI Platform
+> следует независимо установить `allowedModels`, месячный лимит затрат и rate limiting.
+> По умолчанию AI OFF, банковские платежи OFF, WB network OFF на staging.
+
+
 **Дата:** 2026-10-23. **Branch / Draft PR:** `feature/nosale-r4-store-evidence-gateway` / #16. **Статус:** программный AI-шлюз и тесты реализованы; **живой AI-моделью и реальными продавцами НЕ подтверждено**, фискализация и коммерческий выпуск не готовы.
 
 ## Границы

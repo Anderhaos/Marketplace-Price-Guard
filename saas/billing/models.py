@@ -90,3 +90,38 @@ class OwnerTariffOffer(models.Model):
         verbose_name = "Тариф для продажи"
         verbose_name_plural = "Тарифы для продажи"
         ordering = ["slug"]
+
+
+class OwnerAIGatewayConnection(models.Model):
+    """Private per-product AI Platform connection, as in MiniBook gateway settings.
+
+    The key is Fernet-encrypted with the SaaS secret; admin form never displays it.
+    Project-specific upstream keys stay exclusively in AI Platform.
+    """
+    id = models.PositiveSmallIntegerField(primary_key=True, editable=False)
+    base_url = models.URLField(default="https://platform.svdev.pro/v1", max_length=255)
+    catalog_mode = models.CharField(
+        max_length=12, choices=[("curated", "Curated"), ("scoped", "Chat only"), ("full", "Full")],
+        default="scoped",
+    )
+    encrypted_service_token = models.TextField(blank=True, editable=False)
+    catalog_models = models.JSONField(default=list, blank=True, editable=False)
+    last_checked_at = models.DateTimeField(null=True, blank=True, editable=False)
+    last_check_ok = models.BooleanField(null=True, blank=True, editable=False)
+    last_check_message = models.CharField(max_length=220, blank=True, editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return "AI Platform — подключение NoSale"
+
+    @property
+    def configured(self):
+        return bool(self.encrypted_service_token)
+
+    class Meta:
+        verbose_name = "Подключение AI Platform"
+        verbose_name_plural = "Подключение AI Platform"
