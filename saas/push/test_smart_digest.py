@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from billing.models import AccessGrant
@@ -96,6 +96,39 @@ class SmartDailyDigestTests(TestCase):
         self.assertNotIn("Smart", digest.title)
         self.assertNotIn("Проверьте товар WB", digest.body)
         self.assertEqual(digest.url, "/notifications/")
+
+    def test_no_digest_for_expired_revoked_or_future_subscription(self):
+        now = timezone.now()
+        expired = self.create_user_store("expired-access", plan="smart")
+        AccessGrant.objects.filter(user=expired).update(ends_at=now - timedelta(seconds=1))
+        revoked = self.create_user_store("revoked-access", plan="smart")
+        AccessGrant.objects.filter(user=revoked).update(revoked_at=now)
+        future = self.create_user_store("future-access", plan="smart")
+        AccessGrant.objects.filter(user=future).update(
+            starts_at=now + timedelta(hours=1), ends_at=now + timedelta(days=2),
+        )
+        self.assertEqual(create_daily_digests(now=now), 0)
+        self.assertFalse(PushMessage.objects.filter(kind="digest").exists())
+        # Opt-in settings are preserved for a legitimate later renewal.
+        self.assertEqual(NotificationPreference.objects.filter(
+            user__in=(expired, revoked, future), daily_enabled=True,
+        ).count(), 3)
+        # When one of those subscribers renews, digest resumes immediately.
+        AccessGrant.objects.create(
+            user=expired, source="admin", source_ref="renewed-test-access",
+            plan="standard", starts_at=now - timedelta(seconds=1),
+            ends_at=now + timedelta(days=1),
+        )
+        self.assertEqual(create_daily_digests(now=now), 1)
+        renewed = PushMessage.objects.get(user=expired, kind="digest")
+        self.assertNotIn("Smart", renewed.title)
+
+    @override_settings(SAAS_ACCESS_ENFORCED=False)
+    def test_legacy_access_disabled_keeps_daily_digest(self):
+        user = self.create_user_store("legacy-digest", plan="standard")
+        AccessGrant.objects.filter(user=user).delete()
+        self.assertEqual(create_daily_digests(now=timezone.now()), 1)
+        self.assertEqual(PushMessage.objects.filter(user=user, kind="digest").count(), 1)
 
     def test_digest_skips_opted_out_seller(self):
         user = self.create_user_store("optedout", plan="smart")
