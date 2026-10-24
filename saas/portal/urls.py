@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.urls import path
+from django.http import HttpResponseNotAllowed
+from django.shortcuts import redirect
 from django.views.generic import RedirectView
 
 from guard import views, email_pin
@@ -9,7 +11,23 @@ from guard.forms import EmailLoginForm
 from push import views as push_views
 from billing import views as billing_views
 
+def admin_login_gateway(request):
+    """Use the rate-limited email/PIN login instead of Django's raw password form.
+
+    A four-digit seller PIN must never be authenticated through an unthrottled
+    second form. Legacy deployments retain the standard admin login.
+    """
+    if not settings.SAAS_PIN_AUTH_ENABLED:
+        return admin.site.login(request)
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    if request.user.is_authenticated:
+        return redirect("admin:index" if request.user.is_staff else "dashboard")
+    return redirect("/login/?next=/admin/")
+
+
 urlpatterns = [
+    path("admin/login/", admin_login_gateway, name="nosale_admin_pin_login"),
     path("favicon.ico", RedirectView.as_view(url="/favicon.svg", permanent=False)),
     path("favicon.svg", views.favicon, name="favicon"),
     path("manifest.webmanifest", views.pwa_manifest, name="pwa_manifest"),
