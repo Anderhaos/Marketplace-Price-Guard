@@ -29,3 +29,28 @@ class OwnerAdminStepupTests(TestCase):
         response = self.client.post("/admin/code/", {"code": "0042"})
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.client.get("/admin/").status_code, 200)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="NoSale <noreply@svdev.pro>",
+    )
+    def test_retry_limit_and_single_use(self):
+        from unittest.mock import patch
+        from guard.models import EmailPinChallenge
+        from django.core import mail
+        user = User.objects.create_superuser(
+            username="retry-owner@example.test", email="retry-owner@example.test",
+            password="synthetic-only",
+        )
+        self.client.force_login(user)
+        with patch("guard.email_pin.secrets.randbelow", return_value=42):
+            self.client.get("/admin/code/")
+        self.assertEqual(len(mail.outbox), 1)
+        for attempt in range(5):
+            self.assertEqual(self.client.post("/admin/code/", {"code": "9999"}).status_code, 200)
+        challenge = EmailPinChallenge.objects.get(purpose="owner")
+        self.assertEqual(challenge.attempts, 5)
+        self.assertNotEqual(self.client.post("/admin/code/", {"code": "0042"}).status_code, 302)
+        self.client.post("/admin/code/", {"action": "resend"})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertNotEqual(self.client.get("/admin/").status_code, 200)
