@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements-mcp.txt
       - name: Test-only Fernet key
         run: echo "TOKEN_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
       - name: Django validation
@@ -38,3 +38,6 @@ jobs:
         run: |
           docker build -t mpnosale-saas-ci .
           docker run --rm -e DJANGO_DEBUG=1 -e SAAS_TEST_SQLITE=1 mpnosale-saas-ci python manage.py check
+          docker build -t mpnosale-mcp-ci -f Dockerfile.mcp .
+          docker run --rm -e DJANGO_DEBUG=1 -e SAAS_TEST_SQLITE=1 mpnosale-mcp-ci python -c "from nosale_mcp.server import mcp; assert mcp is not None"
+
