@@ -1,0 +1,81 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+<style>
+.ir-summary{max-width:1120px}
+.ir-notice{padding:15px 18px;border:1px solid var(--hairline-color,#ccc);border-radius:10px;margin-bottom:20px;background:var(--darkened-bg,#fafafa);line-height:1.6}
+.ir-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+.ir-card{border:1px solid var(--hairline-color,#ccc);border-radius:12px;background:var(--body-bg,#fff);padding:18px;min-width:0}
+.ir-card h2{font-size:19px;margin:0 0 12px}.ir-card p{line-height:1.5;margin:7px 0}
+.ir-card strong{font-weight:700}
+.ir-card a{display:inline-block;margin-top:12px;text-decoration:underline}
+.ir-muted{color:var(--body-quiet-color,#666)}
+.ir-warning{font-weight:700}
+.ir-footer{margin:20px 0 0}
+</style>
+<div class="ir-summary">
+  <div class="ir-notice">
+    <strong>Состояние интеграций · конфигурация, а не онлайн-диагностика.</strong>
+    Показаны проверенные локальные настройки и время последней проверки AI Platform. Открытие этой страницы не обращается к WB, Ozon, MCP, банку или AI-провайдеру и не расходует лимиты.
+    Для реального подключения нужна отдельная авторизованная проверка и, где требуется, согласие владельца.
+  </div>
+  <div class="ir-grid">
+    <section class="ir-card">
+      <h2>Внутренний MCP</h2>
+      <p>Режим: <strong>{% if readiness.mcp.state == "enabled" %}Разрешён владельцем{% else %}Отключён владельцем{% endif %}</strong></p>
+      <p>Включённые инструменты WB: <strong>{{ readiness.mcp.tool_count }}</strong></p>
+      <p class="ir-muted">{% for name in readiness.mcp.tools %}{{ name }}{% if not forloop.last %}, {% endif %}{% empty %}Нет разрешённых инструментов{% endfor %}</p>
+      <p>Лимит товаров за запрос: {{ readiness.mcp.max_products|default:"—" }}</p>
+      <p class="ir-muted">Разрешение владельца не означает, что API WB доступен. MCP работает с сохранёнными сведениями.</p>
+      <a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Настроить MCP и ограничения</a>
+    </section>
+    <section class="ir-card">
+      <h2>Wildberries</h2>
+      <p>Подключённых в базе магазинов WB: <strong>{{ readiness.wb.store_count }}</strong></p>
+      <p>Обращения к WB: <strong>{% if readiness.wb.network_allowed %}Разрешены конфигурацией сервера{% else %}Отключены конфигурацией сервера{% endif %}</strong></p>
+      <p>Изменение цен: <strong>{% if readiness.wb.writes_allowed %}Разрешено технической конфигурацией; нужны права продавца{% else %}Отключено{% endif %}</strong></p>
+      <p class="ir-muted">Разрешения на запись и договорные ограничения нельзя обойти переключателем в админке.</p>
+      <a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Настройки чтения через MCP</a>
+    </section>
+    <section class="ir-card">
+      <h2>Ozon</h2>
+      <p>Адаптер API: <strong>Не реализован</strong></p>
+      <p>Магазинов Ozon в базе: {{ readiness.ozon.store_count }}</p>
+      <p>Статусный MCP-инструмент: {% if readiness.mcp.ozon_status %}Разрешён{% else %}Отключён{% endif %}</p>
+      <p class="ir-muted">Состояние адаптера не является подключением к Ozon и не подтверждает наличие данных.</p>
+      <a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Настроить статусный инструмент</a>
+    </section>
+    <section class="ir-card">
+      <h2>AI Platform и модели</h2>
+      <p>Ключ проекта: <strong>{% if readiness.ai.key_saved %}Сохранён зашифрованно{% else %}Не задан{% endif %}</strong></p>
+      <p>Последняя проверка: <strong>{% if readiness.ai.last_verified %}Успешная{% else %}Нет подтверждённой успешной проверки{% endif %}</strong></p>
+      <p class="ir-muted">{% if readiness.ai.last_checked_at %}Дата проверки: {{ readiness.ai.last_checked_at|date:"d.m.Y H:i" }}{% else %}Проверка ещё не проводилась{% endif %}</p>
+      <p>Модель: {{ readiness.ai.selected_model }}</p>
+      <p>Модель в проверенном каталоге: {% if readiness.ai.model_verified %}Да{% else %}Нет{% endif %}</p>
+      <p>AI Smart: <strong>{% if readiness.ai.usable %}Настроен для работы; доступность провайдера не проверялась сейчас{% else %}Не готов к запросам{% endif %}</strong></p>
+      <p>Бюджет NoSale: {{ readiness.ai.monthly_budget_kopeks }} коп./мес.</p>
+      <a href="{% url 'admin:billing_owneraigatewayconnection_changelist' %}">Подключение AI Platform</a>
+      <a href="{% url 'admin:billing_owneraisettings_changelist' %}">Модель и бюджет</a>
+    </section>
+    <section class="ir-card">
+      <h2>Оплата и фискализация</h2>
+      <p>Платёжный шлюз: <strong>{% if readiness.payments.enabled_by_deploy %}Разрешён настройкой развёртывания{% else %}Отключён{% endif %}</strong></p>
+      <p>Фискализация подтверждена: {% if readiness.payments.fiscalization_confirmed %}Да, настройкой развёртывания{% else %}Нет{% endif %}</p>
+      <p>Тарифов для новых покупок включено: {{ readiness.payments.enabled_tariffs }}</p>
+      <p class="ir-warning">Коммерческий запуск не подтверждён этой страницей.</p>
+      <a href="{% url 'admin:billing_ownertariffoffer_changelist' %}">Цены и тарифы</a>
+    </section>
+    <section class="ir-card">
+      <h2>Учётные записи и уведомления</h2>
+      <p>Email/PIN: {% if readiness.identity.pin_enabled %}Включён{% else %}Отключён{% endif %}</p>
+      <p>Проверка email: {% if readiness.identity.email_verification %}Требуется{% else %}Не требуется{% endif %}</p>
+      <p>Почтовый транспорт: {% if readiness.identity.delivery_mode == "console_test_only" %}Тестовая консоль (не доставляет письма){% else %}Настроен, доставка не проверена{% endif %}</p>
+      <p>Активных обычных пользователей: {{ readiness.identity.seller_count }}</p>
+      <p>Push-доставок pending/failed: {{ readiness.notifications.undelivered_count }}</p>
+      <p class="ir-muted">Статус push-шлюза не подтверждён сетевой проверкой.</p>
+      <a href="{% url 'admin:auth_user_changelist' %}">Управление пользователями</a>
+    </section>
+  </div>
+  <p class="ir-footer"><a href="{% url 'admin:admin_logentry_changelist' %}">Журнал изменений системных настроек</a> · <a href="{% url 'admin:index' %}">Назад в панель владельца</a></p>
+</div>
+{% endblock %}

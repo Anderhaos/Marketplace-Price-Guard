@@ -14,6 +14,8 @@
 <section class="owner-console" aria-label="Панель владельца NoSale">
   <h2>Управление SaaS NoSale</h2>
   <p>Этот раздел доступен только владельцу с подтверждёнными правами. Настройки сохраняются в базе данных и действуют без редактирования файлов. Данные продавцов и подключение их маркетплейсов находятся в клиентском кабинете, не здесь.</p>
+  <p><a href="{% url 'nosale_owner_integrations' %}" style="font-weight:700">Проверить готовность интеграций и сервисов →</a> <span style="color:var(--body-quiet-color,#666)">МCP, WB/Ozon, AI, тарифы, платежи, email/PIN, уведомления — без сетевых запросов</span></p>
+  <p><a href="{% url 'admin:admin_logentry_changelist' %}">Журнал изменений владельца</a></p>
   <div class="owner-tiles">
     <div class="owner-tile">
       <strong>MCP и площадки</strong>

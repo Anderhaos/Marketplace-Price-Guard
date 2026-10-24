@@ -1,6 +1,7 @@
 from decimal import Decimal
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.models import LogEntry
 from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings
 from .ai_platform_connection import (
     PlatformConnectionError, normalize_base_url, save_gateway_token, verify_gateway,
@@ -276,6 +277,52 @@ class OwnerMCPSettingsAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return self.has_module_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(LogEntry)
+class OwnerConfigurationAuditAdmin(admin.ModelAdmin):
+    """Read-only Django admin change log; never stores changed secret values."""
+    list_display = ("action_time", "user", "content_type", "object_repr", "action_name")
+    list_filter = ("action_flag", "content_type")
+    search_fields = ("user__username", "object_repr")
+    ordering = ("-action_time",)
+    list_per_page = 35
+    readonly_fields = (
+        "action_time", "user", "content_type", "object_id",
+        "object_repr", "action_flag", "get_change_message",
+    )
+    fields = readonly_fields
+    actions = None
+
+    @admin.display(description="Действие")
+    def action_name(self, obj):
+        return "Создано" if obj.is_addition() else "Изменено" if obj.is_change() else "Удалено"
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Show operational settings changes, not arbitrary uploaded seller data.
+        return qs.filter(
+            content_type__app_label="billing",
+            content_type__model__in=(
+                "ownermcpsettings", "owneraisettings",
+                "owneraigatewayconnection", "ownertariffoffer",
+            ),
+        ).select_related("user", "content_type")
+
+    def has_module_permission(self, request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
     def has_delete_permission(self, request, obj=None):
         return False
