@@ -13,12 +13,13 @@ from billing.access import has_plan_capability
 from billing.models import OwnerAISettings
 from .advisor import store_recommendations
 from .ai_gateway import AIGatewayUnavailable, gateway_chat, is_gateway_configured
+from .ai_safety import contains_credential, has_unsupported_financial_claim
 from .models import AssistantAIRequest
 
 
 def _safe_question(question):
     # WB service tokens are commonly JWT shaped. Never forward them to an LLM.
-    if re.search(r"\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}", question):
+    if contains_credential(question):
         raise AIGatewayUnavailable("Secrets cannot be sent to the assistant")
 
 
@@ -44,6 +45,8 @@ def _evidence(account):
 def _numbers_are_grounded(reply, evidence):
     # Reject numeric facts not present in our deterministic snapshot. List
     # numbering is presentation, not a numerical claim.
+    if has_unsupported_financial_claim(reply):
+        return False
     answer = re.sub(r"(?m)^\s*\d+[.)]\s*", "", reply)
     supported = set(re.findall(r"\d+", json.dumps(evidence, ensure_ascii=False)))
     return all(number in supported for number in re.findall(r"\d+", answer))
