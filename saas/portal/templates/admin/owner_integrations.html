@@ -22,6 +22,16 @@
   <div class="ir-grid">
     <section class="ir-card">
       <h2>Внутренний MCP</h2>
+      <p>Реестр разрешённых адаптеров:</p>
+      {% for item in readiness.mcp.adapters %}
+      <p><strong>{{ item.slug|upper }}</strong>:
+        {% if item.enabled %}Разрешён{% else %}Отключён владельцем{% endif %}
+        · {% if item.implementation == "read_only_cached" %}чтение сохранённых данных{% else %}API не реализован, только статус{% endif %}
+      </p>
+      {% empty %}
+      <p>Адаптеры отсутствуют — обращения MCP отклоняются</p>
+      {% endfor %}
+      <a href="{% url 'admin:billing_ownermcpadapter_changelist' %}">Управление адаптерами</a>
       <p>Режим: <strong>{% if readiness.mcp.state == "enabled" %}Разрешён владельцем{% else %}Отключён владельцем{% endif %}</strong></p>
       <p>Включённые инструменты WB: <strong>{{ readiness.mcp.tool_count }}</strong></p>
       <p class="ir-muted">{% for name in readiness.mcp.tools %}{{ name }}{% if not forloop.last %}, {% endif %}{% empty %}Нет разрешённых инструментов{% endfor %}</p>
