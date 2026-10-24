@@ -160,6 +160,52 @@ class TwoTariffTests(TestCase):
         self.assertEqual(SubscriptionPayment.objects.get(user=self.user).amount_kopeks, 99000)
         self.assertEqual(SubscriptionPayment.objects.get(user=self.user).plan, "smart")
 
+    def test_purchase_date_preview_matches_bank_grant_after_queued_periods(self):
+        now = timezone.now()
+        active = AccessGrant.objects.create(
+            user=self.user, source="trial", source_ref="trial:preview",
+            plan="standard", starts_at=now - timedelta(hours=1),
+            ends_at=now + timedelta(days=1),
+        )
+        queued = AccessGrant.objects.create(
+            user=self.user, source="payment", source_ref="preview:queued",
+            plan="smart", starts_at=active.ends_at,
+            ends_at=active.ends_at + timedelta(days=30),
+        )
+        AccessGrant.objects.create(
+            user=self.user, source="payment", source_ref="preview:revoked",
+            plan="smart", starts_at=queued.ends_at,
+            ends_at=queued.ends_at + timedelta(days=30),
+            revoked_at=now,
+        )
+        snapshot = access_snapshot(self.user.pk)
+        self.assertEqual(snapshot["next_purchase_starts_at"], queued.ends_at)
+        page = self.client.get(reverse("subscription"))
+        self.assertEqual(page.context["subscription_state"]["next_purchase_starts_at"], queued.ends_at)
+        self.assertContains(page, "Ориентировочное начало нового оплаченного периода")
+        self.assertContains(page, "Окончательная дата фиксируется после подтверждения банком")
+        payment = create_checkout(self.user.pk, plan="standard")
+        self.assertEqual(apply_verified_event(self.bank_event(payment)), "activated")
+        grant = AccessGrant.objects.get(source_ref=f"nosale:tochka:{payment.pk}")
+        self.assertEqual(grant.starts_at, queued.ends_at)
+
+    def test_purchase_date_preview_ignores_expired_and_revoked_grants(self):
+        now = timezone.now()
+        AccessGrant.objects.create(
+            user=self.user, source="payment", source_ref="preview:expired",
+            plan="standard", starts_at=now - timedelta(days=20),
+            ends_at=now - timedelta(days=1),
+        )
+        AccessGrant.objects.create(
+            user=self.user, source="payment", source_ref="preview:revoked-only",
+            plan="smart", starts_at=now,
+            ends_at=now + timedelta(days=90), revoked_at=now,
+        )
+        preview = access_snapshot(self.user.pk)["next_purchase_starts_at"]
+        self.assertLess(abs((preview - now).total_seconds()), 5)
+        page = self.client.get(reverse("subscription"))
+        self.assertContains(page, "после подтверждения оплаты банком")
+
     def test_unavailable_or_unknown_plan_does_not_create_checkout(self):
         self.client.post(reverse("billing_checkout"), {"plan": "something_else"})
         with override_settings(NOSALE_SMART_MONTHLY_PRICE_RUB="0"):
