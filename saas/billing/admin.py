@@ -45,10 +45,17 @@ class OwnerAISettingsForm(forms.ModelForm):
 class OwnerAISettingsAdmin(admin.ModelAdmin):
     form = OwnerAISettingsForm
     """Operational controls require superuser, not mere staff permission."""
-    list_display = ("__str__", "ai_enabled", "gateway_model_id", "standard_questions_per_day",
+    list_display = ("__str__", "web_assistant_enabled", "web_messages_per_day", "ai_enabled", "gateway_model_id", "standard_questions_per_day",
                     "smart_questions_per_day", "monthly_budget_kopeks", "updated_at")
     readonly_fields = ("updated_at",)
     fieldsets = (
+        ("Веб-помощник Standard / Smart", {
+            "fields": ("web_assistant_enabled", "web_messages_per_day"),
+            "description": (
+                "Встроенный чат без Telegram: отключение блокирует оба режима, "
+                "но не контроль скидок WB. Общий суточный лимит не отменяет защиту 8/мин."
+            ),
+        }),
         ("AI Platform", {"fields": ("ai_enabled", "gateway_model_id", "prompt_version",
                                      "system_instructions", "timeout_seconds", "max_output_tokens")}),
         ("Лимиты и бюджет", {
