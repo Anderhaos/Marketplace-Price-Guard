@@ -9,6 +9,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from billing.models import AccessGrant
 from guard.models import GuardAccount, GuardEvent, Product
 from push.models import NotificationPreference, PushDelivery, PushMessage, PushSubscription
 from push.service import (
@@ -212,6 +213,12 @@ class PushTests(TestCase):
             account=self.shop, kind="confirmed", message="confirmed",
             created_at=now - timedelta(hours=1),
             details={"changes": [{"nm_id": 101}, {"nm_id": 102}]},
+        )
+        AccessGrant.objects.create(
+            user=self.alice, plan="standard", source="admin",
+            source_ref="push-digest-alice-test",
+            starts_at=now - timedelta(days=1),
+            ends_at=now + timedelta(days=1),
         )
         self.assertEqual(create_daily_digests(now=now), 1)
         self.assertEqual(create_daily_digests(now=now + timedelta(minutes=1)), 0)
