@@ -184,9 +184,28 @@ class EmailFirstWelcomeTests(TestCase):
             # even when the feature flag is accidentally present.
             r = self.client.get("/auth/code/", HTTP_HOST="testserver")
             self.assertNotContains(r, 'class="auth-flow-test-digits"')
-            with override_settings(SAAS_WB_NETWORK_ENABLED=True):
+            with override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=False):
                 r = self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926")
                 self.assertNotContains(r, 'class="auth-flow-test-digits"')
+            with override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=True):
+                r = self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926")
+                self.assertContains(r, 'class="auth-flow-test-digits"')
+                self.assertContains(r, code)
+                with override_settings(DEBUG=False):
+                    self.assertNotContains(
+                        self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926"),
+                        'class="auth-flow-test-digits"',
+                    )
+                with override_settings(TOCHKA_BILLING_ENABLED=True):
+                    self.assertNotContains(
+                        self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926"),
+                        'class="auth-flow-test-digits"',
+                    )
+                with override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend"):
+                    self.assertNotContains(
+                        self.client.get("/auth/code/", HTTP_HOST="127.0.0.1:8926"),
+                        'class="auth-flow-test-digits"',
+                    )
             r = self.client.post(
                 "/auth/code/", {"code": code}, HTTP_HOST="127.0.0.1:8926"
             )
