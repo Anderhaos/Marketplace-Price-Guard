@@ -96,7 +96,7 @@ class OwnerProvisioningTests(TestCase):
     def test_dry_run_idempotence_and_actual_admin_access(self):
         url = reverse("admin:index")
         self.client.force_login(self.user)
-        self.assertEqual(self.client.get(url).status_code, 302)
+        # Registered owner has no system rights until explicitly provisioned.\n        self.assertEqual(self.client.get(url).status_code, 403)
         with patch.dict("os.environ", {"NOSALE_OWNER_EMAIL": self.user.email}):
             self.assertIn("Run with --confirm", self.call())
             self.user.refresh_from_db()
