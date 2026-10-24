@@ -134,6 +134,56 @@ class OwnerAIGatewayConnection(models.Model):
         verbose_name_plural = "Подключение AI Platform"
 
 
+class OwnerMCPAdapter(models.Model):
+    """Owner-operated registry of reviewed in-process MCP marketplace adapters.
+
+    Only known first-party adapter drivers exist. Enabling a row never installs
+    code, adds a new URL, accepts credentials, or enables marketplace writes.
+    """
+    KNOWN = {
+        "wb": ("Wildberries", "read_only_cached"),
+        "ozon": ("Ozon", "status_only_unimplemented"),
+    }
+    slug = models.CharField(
+        max_length=16, primary_key=True, editable=False,
+        choices=[("wb", "Wildberries"), ("ozon", "Ozon")],
+    )
+    enabled = models.BooleanField(
+        default=True, verbose_name="Разрешён владельцем",
+        help_text=(
+            "Отключение запрещает вызовы всех MCP-инструментов этой площадки. "
+            "Защита WB через прямой API и другие площадки продолжают работать."
+        ),
+    )
+    implementation = models.CharField(
+        max_length=32, editable=False, choices=[
+            ("read_only_cached", "Встроен: чтение сохранённых данных"),
+            ("status_only_unimplemented", "Только статус: API не подключён"),
+        ],
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if self.slug not in self.KNOWN:
+            raise ValueError("Unsupported MCP marketplace adapter")
+        # The implementation type is a compiled safety boundary, not a flag.
+        self.implementation = self.KNOWN[self.slug][1]
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def permits(cls, slug):
+        if slug not in cls.KNOWN:
+            return False
+        return cls.objects.filter(slug=slug, enabled=True).exists()
+
+    def __str__(self):
+        return self.KNOWN.get(self.slug, (self.slug, ""))[0]
+
+    class Meta:
+        verbose_name = "Адаптер MCP маркетплейса"
+        verbose_name_plural = "Адаптеры MCP маркетплейсов"
+
+
 class OwnerMCPSettings(models.Model):
     """Singleton owner-operated policy for installed read-only MCP tools.
 
@@ -190,9 +240,12 @@ class OwnerMCPSettings(models.Model):
         }
         if name not in names or not self.enabled:
             return False
+        marketplace = "wb" if name.startswith("wb_") else "ozon"
         if name.startswith("wb_") and not self.wb_enabled:
             return False
-        return bool(getattr(self, names[name]))
+        # A fresh PostgreSQL read gates every client and server tool call.
+        # Missing adapters fail closed; seller-provided data cannot register one.
+        return bool(getattr(self, names[name])) and OwnerMCPAdapter.permits(marketplace)
 
     class Meta:
         verbose_name = "Инструменты MCP владельца"
