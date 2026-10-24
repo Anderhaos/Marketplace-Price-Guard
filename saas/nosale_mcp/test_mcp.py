@@ -21,7 +21,7 @@ class FirstPartyMCPTests(TestCase):
     def setUp(self):
         self.owner = User.objects.create_user("mcp-owner@example.test", "mcp-owner@example.test", "password12345")
         self.other = User.objects.create_user("mcp-other@example.test", "mcp-other@example.test", "password12345")
-        self.store = GuardAccount.objects.create(user=self.owner, name="WB test", marketplace="wb", default_allowed_discount=15)
+        self.store = GuardAccount.objects.create(user=self.owner, name="WB test", marketplace="wb", default_allowed_discount=15, token_ciphertext="synthetic-placeholder-not-decryptable")
         self.other_store = GuardAccount.objects.create(user=self.other, name="Secret other WB", marketplace="wb")
         self.ozon_store = GuardAccount.objects.create(user=self.owner, name="Ozon test", marketplace="ozon")
         self.grant = AccessGrant.objects.create(
