@@ -1,6 +1,5 @@
 """Subscription purchase screens and signed Tochka webhook entrypoint."""
 import logging
-from decimal import Decimal
 
 from django.conf import settings
 from django.contrib import messages
@@ -10,10 +9,11 @@ from django.shortcuts import redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .models import SubscriptionPayment
+from .models import AccessGrant, SubscriptionPayment
+from .plans import tariff_offers
 from .service import apply_verified_event, create_checkout
 from .tochka import (
-    AcquiringUnavailable, InvalidWebhook, approved_price_kopeks,
+    AcquiringUnavailable, InvalidWebhook,
     configured, verify_tochka_webhook,
 )
 from .trial import access_snapshot
@@ -28,7 +28,7 @@ def subscription(request):
     payments = SubscriptionPayment.objects.filter(user=request.user).order_by("-created_at")[:8]
     return render(request, "billing/subscription.html", {
         "billing_enabled": configured(),
-        "tariff_price": Decimal(approved_price_kopeks()) / 100 if configured() else None,
+        "tariff_offers": tariff_offers(),
         "subscription_state": access_snapshot(request.user.pk),
         "payments": payments,
     })
@@ -41,7 +41,7 @@ def checkout(request):
         messages.info(request, "Приём платежей пока не открыт.")
         return redirect("subscription")
     try:
-        payment = create_checkout(request.user.pk)
+        payment = create_checkout(request.user.pk, plan=request.POST.get("plan", "standard"))
     except AcquiringUnavailable:
         _log.warning("nosale_billing_link_unavailable")
         messages.error(request, "Платёжная ссылка временно недоступна. Деньги не списаны.")
@@ -61,8 +61,13 @@ def payment_return(request):
     if payment is None:
         return redirect("subscription")
     # A browser-controlled return URL never activates access.
+    paid_grant = AccessGrant.objects.filter(
+        source_ref=f"nosale:tochka:{payment.pk}", user=request.user,
+        source="payment",
+    ).first() if payment.status == "paid" else None
     return render(request, "billing/return.html", {
-        "payment": payment, "subscription_state": access_snapshot(request.user.pk),
+        "payment": payment, "paid_grant": paid_grant,
+        "subscription_state": access_snapshot(request.user.pk),
     })
 
 

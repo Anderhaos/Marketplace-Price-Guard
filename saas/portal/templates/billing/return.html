@@ -5,7 +5,7 @@
   <span class="eyebrow">NoSale / платёж</span>
   <h1 style="font-size:25px">{% if payment.status == "paid" %}Оплата получена{% elif payment.status == "pending" %}Проверяем поступление оплаты{% elif payment.status == "refunded" %}Платёж возвращён{% else %}Платёж не завершён{% endif %}</h1>
   {% if payment.status == "paid" %}
-    <p class="lead">Подписка активирована после подтверждения банка. Доступ можно проверить в разделе подписки.</p>
+    <p class="lead">Оплачен тариф <b>{{ payment.get_plan_display }}</b>. {% if paid_grant %}Доступ начнётся {{ paid_grant.starts_at|date:"d.m.Y H:i" }} и действует до {{ paid_grant.ends_at|date:"d.m.Y H:i" }}.{% else %}Доступ будет отражён в разделе подписки после подтверждения банка.{% endif %}</p>
   {% elif payment.status == "pending" %}
     <p class="lead">Банк ещё не подтвердил платёж. Если вы оплатили, информация обновится после получения уведомления Точки. Не создавайте повторный платёж сразу.</p>
   {% else %}

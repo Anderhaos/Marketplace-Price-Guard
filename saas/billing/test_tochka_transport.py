@@ -45,7 +45,7 @@ class FakeOpener:
 )
 class TochkaTransportContractTests(SimpleTestCase):
     def setUp(self):
-        self.payment = SimpleNamespace(pk=42, amount_kopeks=99000, period_months=1)
+        self.payment = SimpleNamespace(pk=42, amount_kopeks=99000, plan="standard", period_months=1)
 
     def test_creates_real_documented_payment_link_request_and_parses_bank_data(self):
         opener = FakeOpener(FakeResponse({"Data": {

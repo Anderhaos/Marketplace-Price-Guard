@@ -28,24 +28,24 @@ def _add_months(date, months):
     return date.replace(year=year, month=month, day=min(date.day, calendar.monthrange(year, month)[1]))
 
 
-def create_checkout(user_id):
+def create_checkout(user_id, *, plan="standard"):
     if not configured():
         raise AcquiringUnavailable("Оплата пока не подключена")
     payment_error = None
     with transaction.atomic():
         # Serialized per seller: repeated clicks reuse the same unexpired link.
         user = get_user_model().objects.select_for_update().get(pk=user_id)
-        amount = approved_price_kopeks()
+        amount = approved_price_kopeks(plan)
         now = timezone.now()
         existing = SubscriptionPayment.objects.filter(
-            user=user, provider="tochka", status="pending",
+            user=user, provider="tochka", status="pending", plan=plan,
             amount_kopeks=amount, period_months=1,
             link_expires_at__gt=now,
         ).exclude(payment_url="").order_by("-created_at").first()
         if existing:
             return existing
         payment = SubscriptionPayment.objects.create(
-            user=user, provider="tochka", amount_kopeks=amount,
+            user=user, provider="tochka", plan=plan, amount_kopeks=amount,
             currency="RUB", period_months=1,
             link_expires_at=now + timedelta(minutes=30),
         )
@@ -95,6 +95,8 @@ def apply_verified_event(payload):
     payment = SubscriptionPayment.objects.select_for_update().get(pk=candidate.pk)
     if payment is None:
         raise InvalidWebhook("Unknown payment")
+    if payment.plan not in ("standard", "smart"):
+        raise InvalidWebhook("Unsupported stored plan")
     if payment.operation_id and payment.operation_id != operation:
         raise InvalidWebhook("Wrong operation ID")
     if (str(event["merchant_id"]) != settings.TOCHKA_MERCHANT_ID
@@ -135,7 +137,7 @@ def apply_verified_event(payload):
     start = max(now, previous.ends_at) if previous else now
     AccessGrant.objects.create(
         user_id=payment.user_id,
-        source="payment",
+        source="payment", plan=payment.plan,
         source_ref=f"nosale:tochka:{payment.pk}",
         starts_at=start,
         ends_at=_add_months(start, payment.period_months),

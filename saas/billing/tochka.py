@@ -36,8 +36,18 @@ def rubles_to_kopeks(value):
     return int(amount * 100)
 
 
-def approved_price_kopeks():
-    return rubles_to_kopeks(settings.NOSALE_MONTHLY_PRICE_RUB)
+def approved_price_kopeks(plan="standard"):
+    """Server-owned plan quote. Historical payment prices are never re-read here."""
+    if plan == "standard":
+        raw = getattr(settings, "NOSALE_STANDARD_MONTHLY_PRICE_RUB", None) or settings.NOSALE_MONTHLY_PRICE_RUB
+    elif plan == "smart":
+        raw = getattr(settings, "NOSALE_SMART_MONTHLY_PRICE_RUB", "0")
+    else:
+        raise AcquiringUnavailable("Unsupported NoSale tariff")
+    try:
+        return rubles_to_kopeks(raw)
+    except (ValueError, ArithmeticError) as exc:
+        raise AcquiringUnavailable("NoSale tariff is not available to purchase") from exc
 
 
 def _from_data(response):
@@ -70,7 +80,7 @@ def create_tochka_link(payment):
         "amount": float(amount),
         "customerCode": settings.TOCHKA_CUSTOMER_CODE,
         "merchantId": settings.TOCHKA_MERCHANT_ID,
-        "purpose": f"NoSale: доступ на {payment.period_months} месяц",
+        "purpose": f"NoSale {payment.plan}: доступ на {payment.period_months} месяц",
         "paymentMode": ["card", "sbp"],
         "paymentLinkId": str(payment.pk),
         "redirectUrl": base + "/billing/return/?payment=" + str(payment.pk),

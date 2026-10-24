@@ -1,38 +1,58 @@
 {% extends "guard/base.html" %}
 {% block title %}Подписка — NoSale{% endblock %}
 {% block content %}
-<section class="card" style="max-width:660px;margin:auto">
+<section class="card" style="max-width:760px;margin:auto">
   <span class="eyebrow">NoSale / подписка</span>
-  <h1 style="font-size:26px">Управление доступом</h1>
+  <h1 style="font-size:26px">Ваш тариф</h1>
   {% if subscription_state.active %}
-    <p class="lead">{% if subscription_state.access_source == "trial" %}Ваш пробный период активен.{% else %}Ваш доступ активен.{% endif %} Действует до <b>{{ subscription_state.expires_at|date:"d.m.Y H:i" }}</b>.</p>
+    <p class="lead">Сейчас действует тариф <b>{{ subscription_state.active_plan|capfirst }}</b>
+      {% if subscription_state.access_source == "trial" %}(пробный период){% endif %}
+      до <b>{{ subscription_state.expires_at|date:"d.m.Y H:i" }}</b>.
+    </p>
   {% elif subscription_state.trial_expired %}
-    <p class="lead">5 бесплатных дней закончились. Данные магазина сохранены. Проверки будут возобновлены после оплаты.</p>
+    <p class="lead">Пробный период закончился. Данные магазина сохранены. Защита будет доступна после активации оплаченного тарифа.</p>
   {% else %}
-    <p class="lead">После подключения магазина вы получите 5 бесплатных дней. Платить за пробный период не нужно.</p>
+    <p class="lead">После подключения магазина — 5 бесплатных дней Standard. Платить за пробный период не нужно.</p>
   {% endif %}
-  <div class="notice" style="margin-top:18px">
-    <b>Месячный доступ</b>
-    {% if billing_enabled %}
-      <p style="margin:7px 0 11px">Стоимость — {{ tariff_price|floatformat:2 }} ₽ за 1 календарный месяц. Разовая оплата: автоматических списаний нет.</p>
-      <form method="post" action="{% url 'billing_checkout' %}">{% csrf_token %}
-        <button type="submit">Перейти к оплате</button>
-      </form>
-    {% else %}
-      <p class="muted" style="margin:7px 0 0">Оплата пока не подключена. Мы откроем её после настройки платёжного провайдера. Ничего не спишется автоматически.</p>
-    {% endif %}
+  {% if subscription_state.upcoming_plan %}
+    <p class="notice">Оплаченный тариф <b>{{ subscription_state.upcoming_plan|capfirst }}</b> начнёт действовать {{ subscription_state.upcoming_starts_at|date:"d.m.Y H:i" }}. До этой даты функции Smart, если они ещё не активны, остаются недоступными.</p>
+  {% endif %}
+  <h2 style="font-size:18px">Тарифы на месяц</h2>
+  <p class="muted">Оплата разовая, автоматического продления и списаний нет. При покупке следующего тарифа оплаченный месяц начнётся после окончания существующего доступа.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">
+    {% for offer in tariff_offers %}
+      <div class="notice" style="margin:0">
+        <h3 style="font-size:19px;margin:0 0 8px">{{ offer.name }}</h3>
+        <p style="margin:0 0 14px">{{ offer.description }}</p>
+        {% if offer.price_rub %}
+          <p><strong>{{ offer.price_rub|floatformat:2 }} ₽ / месяц</strong></p>
+        {% else %}
+          <p class="muted">Стоимость пока не утверждена.</p>
+        {% endif %}
+        {% if offer.can_buy %}
+          <form method="post" action="{% url 'billing_checkout' %}">
+            {% csrf_token %}
+            <input type="hidden" name="plan" value="{{ offer.slug }}">
+            <button type="submit">Перейти к оплате {{ offer.name }}</button>
+          </form>
+        {% else %}
+          <p class="muted">Оплата этого тарифа пока недоступна.</p>
+        {% endif %}
+      </div>
+    {% endfor %}
   </div>
+  {% if not billing_enabled %}
+    <p class="muted" style="margin-top:14px">Оплата пока не подключена. Мы откроем её после настройки эквайринга и фискализации.</p>
+  {% endif %}
   {% if payments %}
-  <div style="margin-top:20px">
-    <h2 style="font-size:15px">История платежей</h2>
-    <div class="billing-payments">
+  <div style="margin-top:24px">
+    <h2 style="font-size:17px">История платежей</h2>
     {% for p in payments %}
-      <div style="display:flex;gap:10px;justify-content:space-between;border-top:1px solid var(--line);padding:10px 0;font-size:12px">
-        <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.amount_rubles|floatformat:2 }} ₽</span>
+      <div style="display:flex;gap:10px;justify-content:space-between;border-top:1px solid var(--line);padding:12px 0;font-size:13px">
+        <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.get_plan_display }} · {{ p.amount_rubles|floatformat:2 }} ₽</span>
         <strong>{% if p.status == "paid" %}Оплачено{% elif p.status == "pending" %}Ожидает оплаты{% elif p.status == "refunded" %}Возврат{% else %}Не оплачено{% endif %}</strong>
       </div>
     {% endfor %}
-    </div>
   </div>
   {% endif %}
 </section>

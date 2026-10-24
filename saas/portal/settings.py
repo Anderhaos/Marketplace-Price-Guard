@@ -80,6 +80,9 @@ TOCHKA_CUSTOMER_CODE = os.environ.get("NOSALE_TOCHKA_CUSTOMER_CODE", "")
 TOCHKA_MERCHANT_ID = os.environ.get("NOSALE_TOCHKA_MERCHANT_ID", "")
 TOCHKA_WEBHOOK_JWK_JSON = os.environ.get("NOSALE_TOCHKA_WEBHOOK_JWK_JSON", "")
 NOSALE_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_MONTHLY_PRICE_RUB", "0")
+# Standard keeps the legacy price setting for existing deployments; new prices stay OFF until approved.
+NOSALE_STANDARD_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_STANDARD_MONTHLY_PRICE_RUB")
+NOSALE_SMART_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_SMART_MONTHLY_PRICE_RUB", "0")
 NOSALE_FISCALIZATION_CONFIRMED = env_bool("NOSALE_FISCALIZATION_CONFIRMED", False)
 NOSALE_PAYMENT_RETURN_BASE = "https://nosale.svdev.pro"
 if TOCHKA_BILLING_ENABLED:
@@ -87,11 +90,15 @@ if TOCHKA_BILLING_ENABLED:
         raise RuntimeError("NoSale acquiring requires configured 54-FZ fiscal receipt issuance")
     from decimal import Decimal, InvalidOperation
     try:
-        _amount = Decimal(NOSALE_MONTHLY_PRICE_RUB)
+        _amount = Decimal(NOSALE_STANDARD_MONTHLY_PRICE_RUB or NOSALE_MONTHLY_PRICE_RUB)
+        _smart_amount = Decimal(NOSALE_SMART_MONTHLY_PRICE_RUB)
     except InvalidOperation as exc:
         raise RuntimeError("NoSale price must be a fixed positive RUB amount") from exc
     if _amount < 1 or _amount > 100000 or _amount.as_tuple().exponent < -2:
         raise RuntimeError("NoSale price must be an approved positive RUB amount")
+    if (_smart_amount < 0 or _smart_amount > 100000
+            or _smart_amount.as_tuple().exponent < -2):
+        raise RuntimeError("NoSale Smart price must be zero (disabled) or an approved RUB amount")
     if not all((TOCHKA_JWT_TOKEN, TOCHKA_CUSTOMER_CODE, TOCHKA_MERCHANT_ID, TOCHKA_WEBHOOK_JWK_JSON)):
         raise RuntimeError("NoSale Tochka merchant/JWT/webhook public key must be separately provisioned")
     if TOCHKA_API_BASE != "https://enter.tochka.com/uapi":
