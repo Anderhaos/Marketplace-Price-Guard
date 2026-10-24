@@ -227,7 +227,7 @@
       <nav class="site-nav" aria-label="Основная навигация">
         {% if user.is_authenticated %}
           {% if not onboarding_required %}
-          <a href="{% url 'dashboard' %}">Товары</a><a href="{% url 'assistant_chat' %}">Помощник</a><a href="{% url 'stores' %}">Магазины</a><a href="{% url 'settings' %}">Настройки</a><a href="{% url 'subscription' %}">Подписка</a>{% if unread_notification_count %}<a href="{% url 'notifications' %}">Оповещения · {{ unread_notification_count }}</a>{% endif %}
+          <a href="{% url 'dashboard' %}">Товары</a><a href="{% url 'assistant_chat' %}">Помощник</a><a href="{% url 'promotion_audit' %}">Акции WB</a><a href="{% url 'stores' %}">Магазины</a><a href="{% url 'settings' %}">Настройки</a><a href="{% url 'subscription' %}">Подписка</a>{% if unread_notification_count %}<a href="{% url 'notifications' %}">Оповещения · {{ unread_notification_count }}</a>{% endif %}
           {% if user.is_staff %}<a href="/admin/">Админка</a>{% endif %}
           {% endif %}
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondary">Выйти</button></form>

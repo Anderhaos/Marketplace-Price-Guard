@@ -1,0 +1,79 @@
+{% extends "guard/base.html" %}
+{% block title %}Контроль акций WB — NoSale{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <span class="eyebrow">NoSale · контроль акций</span>
+  <h1>Акции Wildberries</h1>
+  <p class="lead">Магазин «{{ account.name }}». Только чтение: проверяем календарь WB и, когда это позволяет API, сравниваем текущую и плановую цену товаров. Ни одного изменения цен или участия в акциях.</p>
+</section>
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Результат проверки</h2>
+      {% if snapshot and snapshot.fetched_at %}
+        <p>Данные на {{ snapshot.fetched_at|date:"d.m.Y H:i" }}. При изменениях в WB они могут устареть.</p>
+      {% else %}
+        <p>Пока не проверено. Без токена и разрешения на чтение API реальных данных здесь нет.</p>
+      {% endif %}
+    </div>
+    <form action="{% url 'promotion_audit' %}" method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="refresh">
+      <button type="submit" {% if not can_refresh %}disabled{% endif %}>Обновить акции</button>
+    </form>
+  </div>
+  {% if not wb_network_enabled %}
+    <p class="notice" role="status">В этом окружении чтение WB API отключено. Кнопка обновления недоступна; реальные продавцы и токены не используются для тестов.</p>
+  {% endif %}
+  {% if snapshot and snapshot.next_refresh_at %}
+    <p class="muted">Следующее допустимое обновление: {{ snapshot.next_refresh_at|date:"d.m.Y H:i" }}. Частота ограничена API Wildberries.</p>
+  {% endif %}
+  {% if snapshot and snapshot.last_error %}
+    <p class="notice" role="alert">{{ snapshot.last_error }} Ранее сохранённые данные не перезаписаны.</p>
+  {% endif %}
+  <p class="muted">Источник финансирования каждой акции не подтверждён календарём. Без финансовых отчётов, себестоимости и условий продавца нельзя утверждать, что акция выгодна или убыточна. Автоакции не раскрывают состав товаров через этот метод API.</p>
+  {% if snapshot and snapshot.partial %}
+    <p class="notice" role="status">Проверка неполная: показана только первая страница акций и ограниченная выборка товаров обычных акций. Отсутствие риска в выборке не означает отсутствия риска во всём ассортименте.</p>
+  {% endif %}
+</section>
+{% if promotions %}
+<section class="card">
+  <div class="section-head"><div><h2>Найденные акции</h2><p>{{ promotions|length }} в сохранённой выборке. Источник финансирования — не определён.</p></div></div>
+  {% for item in promotions %}
+  <article style="padding:18px 0;border-top:1px solid var(--line)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
+      <div>
+        <h3 style="font-size:18px;margin:0 0 5px">{{ item.name }}</h3>
+        <p class="muted" style="margin:0;font-size:13px">WB ID {{ item.id }} · {% if item.type == "auto" %}Автоакция{% elif item.type == "regular" %}Обычная акция{% else %}Тип не установлен{% endif %}</p>
+      </div>
+      {% if item.risk == "price_drop" %}
+      <strong style="color:var(--danger, #ef8f8f)">Возможное снижение цены</strong>
+      {% elif item.risk == "no_drop_observed" %}
+      <strong>Снижение цены не выявлено в выборке</strong>
+      {% else %}
+      <strong class="muted">Требует проверки</strong>
+      {% endif %}
+    </div>
+    {% if item.starts_at or item.ends_at %}
+    <p class="muted" style="font-size:13px">Период по WB: {{ item.starts_at|default:"—" }} — {{ item.ends_at|default:"—" }}</p>
+    {% endif %}
+    <p style="margin:10px 0">{{ item.explanation }}</p>
+    {% if item.participation %}
+      <p class="muted" style="font-size:13px;margin:0">Проверено товаров: {{ item.participation.inspected }}{% if item.participation.possibly_incomplete %} (частичная выборка){% endif %}; с плановой ценой ниже текущей: {{ item.participation.price_decreases }}; без снижения: {{ item.participation.no_price_decrease }}; без полной информации о цене: {{ item.participation.missing_prices }}.</p>
+      {% for example in item.participation.examples %}
+        <p class="muted" style="font-size:13px;margin:5px 0">WB {{ example.nm_id|default:"—" }}: {{ example.current }} ₽ → {{ example.planned }} ₽ (план).</p>
+      {% endfor %}
+    {% endif %}
+    <p class="muted" style="font-size:12px;margin:12px 0 0">Финансирование: неизвестно. NoSale не меняет участие или цену товара автоматически.</p>
+  </article>
+  {% endfor %}
+</section>
+{% elif snapshot and snapshot.fetched_at %}
+<section class="card"><p>В полученной части календаря подходящие акции не обнаружены. Это не подтверждение отсутствия всех акций.</p></section>
+{% endif %}
+<section class="card">
+  <h2>Что дальше</h2>
+  <p>Следующий этап — добровольное подключение финансовой категории WB, сопоставление выплат, себестоимости и расходов. Только после этого возможна оценка маржи. Изменения в WB остаются запрещены без отдельных правил и явного подтверждения.</p>
+  <a class="button secondary" href="{% url 'dashboard' %}">Вернуться к товарам</a>
+</section>
+{% endblock %}

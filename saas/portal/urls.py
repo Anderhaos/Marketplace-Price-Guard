@@ -6,7 +6,7 @@ from django.http import HttpResponseNotAllowed
 from django.shortcuts import redirect
 from django.views.generic import RedirectView
 
-from guard import views, email_pin
+from guard import views, email_pin, promotions_views
 from guard.forms import EmailLoginForm
 from push import views as push_views
 from billing import views as billing_views
@@ -54,6 +54,7 @@ urlpatterns = [
     path("stores/select/<int:store_id>/", views.select_store, name="select_store"),
     path("assistant/", views.assistant_chat, name="assistant_chat"),
     path("advisor/", views.store_advisor, name="store_advisor"),
+    path("promotions/", promotions_views.promotion_audit, name="promotion_audit"),
     path("settings/", views.settings_view, name="settings"),
     path("products/<int:nm_id>/", views.product_rule, name="product_rule"),
     path("products/<int:nm_id>/history-data/", views.product_history_data, name="product_history_data"),
