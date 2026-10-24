@@ -1,3 +1,4 @@
+from datetime import timedelta
 """Owner R4.1: integration status is local-only, owner-scoped, and audited."""
 from unittest.mock import patch
 
@@ -40,6 +41,16 @@ class OwnerIntegrationReadinessTests(TestCase):
         self.url = reverse("nosale_owner_integrations")
         self.assertEqual(self.url, "/admin/integrations/")
 
+    def login_verified_owner_for_unrelated_admin_tests(self):
+        # These tests cover integration-readiness and audit, not code delivery.
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session["nosale_owner_admin_verified"] = {
+            "user_id": self.owner.pk,
+            "valid_until": (timezone.now() + timedelta(minutes=10)).timestamp(),
+        }
+        session.save()
+
     def test_owner_page_displays_true_local_status_no_provider_calls(self):
         OwnerAISettings.objects.create(
             ai_enabled=True, gateway_model_id="approved-chat",
@@ -50,7 +61,7 @@ class OwnerIntegrationReadinessTests(TestCase):
             last_checked_at=timezone.now(), last_check_ok=True,
             catalog_models=["approved-chat"],
         )
-        self.client.force_login(self.owner)
+        self.login_verified_owner_for_unrelated_admin_tests()
         with patch("billing.ai_platform_connection.build_opener") as net, \
              patch("guard.crypto.decrypt_token") as dec, \
              patch("guard.wb.urlopen") as wb_net:
@@ -78,7 +89,7 @@ class OwnerIntegrationReadinessTests(TestCase):
             encrypted_service_token="never_display",
             last_check_ok=False, catalog_models=["missing-model"],
         )
-        self.client.force_login(self.owner)
+        self.login_verified_owner_for_unrelated_admin_tests()
         r = self.client.get(self.url)
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Не готов к запросам")
@@ -95,7 +106,7 @@ class OwnerIntegrationReadinessTests(TestCase):
                     self.assertEqual(self.client.get(url).status_code, 403)
 
     def test_post_edit_is_real_mcp_setting_and_generates_readonly_audit(self):
-        self.client.force_login(self.owner)
+        self.login_verified_owner_for_unrelated_admin_tests()
         change = reverse("admin:billing_ownermcpsettings_change", args=[1])
         result = self.client.post(change, {
             "enabled": "on", "wb_enabled": "on",
@@ -132,7 +143,7 @@ class OwnerIntegrationReadinessTests(TestCase):
         )
 
     def test_does_not_leak_other_models_in_owner_config_audit(self):
-        self.client.force_login(self.owner)
+        self.login_verified_owner_for_unrelated_admin_tests()
         from django.contrib.admin.models import ADDITION
         from django.contrib.contenttypes.models import ContentType
         LogEntry.objects.log_actions(
