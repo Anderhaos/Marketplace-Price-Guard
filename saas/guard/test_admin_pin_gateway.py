@@ -65,7 +65,7 @@ class AdminPinGatewayTests(TestCase):
         self.client.post("/login/", {"email": self.seller.email})
         success = self.client.post("/login/", {"email": self.seller.email, "pin": "7295"})
         self.assertRedirects(success, "/", fetch_redirect_response=False)
-        self.assertEqual(self.client.get("/admin/login/").status_code, 302)
+        # Owner-only admin now rejects authenticated non-owner sellers explicitly.\n        self.assertEqual(self.client.get("/admin/login/").status_code, 403)
         self.assertNotEqual(self.client.get("/admin/").status_code, 200)
 
     def test_external_next_url_never_redirects_credentials(self):
