@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 
-@override_settings(SAAS_PIN_AUTH_ENABLED=True, REQUIRE_EMAIL_VERIFICATION=True)
+@override_settings(SAAS_PIN_AUTH_ENABLED=True, REQUIRE_EMAIL_VERIFICATION=True, STORAGES={"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}})
 class OwnerAdminStepupTests(TestCase):
     def test_superuser_needs_second_factor(self):
         user = User.objects.create_superuser(username="admin@example.test", email="admin@example.test", password="exampletest")
