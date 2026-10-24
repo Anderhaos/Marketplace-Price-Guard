@@ -6,6 +6,7 @@ Separate administrative product settings can replace this in the owner-admin sta
 from decimal import Decimal
 
 from .tochka import AcquiringUnavailable, approved_price_kopeks, configured
+from .models import OwnerTariffOffer
 
 PLAN_DESCRIPTIONS = {
     "standard": {
@@ -21,6 +22,7 @@ PLAN_DESCRIPTIONS = {
 
 def tariff_offers():
     offers = []
+    owner_offers = OwnerTariffOffer.objects.in_bulk(field_name="slug")
     for slug, info in PLAN_DESCRIPTIONS.items():
         try:
             amount = approved_price_kopeks(slug)
@@ -29,6 +31,7 @@ def tariff_offers():
         offers.append({
             "slug": slug,
             **info,
+            "name": owner_offers[slug].name if slug in owner_offers else info["name"],
             "price_kopeks": amount,
             "price_rub": Decimal(amount) / 100 if amount is not None else None,
             "can_buy": configured() and amount is not None,

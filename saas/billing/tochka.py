@@ -37,7 +37,17 @@ def rubles_to_kopeks(value):
 
 
 def approved_price_kopeks(plan="standard"):
-    """Server-owned plan quote. Historical payment prices are never re-read here."""
+    """Server-owned plan quote. Checkout snapshots survive later price edits."""
+    if plan not in ("standard", "smart"):
+        raise AcquiringUnavailable("Unsupported NoSale tariff")
+    from .models import OwnerTariffOffer
+    owner_offer = OwnerTariffOffer.objects.filter(slug=plan).first()
+    if owner_offer is not None:
+        if not owner_offer.enabled or not 100 <= owner_offer.price_kopeks <= 10_000_000:
+            raise AcquiringUnavailable("NoSale tariff is disabled or has an invalid price")
+        return owner_offer.price_kopeks
+
+    # Backward-compatible approved environment offer until owner creates it.
     if plan == "standard":
         raw = getattr(settings, "NOSALE_STANDARD_MONTHLY_PRICE_RUB", None) or settings.NOSALE_MONTHLY_PRICE_RUB
     elif plan == "smart":
