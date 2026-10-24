@@ -149,6 +149,54 @@ class OwnerGatewayConnectionTests(TestCase):
         self.assertEqual(opener.request.get_header("X-ai-project-key"), "nosale")
         self.assertEqual(opener.request.full_url, "https://platform.svdev.pro/v1/chat/completions")
 
+    def test_owner_gateway_denies_model_not_in_verified_catalog(self):
+        from guard.ai_gateway import AIGatewayUnavailable, is_gateway_configured
+        connection = self.add_connection()
+        connection.last_check_ok = True
+        connection.catalog_models = ["deepseek/deepseek-chat"]
+        connection.save(update_fields=["last_check_ok", "catalog_models"])
+        self.assertTrue(is_gateway_configured(model_id="deepseek/deepseek-chat"))
+        self.assertFalse(is_gateway_configured(model_id="not-authorized/model"))
+        self.assertIsNone(runtime_gateway(model_id="not-authorized/model"))
+        with patch("guard.ai_gateway.build_opener") as transport:
+            with self.assertRaises(AIGatewayUnavailable):
+                gateway_chat(model_id="not-authorized/model",
+                             messages=[{"role": "user", "content": "store facts"}],
+                             max_output_tokens=80, timeout_seconds=5)
+            transport.assert_not_called()
+
+    def test_catalog_mode_change_invalidates_verification_until_reverify(self):
+        from guard.ai_gateway import is_gateway_configured
+        connection = self.add_connection()
+        connection.last_check_ok = True
+        connection.catalog_models = ["deepseek/deepseek-chat"]
+        connection.save(update_fields=["last_check_ok", "catalog_models"])
+        self.assertTrue(is_gateway_configured(model_id="deepseek/deepseek-chat"))
+        # Owner changes catalog mode but keeps the same secret.
+        url = reverse("admin:billing_owneraigatewayconnection_change", args=[connection.pk])
+        response = self.client.post(url, {
+            "base_url": connection.base_url,
+            "catalog_mode": "full",
+            "service_token": "",
+            "_save": "Save",
+        })
+        self.assertEqual(response.status_code, 302)
+        connection.refresh_from_db()
+        self.assertEqual(connection.catalog_mode, "full")
+        self.assertIsNone(connection.last_check_ok)
+        self.assertEqual(connection.catalog_models, [])
+        self.assertFalse(is_gateway_configured(model_id="deepseek/deepseek-chat"))
+        self.assertIsNone(runtime_gateway())
+        # Unchanged settings with a valid token must preserve the cleared state.
+        same = self.client.post(url, {
+            "base_url": connection.base_url,
+            "catalog_mode": connection.catalog_mode,
+            "service_token": "",
+            "_save": "Save",
+        })
+        self.assertEqual(same.status_code, 302)
+        self.assertEqual(runtime_gateway(), None)
+
     def test_env_override_remains_emergency_only(self):
         self.add_connection()
         with override_settings(NOSALE_AI_GATEWAY_URL="https://platform.svdev.pro/v1/chat/completions",
