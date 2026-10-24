@@ -197,3 +197,57 @@ class OwnerMCPSettings(models.Model):
     class Meta:
         verbose_name = "Инструменты MCP владельца"
         verbose_name_plural = "Инструменты MCP владельца"
+
+
+class OwnerOperationsSettings(models.Model):
+    """Live, owner-controlled background-work policy in PostgreSQL.
+
+    Technical network, provider-scope and seller permissions remain separate
+    hard safety invariants. Missing singleton fails closed for network work.
+    """
+    id = models.PositiveSmallIntegerField(primary_key=True, editable=False)
+    guard_checks_enabled = models.BooleanField(
+        default=True,
+        verbose_name="Новые фоновые проверки WB",
+        help_text="Опасно отключать: остановятся новые циклы контроля цен/скидок всех продавцов. Уже начатый запрос может завершиться.",
+    )
+    instant_events_enabled = models.BooleanField(
+        default=True, verbose_name="Мгновенные события в Push",
+        help_text="Если отключено, события остаются в журнале, но новые push-доставки для них не создаются.",
+    )
+    daily_digests_enabled = models.BooleanField(
+        default=True, verbose_name="Ежедневные сводки Push",
+        help_text="Отключает создание новых ежедневных сводок. Не стирает уже созданные.",
+    )
+    push_delivery_enabled = models.BooleanField(
+        default=True, verbose_name="Отправка Web Push",
+        help_text="При паузе ожидающие доставки сохраняются для дальнейшей отправки.",
+    )
+    guard_poll_seconds = models.PositiveSmallIntegerField(
+        default=10, validators=[MinValueValidator(5), MaxValueValidator(60)],
+        verbose_name="Интервал опроса Guard, секунд (5–60)",
+    )
+    notifications_poll_seconds = models.PositiveSmallIntegerField(
+        default=30, validators=[MinValueValidator(15), MaxValueValidator(300)],
+        verbose_name="Интервал опроса Push, секунд (15–300)",
+    )
+    push_batch_size = models.PositiveSmallIntegerField(
+        default=20, validators=[MinValueValidator(1), MaxValueValidator(20)],
+        verbose_name="Максимум Push за цикл (1–20)",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def runtime(cls):
+        return cls.objects.filter(pk=1).first()
+
+    def __str__(self):
+        return "NoSale — фоновые процессы и уведомления"
+
+    class Meta:
+        verbose_name = "Фоновые процессы SaaS"
+        verbose_name_plural = "Фоновые процессы SaaS"
