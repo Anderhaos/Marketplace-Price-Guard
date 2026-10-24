@@ -95,6 +95,28 @@ class SmartAssistantTests(TestCase):
         self.assertEqual(gateway.call_count, 1)
         self.assertEqual(AssistantAIRequest.objects.count(), 1)
 
+    def test_owner_web_chat_switch_blocks_smart_without_ai_cost(self):
+        self.ai.web_assistant_enabled = False
+        self.ai.save(update_fields=["web_assistant_enabled"])
+        with patch("guard.smart_assistant.gateway_chat") as gateway:
+            self.assertEqual(self.ask().status_code, 503)
+            gateway.assert_not_called()
+        self.assertFalse(AssistantAIRequest.objects.exists())
+        self.assertFalse(AssistantMessage.objects.exists())
+
+    def test_owner_chat_daily_quota_covers_standard_and_smart_fallback(self):
+        self.ai.web_messages_per_day = 2
+        self.ai.ai_enabled = False
+        self.ai.save(update_fields=["web_messages_per_day", "ai_enabled"])
+        with patch("guard.smart_assistant.gateway_chat") as gateway:
+            self.assertEqual(self.client.post(reverse("assistant_chat"), {
+                "question": "Состояние", "mode": "basic",
+            }).status_code, 302)
+            self.assertEqual(self.ask().status_code, 302)
+            self.assertEqual(self.ask().status_code, 429)
+            gateway.assert_not_called()
+        self.assertEqual(AssistantMessage.objects.filter(user=self.seller).count(), 2)
+
     def test_ai_disabled_is_safe_basic_fallback(self):
         self.ai.ai_enabled = False
         self.ai.save(update_fields=["ai_enabled"])
