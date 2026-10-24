@@ -1,60 +1,79 @@
-{% extends "admin/index.html" %}
-{% load i18n %}
+{% extends "admin/base_site.html" %}
+{% block title %}Управление NoSale | {{ site_title }}{% endblock %}
 {% block content %}
 <style>
-.owner-console{margin:0 0 24px;padding:20px;border:1px solid var(--hairline-color,#d7d7d7);border-radius:10px;background:var(--darkened-bg,#f7f7f7)}
-.owner-console h2{font-size:21px;margin:0 0 10px}
-.owner-console p{max-width:780px;margin:0 0 18px;color:var(--body-quiet-color,#555);line-height:1.55}
-.owner-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.owner-tile{padding:16px;background:var(--body-bg,#fff);border:1px solid var(--hairline-color,#ddd);border-radius:10px;min-height:118px}
-.owner-tile strong{font-size:16px;display:block;margin-bottom:7px}
-.owner-tile a{font-weight:700;text-decoration:underline}
-.owner-tile small{display:block;line-height:1.5;margin-top:8px;color:var(--body-quiet-color,#666)}
+#content{max-width:1500px!important;width:100%;padding:0!important}#content h1{display:none}
+#content-main{float:none!important;width:100%!important}.breadcrumbs{font-size:12px}
+.owner-app{--oa-panel:#202227;--oa-line:rgba(255,255,255,.09);--oa-muted:#a4a6ae;--oa-accent:#fc754d;color:var(--body-fg,#ebedf1);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.owner-app a{text-decoration:none}.owner-app a:hover{text-decoration:none}
+.owner-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:6px 0 24px}
+.owner-overline{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--oa-accent);font-weight:800}
+.owner-head h2{font-size:clamp(26px,3vw,39px);letter-spacing:-.045em;margin:7px 0 7px;color:var(--body-fg,#fff);line-height:1.1}
+.owner-subtitle{font-size:14px;line-height:1.6;color:var(--oa-muted);margin:0;max-width:670px}
+.owner-toplink{flex-shrink:0;border:1px solid var(--oa-line);border-radius:12px;padding:12px 16px;color:var(--body-fg,#fff)!important;font-weight:700;background:var(--oa-panel)}
+.owner-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:25px}
+.owner-kpi{border:1px solid var(--oa-line);background:var(--oa-panel);border-radius:16px;padding:18px 20px;min-height:112px;display:flex;flex-direction:column;justify-content:space-between}
+.owner-kpi-label{color:var(--oa-muted);font-size:12px;font-weight:600}
+.owner-kpi-value{font-size:27px;line-height:1.1;letter-spacing:-.04em;font-weight:800;color:var(--body-fg,#fff)}
+.owner-kpi-value.owner-kpi-text{font-size:18px;letter-spacing:-.025em}.owner-kpi-hint{font-size:11px;color:var(--oa-muted);margin-top:7px}
+.owner-kpi-status{display:inline-flex;align-items:center;gap:6px}.owner-dot{width:8px;height:8px;background:#ffae66;border-radius:50%;display:inline-block}.owner-dot.good{background:#59d7a4}.owner-dot.off{background:#87909c}
+.owner-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}
+.owner-section-head h3{margin:0;color:var(--body-fg,#fff);font-size:19px;font-weight:800;letter-spacing:-.03em}
+.owner-section-head span{font-size:12px;color:var(--oa-muted)}
+.owner-layout{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:22px;align-items:start}
+.owner-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.owner-tile{border:1px solid var(--oa-line);background:var(--oa-panel);border-radius:16px;padding:20px;min-height:175px;display:flex;flex-direction:column;transition:border-color .2s,transform .2s}
+.owner-tile:hover{border-color:rgba(252,117,77,.43);transform:translateY(-1px)}
+.owner-tile-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.owner-tile-icon{height:36px;width:36px;background:rgba(252,117,77,.13);color:#ff9473;border-radius:11px;display:grid;place-items:center;font-size:19px;font-weight:700}
+.owner-tile-state{color:var(--oa-muted);font-size:11px;background:rgba(255,255,255,.05);padding:5px 8px;border-radius:20px}
+.owner-tile h4{font-size:17px;font-weight:800;line-height:1.25;margin:16px 0 5px;color:var(--body-fg,#fff)}
+.owner-tile small{font-size:12px;line-height:1.5;color:var(--oa-muted);display:block;margin-bottom:15px}
+.owner-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+.owner-actions a{font-size:12px;font-weight:750;padding:8px 11px;border-radius:9px;background:rgba(255,255,255,.06);color:var(--body-fg,#f2f2f2)!important}
+.owner-actions a.primary{background:rgba(252,117,77,.14);color:#ff9675!important}
+.owner-side{border:1px solid var(--oa-line);background:var(--oa-panel);border-radius:16px;padding:19px}
+.owner-side h4{font-size:15px;color:var(--body-fg,#fff);margin:0 0 8px}.owner-side p{font-size:12px;color:var(--oa-muted);line-height:1.55;margin:0 0 12px}
+.owner-side-list{margin:0;padding:0;list-style:none}.owner-side-list li{padding:11px 0;border-bottom:1px solid var(--oa-line);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+.owner-side-list li:last-child{border-bottom:0}.owner-side-list b{font-weight:650}.owner-side-list span{font-size:11px;color:var(--oa-muted);text-align:right}
+.owner-side a{display:block;font-size:12px;font-weight:700;color:#ff9578!important;margin-top:14px}
+.owner-footer{font-size:11px;color:var(--oa-muted);margin:20px 0 4px}
+@media(max-width:1100px){.owner-layout{grid-template-columns:1fr}.owner-side{max-width:none}.owner-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.owner-head{align-items:flex-start;flex-direction:column}.owner-toplink{width:100%;text-align:center}.owner-kpis{gap:8px}.owner-kpi{padding:14px;min-height:100px}.owner-tiles{grid-template-columns:1fr}.owner-tile{min-height:160px;padding:17px}.owner-kpi-value{font-size:23px}}
 </style>
-<section class="owner-console" aria-label="Панель владельца NoSale">
-  <h2>Управление SaaS NoSale</h2>
-  <p>Этот раздел доступен только владельцу с подтверждёнными правами. Настройки сохраняются в базе данных и действуют без редактирования файлов. Данные продавцов и подключение их маркетплейсов находятся в клиентском кабинете, не здесь.</p>
-  <p><a href="{% url 'nosale_owner_integrations' %}" style="font-weight:700">Проверить готовность интеграций и сервисов →</a> <span style="color:var(--body-quiet-color,#666)">МCP, WB/Ozon, AI, тарифы, платежи, email/PIN, уведомления — без сетевых запросов</span></p>
-  <p><a href="{% url 'admin:admin_logentry_changelist' %}">Журнал изменений владельца</a></p>
-  <div class="owner-tiles">
-    <div class="owner-tile">
-      <strong>MCP и площадки</strong>
-      <a href="{% url 'admin:billing_ownermcpadapter_changelist' %}">Установленные адаптеры WB/Ozon</a>
-      <a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Разрешения инструментов и лимиты</a>
-      <small>WB и Ozon, включение, инструменты, объём данных. MCP только внутри сервера.</small>
-    </div>
-    <div class="owner-tile">
-      <strong>AI Platform</strong>
-      <a href="{% url 'admin:billing_owneraigatewayconnection_changelist' %}">Подключить AI</a>
-      <small>Шифрованный ключ проекта, проверка соединения и доступных моделей.</small>
-    </div>
-    <div class="owner-tile">
-      <strong>Модели и лимиты Smart</strong>
-      <a href="{% url 'admin:billing_owneraisettings_changelist' %}">Настроить помощника</a>
-      <small>Модель, инструкции, суточные лимиты, месячный бюджет и выключатель AI.</small>
-    </div>
-    <div class="owner-tile">
-      <strong>Тарифы</strong>
-      <a href="{% url 'admin:billing_ownertariffoffer_changelist' %}">Управлять предложениями</a>
-      <small>Standard / Smart: цена и доступность. Не изменяет уже совершённые платежи.</small>
-    </div>
-    <div class="owner-tile">
-      <strong>Клиенты и подписки</strong>
-      <a href="{% url 'admin:auth_user_changelist' %}">Пользователи</a>
-      <small>Учётные записи; настройки конкретного WB-магазина выполняет сам продавец.</small>
-      <a href="{% url 'admin:billing_accessgrant_changelist' %}">Права подписок</a>
-    </div>
-    <div class="owner-tile">
-      <strong>Фоновые задачи и уведомления</strong>
-      <a href="{% url 'admin:billing_owneroperationssettings_changelist' %}">Глобальные настройки</a>
-      <small>Пауза Guard, мгновенные Push, ежедневные сводки, доставка и интервалы опроса. Запись в журнал изменений.</small>
-    </div>
-    <div class="owner-tile">
-      <strong>Мониторинг</strong>
-      <a href="{% url 'admin:guard_guardevent_changelist' %}">События Guard</a>
-      <small>Аудит событий, сохранённые отчёты и интеграционные сбои.</small>
-    </div>
+<section class="owner-app" aria-label="Панель владельца NoSale">
+ <header class="owner-head">
+  <div><div class="owner-overline">NoSale / Control Center</div><h2>Управление NoSale</h2><p class="owner-subtitle">Единая панель владельца: подключения, модели, правила, тарифы и контроль инфраструктуры. Настройки применяются через существующие защищённые формы.</p></div>
+  <a class="owner-toplink" href="{% url 'nosale_owner_integrations' %}">Диагностика сервисов ↗</a>
+ </header>
+ <div class="owner-kpis" aria-label="Сводка конфигурации">
+  <div class="owner-kpi"><span class="owner-kpi-label">AI Platform</span><div class="owner-kpi-value owner-kpi-text owner-kpi-status"><i class="owner-dot {% if readiness.ai.usable %}good{% else %}off{% endif %}"></i>{% if readiness.ai.usable %}Готов к работе{% elif readiness.ai.key_saved %}Требует настройки{% else %}Не подключён{% endif %}</div><div class="owner-kpi-hint">Сохранённая конфигурация</div></div>
+  <div class="owner-kpi"><span class="owner-kpi-label">MCP инструменты</span><div class="owner-kpi-value">{{ readiness.mcp.tool_count }} <span style="font-size:13px;color:var(--oa-muted)">активных</span></div><div class="owner-kpi-hint">{% if readiness.mcp.state == 'enabled' %}Серверные разрешения включены{% else %}MCP отключён{% endif %}</div></div>
+  <div class="owner-kpi"><span class="owner-kpi-label">Клиенты</span><div class="owner-kpi-value">{{ readiness.identity.seller_count }}</div><div class="owner-kpi-hint">Активных аккаунтов продавцов</div></div>
+  <div class="owner-kpi"><span class="owner-kpi-label">Тарифы</span><div class="owner-kpi-value">{{ readiness.payments.enabled_tariffs }}</div><div class="owner-kpi-hint">Опубликованных предложений</div></div>
+ </div>
+ <div class="owner-layout">
+  <div><div class="owner-section-head"><h3>Разделы управления</h3><span>7 модулей</span></div>
+   <div class="owner-tiles">
+    <article class="owner-tile"><div class="owner-tile-head"><span class="owner-tile-icon">◇</span><span class="owner-tile-state">{% if readiness.mcp.state == 'enabled' %}Включён{% else %}Выключен{% endif %}</span></div><h4>MCP и площадки</h4><small>Адаптеры WB/Ozon, разрешения инструментов и безопасные лимиты.</small><div class="owner-actions"><a class="primary" href="{% url 'admin:billing_ownermcpadapter_changelist' %}">Установленные адаптеры WB/Ozon</a><a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Разрешения и лимиты</a></div></article>
+    <article class="owner-tile"><div class="owner-tile-head"><span class="owner-tile-icon">✦</span><span class="owner-tile-state">{% if readiness.ai.last_verified %}Ключ проверялся{% else %}Не проверено{% endif %}</span></div><h4>AI Platform</h4><small>Сервисный ключ, каталог моделей и проверка подключений без раскрытия секретов.</small><div class="owner-actions"><a class="primary" href="{% url 'admin:billing_owneraigatewayconnection_changelist' %}">Подключить AI</a></div></article>
+    <article class="owner-tile"><div class="owner-tile-head"><span class="owner-tile-icon">≋</span><span class="owner-tile-state">{% if readiness.ai.switch_on %}AI включён{% else %}AI выключен{% endif %}</span></div><h4>Модели и лимиты Smart</h4><small>Модель, промпт, веб-помощник, дневные квоты и бюджет.</small><div class="owner-actions"><a class="primary" href="{% url 'admin:billing_owneraisettings_changelist' %}">Настроить помощника</a></div></article>
+    <article class="owner-tile"><div class="owner-tile-head"><span class="owner-tile-icon">₽</span><span class="owner-tile-state">{{ readiness.payments.enabled_tariffs }} активных</span></div><h4>Тарифы</h4><small>Standard / Smart: стоимость, доступность, коммерческие настройки.</small><div class="owner-actions"><a class="primary" href="{% url 'admin:billing_ownertariffoffer_changelist' %}">Управлять предложениями</a></div></article>
+    <article class="owner-tile"><div class="owner-tile-head"><span class="owner-tile-icon">◎</span><span class="owner-tile-state">{{ readiness.identity.seller_count }} продавцов</span></div><h4>Клиенты и подписки</h4><small>Учетные записи, доступ и история выданных подписок.</small><div class="owner-actions"><a class="primary" href="{% url 'admin:auth_user_changelist' %}">Пользователи</a><a href="{% url 'admin:billing_accessgrant_changelist' %}">Права подписок</a></div></article>
+    <article class="owner-tile"><div class="owner-tile-head"><span class="owner-tile-icon">↻</span><span class="owner-tile-state">{% if readiness.operations.guard_checks_enabled %}Guard включён{% else %}Guard выключен{% endif %}</span></div><h4>Фоновые задачи и уведомления</h4><small>Проверки WB, обработка событий, Push и график фоновых операций.</small><div class="owner-actions"><a class="primary" href="{% url 'admin:billing_owneroperationssettings_changelist' %}">Глобальные настройки</a></div></article>
+    <article class="owner-tile"><div class="owner-tile-head"><span class="owner-tile-icon">◷</span><span class="owner-tile-state">Журнал</span></div><h4>Мониторинг</h4><small>События Guard, системный аудит и диагностика сохранённых конфигураций.</small><div class="owner-actions"><a class="primary" href="{% url 'admin:guard_guardevent_changelist' %}">События Guard</a><a href="{% url 'admin:admin_logentry_changelist' %}">Журнал изменений владельца</a></div></article>
+   </div>
   </div>
+  <aside class="owner-side"><h4>Состояние конфигурации</h4><p>Локальные данные сервиса. Статусы не являются результатом проверки доступности внешних API.</p>
+   <ul class="owner-side-list">
+    <li><b>Wildberries</b><span>{% if readiness.wb.network_allowed %}API разрешён{% else %}API отключён{% endif %}</span></li>
+    <li><b>Ozon</b><span>{% if readiness.ozon.api_implemented %}Поддерживается{% else %}API не реализован{% endif %}</span></li>
+    <li><b>Email / PIN</b><span>{% if readiness.identity.pin_enabled and readiness.identity.email_verification %}Настроено{% else %}Проверить{% endif %}</span></li>
+    <li><b>Ожидают Push</b><span>{{ readiness.notifications.undelivered_count }}</span></li>
+    <li><b>Выбранная модель</b><span>{{ readiness.ai.selected_model|truncatechars:23 }}</span></li>
+   </ul><a href="{% url 'nosale_owner_integrations' %}">Все показатели готовности ↗</a>
+  </aside>
+ </div>
+ <p class="owner-footer">Изменения настроек записываются в аудит. Секреты не отображаются. Данные обновляются при открытии страницы.</p>
 </section>
-{{ block.super }}
 {% endblock %}

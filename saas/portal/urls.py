@@ -10,7 +10,7 @@ from guard import views, email_pin, promotions_views
 from guard.forms import EmailLoginForm
 from push import views as push_views
 from billing import views as billing_views
-from billing.owner_console import owner_integrations
+from billing.owner_console import owner_integrations, owner_dashboard
 
 def owner_admin_permission(request):
     """Owner only. Return explicit 403 for logged-in sellers/staff, not login loops."""
@@ -27,6 +27,7 @@ admin.site.site_header = "NoSale · Панель владельца SaaS"
 admin.site.site_title = "NoSale · Управление сервисом"
 admin.site.index_title = "Управление NoSale"
 admin.site.index_template = "admin/owner_index.html"
+admin.site.index = owner_dashboard
 
 
 def admin_login_gateway(request):
