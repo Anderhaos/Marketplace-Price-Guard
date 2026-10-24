@@ -1,0 +1,133 @@
+{% extends 'guard/base.html' %}
+{% block title %}Уведомления — MPNO Sale{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <span class="eyebrow">MPNO Sale / центр событий</span>
+  <h1>Уведомления</h1>
+  <p class="lead">Исправления после подтверждения WB, критические ошибки и вечерние отчёты. События сохраняются, даже если приложение закрыто.</p>
+</section>
+<section class="card">
+  <h2>Уведомления на телефоне и компьютере</h2>
+  {% if push_ready %}
+    <p class="muted">Подключено устройств: {{ push_devices }}. Разрешите системные Push-уведомления на этом устройстве.</p>
+    <div class="actions">
+      <button type="button" id="push-enable">Включить уведомления</button>
+      <button type="button" class="secondary" id="push-disable">Отключить на этом устройстве</button>
+    </div>
+    <p class="field-help">На iPhone (iOS 16.4+) сначала добавьте MPNO Sale на экран «Домой» и откройте установленное приложение.</p>
+    <p id="push-state" class="field-help" role="status"></p>
+  {% else %}
+    <p class="muted">Отправка Web Push пока не включена на сервере. История событий и вечерние сводки доступны здесь.</p>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>Настройки уведомлений</h2>
+  <form method="post" action="{% url 'push_preferences' %}">
+    {% csrf_token %}
+    <div class="field"><label><input type="checkbox" name="instant_enabled" {% if preferences.instant_enabled %}checked{% endif %}> Мгновенно: подтверждённые исправления и ошибки</label></div>
+    <div class="field"><label><input type="checkbox" name="daily_enabled" {% if preferences.daily_enabled %}checked{% endif %}> Ежедневная сводка в 20:00</label></div>
+    <div class="field">
+      <label for="push-timezone">Часовой пояс</label>
+      <select name="timezone_name" id="push-timezone" style="min-height:44px;padding:9px;background:var(--panel-strong);color:var(--text);border:1px solid var(--line);border-radius:12px">
+        {% for tz in timezones %}
+          <option value="{{ tz }}" {% if preferences.timezone_name == tz %}selected{% endif %}>{{ tz }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">Сохранить настройки</button>
+  </form>
+</section>
+<form method="post" action="{% url 'mark_notifications_read' %}" style="margin-bottom:14px">
+  {% csrf_token %}<button class="secondary" type="submit">Отметить всё прочитанным</button>
+</form>
+<section class="card">
+  <h2>Вечерние отчёты</h2>
+  {% for summary in digest_messages %}
+    <details style="padding:12px 0;border-bottom:1px solid var(--line)">
+      <summary style="cursor:pointer"><strong>{{ summary.title }}</strong> {% if not summary.read_at %}<span class="scope-chip">Новое</span>{% endif %}</summary>
+      <p class="muted" style="margin:12px 0 0">{{ summary.body }}</p>
+    </details>
+  {% empty %}
+    <p class="muted">Вечерних отчётов пока нет.</p>
+  {% endfor %}
+</section>
+<section class="card">
+  <h2>Важные события</h2>
+  {% for event in events %}
+  <article style="padding:16px 0;border-bottom:1px solid var(--line)">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <strong>{% if event.kind == "confirmed" %}Исправление подтверждено
+        {% elif event.kind == "error" %}Ошибка проверки
+        {% elif event.kind == "upload_error" %}Ошибка исправления
+        {% else %}Событие{% endif %}
+        {% if not event.read_at %}<span class="scope-chip">Новое</span>{% endif %}</strong>
+      <span class="muted">{{ event.created_at|date:"d.m.Y H:i" }}</span>
+    </div>
+    <p class="muted">{{ event.account.name }} · {{ event.message }}</p>
+    {% if event.details.changes %}
+    <details><summary style="cursor:pointer">Список товаров ({{ event.details.changes|length }})</summary>
+      <ul>{% for item in event.details.changes %}
+        <li>WB {{ item.nm_id }} · {{ item.before }}% → {{ item.after }}%</li>
+      {% endfor %}</ul>
+    </details>
+    {% endif %}
+  </article>
+  {% empty %}<p class="muted">Важных событий пока нет.</p>{% endfor %}
+</section>
+{% if push_ready %}
+<script>
+(() => {
+  const enable = document.getElementById('push-enable');
+  const disable = document.getElementById('push-disable');
+  const status = document.getElementById('push-state');
+  const publicKey = '{{ push_public_key|escapejs }}';
+  const csrf = document.querySelector('input[name=csrfmiddlewaretoken]').value;
+  function bytes(key) {
+    const padded = (key + '='.repeat((4 - key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    return Uint8Array.from(atob(padded), x => x.charCodeAt(0));
+  }
+  async function save(url, obj) {
+    const response = await fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+      body: JSON.stringify(obj)
+    });
+    if (!response.ok) throw new Error((await response.json()).error || 'Ошибка сохранения');
+  }
+  async function registration() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      throw new Error('Ваш браузер не поддерживает Web Push');
+    }
+    if (!window.isSecureContext) throw new Error('Требуется HTTPS');
+    await navigator.serviceWorker.register('/sw.js');
+    return navigator.serviceWorker.ready;
+  }
+  enable.addEventListener('click', async () => {
+    status.textContent = 'Подключаем уведомления…';
+    try {
+      if (!('Notification' in window)) throw new Error('Web Push недоступен');
+      // Must be requested directly from the click, before other awaits (iOS).
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') throw new Error('Разрешение на уведомления не предоставлено');
+      const sw = await registration();
+      let sub = await sw.pushManager.getSubscription();
+      if (!sub) sub = await sw.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:bytes(publicKey)});
+      await save('{% url "push_subscribe" %}', sub.toJSON());
+      status.textContent = 'Уведомления подключены к этому устройству.';
+    } catch (e) { status.textContent = e.message || 'Не удалось подключить уведомления'; }
+  });
+  disable.addEventListener('click', async () => {
+    try {
+      const sw = await registration();
+      const sub = await sw.pushManager.getSubscription();
+      if (sub) {
+        await save('{% url "push_unsubscribe" %}', {endpoint:sub.endpoint});
+        await sub.unsubscribe();
+      }
+      status.textContent = 'Уведомления отключены на этом устройстве.';
+    } catch (e) { status.textContent = e.message || 'Не удалось отключить'; }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

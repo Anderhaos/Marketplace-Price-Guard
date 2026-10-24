@@ -1,0 +1,106 @@
+{% extends 'guard/base.html' %}
+{% block title %}Товары — MP No Sale{% endblock %}
+{% block content %}
+{% if onboarding_required %}
+  {% include "guard/onboarding_modal.html" %}
+{% else %}
+<div class="compact-context">
+  <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span> <a class="compact-link" href="{% url 'stores' %}">Сменить</a></div>
+  {% if trial_status.active %}<span class="trial-strip">{% if trial_status.access_source == "trial" %}Пробный доступ{% else %}Доступ активен{% endif %} · {{ trial_status.days_left }} дн. до {{ trial_status.expires_at|date:"d.m.Y" }}</span>
+  {% elif trial_status.trial_expired %}<span class="trial-strip trial-strip--expired">Пробный период завершён · мониторинг приостановлен</span>
+  {% endif %}
+</div>
+
+<section class="compact-summary" aria-label="Контроль скидок">
+  <div class="summary-cell summary-cell--control">
+    <span class="summary-label">Защита скидок</span>
+    <form method="post" action="{% url 'dashboard' %}" class="compact-toggle-form">{% csrf_token %}
+      <input type="hidden" name="action" value="toggle_autocontrol">
+      <input type="hidden" name="confirm_zero_discount" value="0">
+      <label class="toggle compact-switch"><input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or base_token %}disabled{% endif %} onchange="if(this.checked && {{ account.default_allowed_discount }}===0){if(!confirm('Внимание: лимит 0%. NoSale будет убирать скидки в Wildberries. Продолжить?')){this.checked=false;return;}this.form.elements.confirm_zero_discount.value='1';}this.form.submit()"><span class="toggle-track"></span><b>{% if account.enabled %}Вкл{% else %}Выкл{% endif %}</b></label>
+    </form>
+  </div>
+  <a class="summary-cell {% if filter_name == 'all' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=all"><span class="summary-label">Товаров</span><strong>{{ count }}</strong></a>
+  <a class="summary-cell {% if filter_name == 'corrected' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=corrected"><span class="summary-label">Исправлено</span><strong>{{ corrected_count }}</strong></a>
+  <a class="summary-cell {% if filter_name == 'over_limit' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=over_limit"><span class="summary-label">Выше лимита</span><strong>{{ over_limit_count }}</strong></a>
+  <div class="summary-cell summary-cell--limit">
+    <span class="summary-label">Предел скидки, %</span>
+    <form method="post" class="compact-limit-form" action="{% url 'dashboard' %}" onsubmit="if(Number(this.elements.default_allowed_discount.value)===0){if(!confirm('Лимит 0%: будут убраны все превышающие его скидки WB. Подтвердить?'))return false;this.elements.confirm_zero_discount.value='1';}">{% csrf_token %}
+      <input type="hidden" name="action" value="apply_all">
+      <input type="hidden" name="confirm_zero_discount" value="0">
+      <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active or base_token %}disabled{% endif %}>
+      <button type="submit" aria-label="Сохранить и применить предел скидки в WB" title="Сохраняет предел и отправляет изменения в WB" {% if not trial_status.active or base_token %}disabled{% endif %}>Применить</button>
+    </form>
+  </div>
+</section>
+{% if base_token %}<p class="data-age bad">Подключён базовый токен WB: для автоматической защиты нужен сервисный токен. <a href="{% url 'settings' %}">Заменить</a></p>{% endif %}
+{% if trial_status.trial_expired %}<p class="notice">Бесплатный доступ закончился. Данные и настройки сохранены, фоновые проверки остановлены. <a href="{% url 'subscription' %}">Статус подписки</a>. Оплата станет доступна после подключения банка.</p>{% endif %}
+<section class="card">
+  <div class="section-head">
+    <div>
+      <h2>Товары</h2>
+      {% if filter_name != 'all' %}<p class="filter-banner">Показан фильтр: <strong>{{ filter_label }}</strong> — {{ shown_count }} из {{ count }}</p>{% endif %}
+    </div>
+    <div class="actions">
+      <form method="post" action="{% url 'settings' %}">{% csrf_token %}<input type="hidden" name="action" value="check"><button class="secondary">Обновить товары</button></form>
+      
+    </div>
+  </div>
+
+  {% if account.last_error and data_checked_at %}<p class="data-age bad">Данные WB от {{ data_checked_at|date:"d.m.Y H:i" }}. Последняя проверка не обновила скидки.</p>{% endif %}
+  {% if product_cards_missing %}<p class="refresh-status">Фото и названия загрузятся при следующем обновлении.</p>{% endif %}
+  <div class="products-grid">{% for product in products %}
+    <article class="product-card">
+      <div class="product-image">{% if product.photo_url %}<img src="{{ product.photo_url }}" alt="{{ product.title|default:product.vendor_code }}">{% else %}<span>WB</span>{% endif %}</div>
+      <div class="product-card-head"><div><h3>{{ product.title|default:product.vendor_code|default:'Товар Wildberries' }}</h3><p>Арт. {{ product.vendor_code|default:'—' }} · WB {{ product.nm_id }}</p></div><button class="info-button" type="button" title="История товара" data-history-url="{% url 'product_history_data' product.nm_id %}">i</button></div>
+      <div class="product-metrics product-metrics--prices">
+        <div><span>Цена со скидкой</span><strong class="price-main">{% if product.discounted_price %}{{ product.discounted_price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
+        <div><span>Цена до скидки</span><strong class="price-secondary">{% if product.price %}{{ product.price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
+      </div>
+      {% if not base_token %}
+      <form method="post" action="{% url 'product_rule' product.nm_id %}" class="product-rule">{% csrf_token %}
+        <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
+        <div class="product-discount-row">
+          <div class="wb-discount-pill {% if product.current_discount > product.allowed_discount %}bad{% else %}good{% endif %}" aria-label="Скидка Wildberries">{{ product.current_discount }}%</div>
+          <label class="toggle mini-toggle"><input type="checkbox" name="no_discount" {% if product.allowed_discount_override == 0 %}checked{% endif %} onchange="this.form.submit()"><span class="toggle-track" aria-hidden="true"></span><span>Без скидки</span></label>
+        </div>
+        {% if product.allowed_discount_override == 0 %}
+          <div class="card-limit"><span>Ваше правило</span><strong>Без скидки · 0%</strong></div>
+        {% else %}
+          <label class="card-limit"><span>Максимум, %</span><input aria-label="Максимальная скидка" type="number" name="allowed_discount" min="0" max="99" placeholder="{{ account.default_allowed_discount }}" value="{% if product.allowed_discount_override is not None %}{{ product.allowed_discount_override }}{% endif %}"></label>
+          <button type="submit" class="apply-rule">Применить</button>
+        {% endif %}
+      </form>
+      {% else %}<p class="muted">Режим просмотра · базовый API</p>{% endif %}
+      {% if product.nm_id in pending_product_ids %}<p class="card-sync">Правило сохранено. Отправка в WB ожидает следующую проверку.</p>
+      {% elif product.current_discount > product.allowed_discount %}<p class="card-warning">Сейчас выше вашего предела {{ product.allowed_discount }}%</p>{% endif %}
+    </article>
+  {% empty %}<p class="muted">{% if filter_name != 'all' %}По этому фильтру товаров нет. <a href="{% url 'dashboard' %}?filter=all">Показать все</a>.{% else %}Товары появятся после первой проверки.{% endif %}</p>{% endfor %}</div>
+  {% if filter_name == 'all' and count > 500 %}<p class="muted">Показаны первые 500 товаров из {{ count }}.</p>{% endif %}
+</section>
+<dialog class="history-modal" id="product-history-modal"><div class="modal-head"><div><h2 id="history-title">История товара</h2><p class="muted" id="history-subtitle"></p></div><button class="modal-close" type="button" aria-label="Закрыть">×</button></div><div class="history-list" id="history-list"></div></dialog>
+<script>
+(() => {
+  const modal = document.getElementById('product-history-modal');
+  const title = document.getElementById('history-title');
+  const subtitle = document.getElementById('history-subtitle');
+  const list = document.getElementById('history-list');
+  const close = () => modal.close();
+  modal.querySelector('.modal-close').addEventListener('click', close);
+  modal.addEventListener('click', event => { if (event.target === modal) close(); });
+  document.querySelectorAll('[data-history-url]').forEach(button => button.addEventListener('click', async () => {
+    title.textContent = 'История товара'; subtitle.textContent = 'Загрузка…'; list.innerHTML = '';
+    modal.showModal();
+    try {
+      const response = await fetch(button.dataset.historyUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+      if (!response.ok) throw new Error();
+      const data = await response.json(); title.textContent = data.title; subtitle.textContent = data.subtitle;
+      if (!data.events.length) { list.innerHTML = '<p class="muted">История этого товара пока пуста.</p>'; return; }
+      list.innerHTML = '';
+      data.events.forEach(event => { const item = document.createElement('article'); const time = document.createElement('time'); const kind = document.createElement('strong'); const message = document.createElement('p'); time.textContent = event.time; kind.textContent = event.kind; message.textContent = event.message; item.append(time, kind, message); list.append(item); });
+    } catch (_) { subtitle.textContent = ''; list.innerHTML = '<p class="bad">Не удалось загрузить историю. Повторите попытку.</p>'; }
+  }));
+})();
+</script>
+{% endif %}
+{% endblock %}

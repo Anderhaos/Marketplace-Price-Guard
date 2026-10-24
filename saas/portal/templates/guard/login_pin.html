@@ -1,0 +1,11 @@
+{% extends 'guard/base.html' %}
+{% block title %}Вход — MP NoSale{% endblock %}
+{% block content %}
+<div class="auth-wrap"><section class="card">
+  <span class="eyebrow">MP NoSale / вход</span>
+  <h1>Войти в кабинет</h1>
+  <p class="lead">Введите email и PIN, заданный после подтверждения почты.</p>
+  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Войти</button></form>
+  <p style="margin-top:18px"><a href="{% url 'password_reset' %}">Забыли PIN?</a> · <a href="{% url 'register' %}">Зарегистрироваться</a></p>
+</section></div>
+{% endblock %}

@@ -1,0 +1,40 @@
+name: MPNO Sale SaaS checks
+on:
+  push:
+    paths:
+      - "saas/**"
+      - ".github/workflows/mpnosale-saas.yml"
+  pull_request:
+    paths:
+      - "saas/**"
+      - ".github/workflows/mpnosale-saas.yml"
+jobs:
+  django-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: saas
+    env:
+      DJANGO_DEBUG: "1"
+      SAAS_TEST_SQLITE: "1"
+      SAAS_WB_NETWORK_ENABLED: "0"
+      SAAS_ACCESS_ENFORCED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test-only Fernet key
+        run: echo "TOKEN_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+      - name: Django validation
+        run: python manage.py check
+      - name: Schema drift
+        run: python manage.py makemigrations --check --dry-run
+      - name: Unit and isolation tests
+        run: python manage.py test guard billing push
+      - name: Docker build and import smoke
+        run: |
+          docker build -t mpnosale-saas-ci .
+          docker run --rm -e DJANGO_DEBUG=1 -e SAAS_TEST_SQLITE=1 mpnosale-saas-ci python manage.py check

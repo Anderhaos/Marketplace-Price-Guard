@@ -1,0 +1,52 @@
+{% extends 'guard/base.html' %}
+{% block title %}История — MPNO Sale{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <span class="eyebrow">MPNO Sale / журнал</span>
+  <h1>{% if product %}История товара {{ product.vendor_code }}{% else %}История изменений{% endif %}</h1>
+  <p class="lead">Проверки сгруппированы по дням. Исправления отделены от отправленных задач и ошибок.</p>
+</section>
+{% if product %}<p><a class="button secondary" href="{% url 'history' %}">Вся история</a></p>{% endif %}
+{% for day in days %}
+<section class="card">
+  <details {% if forloop.first %}open{% endif %}>
+    <summary style="cursor:pointer;font-weight:700;font-size:19px">{{ day.date|date:"d E Y" }}
+      <span class="muted" style="font-size:13px;font-weight:400;margin-left:8px">
+        Проверок: {{ day.checks }} · Подтверждено товаров: {{ day.confirmed }} · Ошибок: {{ day.errors }}
+      </span>
+    </summary>
+    {% for event in day.events %}
+    <details style="margin:12px 0;border:1px solid var(--line);border-radius:12px;padding:14px">
+      <summary style="cursor:pointer">
+        <strong>{% if event.kind == "confirmed" %}Исправление подтверждено WB
+          {% elif event.kind == "submitted" %}Исправление отправлено в WB
+          {% elif event.kind == "upload_error" %}WB не подтвердил исправление
+          {% elif event.kind == "discount_changed" %}Обнаружено изменение скидки
+          {% elif event.kind == "price_changed" %}Обнаружено изменение цены
+          {% elif event.kind == "error" %}Ошибка проверки
+          {% else %}{{ event.kind }}{% endif %}</strong>
+        <span class="muted" style="font-size:12px;margin-left:7px">{{ event.created_at|date:"H:i" }}</span>
+        {% if event.details.changes %}<span class="muted"> · {{ event.details.changes|length }} товаров</span>{% endif %}
+      </summary>
+      <p class="muted" style="margin-top:12px">{{ event.message }}</p>
+      {% if event.details.changes %}
+      <div class="table-wrap">
+        <table style="min-width:500px">
+          <thead><tr><th>Товар / артикул</th><th>До</th><th>Запрошено</th></tr></thead>
+          <tbody>{% for item in event.details.changes %}
+            <tr><td>{{ item.vendor_code|default:item.nm_id }}<span class="cell-note">WB: {{ item.nm_id }}</span></td>
+                <td>{{ item.before }}%</td><td>{{ item.after }}%</td></tr>
+          {% endfor %}</tbody>
+        </table>
+      </div>
+      {% endif %}
+    </details>
+    {% empty %}
+      <p class="muted" style="margin-top:14px">Только проверки, без изменений.</p>
+    {% endfor %}
+  </details>
+</section>
+{% empty %}
+<section class="card"><p class="muted">Журнал пока пуст.</p></section>
+{% endfor %}
+{% endblock %}

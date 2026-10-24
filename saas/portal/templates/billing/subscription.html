@@ -1,0 +1,39 @@
+{% extends "guard/base.html" %}
+{% block title %}Подписка — NoSale{% endblock %}
+{% block content %}
+<section class="card" style="max-width:660px;margin:auto">
+  <span class="eyebrow">NoSale / подписка</span>
+  <h1 style="font-size:26px">Управление доступом</h1>
+  {% if subscription_state.active %}
+    <p class="lead">{% if subscription_state.access_source == "trial" %}Ваш пробный период активен.{% else %}Ваш доступ активен.{% endif %} Действует до <b>{{ subscription_state.expires_at|date:"d.m.Y H:i" }}</b>.</p>
+  {% elif subscription_state.trial_expired %}
+    <p class="lead">5 бесплатных дней закончились. Данные магазина сохранены. Проверки будут возобновлены после оплаты.</p>
+  {% else %}
+    <p class="lead">После подключения магазина вы получите 5 бесплатных дней. Платить за пробный период не нужно.</p>
+  {% endif %}
+  <div class="notice" style="margin-top:18px">
+    <b>Месячный доступ</b>
+    {% if billing_enabled %}
+      <p style="margin:7px 0 11px">Стоимость — {{ tariff_price|floatformat:2 }} ₽ за 1 календарный месяц. Разовая оплата: автоматических списаний нет.</p>
+      <form method="post" action="{% url 'billing_checkout' %}">{% csrf_token %}
+        <button type="submit">Перейти к оплате</button>
+      </form>
+    {% else %}
+      <p class="muted" style="margin:7px 0 0">Оплата пока не подключена. Мы откроем её после настройки платёжного провайдера. Ничего не спишется автоматически.</p>
+    {% endif %}
+  </div>
+  {% if payments %}
+  <div style="margin-top:20px">
+    <h2 style="font-size:15px">История платежей</h2>
+    <div class="billing-payments">
+    {% for p in payments %}
+      <div style="display:flex;gap:10px;justify-content:space-between;border-top:1px solid var(--line);padding:10px 0;font-size:12px">
+        <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.amount_rubles|floatformat:2 }} ₽</span>
+        <strong>{% if p.status == "paid" %}Оплачено{% elif p.status == "pending" %}Ожидает оплаты{% elif p.status == "refunded" %}Возврат{% else %}Не оплачено{% endif %}</strong>
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

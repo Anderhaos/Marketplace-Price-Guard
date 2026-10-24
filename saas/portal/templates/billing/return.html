@@ -1,0 +1,16 @@
+{% extends "guard/base.html" %}
+{% block title %}Проверка оплаты — NoSale{% endblock %}
+{% block content %}
+<section class="card" style="max-width:600px;margin:auto">
+  <span class="eyebrow">NoSale / платёж</span>
+  <h1 style="font-size:25px">{% if payment.status == "paid" %}Оплата получена{% elif payment.status == "pending" %}Проверяем поступление оплаты{% elif payment.status == "refunded" %}Платёж возвращён{% else %}Платёж не завершён{% endif %}</h1>
+  {% if payment.status == "paid" %}
+    <p class="lead">Подписка активирована после подтверждения банка. Доступ можно проверить в разделе подписки.</p>
+  {% elif payment.status == "pending" %}
+    <p class="lead">Банк ещё не подтвердил платёж. Если вы оплатили, информация обновится после получения уведомления Точки. Не создавайте повторный платёж сразу.</p>
+  {% else %}
+    <p class="lead">Оплата не активировала подписку. Если деньги списались, обратитесь в поддержку с датой и суммой операции.</p>
+  {% endif %}
+  <a class="button secondary" href="{% url 'subscription' %}">К подписке</a>
+</section>
+{% endblock %}

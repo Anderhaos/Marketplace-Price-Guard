@@ -1,0 +1,19 @@
+{
+  "name": "MPNO Sale — защита скидок",
+  "short_name": "MPNO Sale",
+  "description": "Автоматический контроль скидок маркетплейсов",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#ff5a1f",
+  "background_color": "#08080a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{% extends 'guard/base.html' %}
+{% block title %}{% if purpose == 'recover' %}Восстановление PIN{% else %}Регистрация{% endif %} — MP NoSale{% endblock %}
+{% block content %}
+<div class="auth-wrap"><section class="card">
+  <span class="eyebrow">MP NoSale / {% if purpose == 'recover' %}восстановление{% else %}регистрация{% endif %}</span>
+  <h1>{% if purpose == 'recover' %}Восстановить PIN{% else %}Создать аккаунт{% endif %}</h1>
+  <p class="lead">Введите email. Мы отправим четырёхзначный код подтверждения, действующий 10 минут.</p>
+  <form method="post" style="margin-top:26px">{% csrf_token %}{{ form.as_p }}<button type="submit">Получить код</button></form>
+  <p style="margin-top:18px"><a href="{% url 'login' %}">Уже есть аккаунт? Войти</a></p>
+</section></div>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% comment %}Seller-friendly first run. No token is ever reflected into rendered HTML.{% endcomment %}
+<dialog id="wb-setup" class="setup-dialog" open aria-labelledby="wb-setup-title" aria-describedby="wb-setup-lead">
+  <div class="setup-dialog-top">
+    <span class="eyebrow">Первый запуск · подключение магазина</span>
+    {% if not trial_status.trial_started %}<strong class="setup-trial-pill">5 дней бесплатно</strong>{% endif %}
+  </div>
+  <h1 id="wb-setup-title">Добавим ваш магазин</h1>
+  <p class="lead" id="wb-setup-lead">Чтобы NoSale показал ваши товары, понадобится ключ доступа из кабинета Wildberries. Это не пароль от вашего аккаунта.</p>
+
+  <div class="wb-connect-steps" aria-label="Как подключить Wildberries">
+    <div class="wb-connect-step">
+      <span class="wb-step-number" aria-hidden="true">1</span>
+      <div>
+        <strong>Откройте кабинет продавца</strong>
+        <p>Перейдите в <b>Профиль → Интеграции по API → + Создать токен</b>.</p>
+        <a class="wb-open-partners" href="https://seller.wildberries.ru/" target="_blank" rel="noopener noreferrer">Открыть WB Партнёры ↗</a>
+      </div>
+    </div>
+    <div class="wb-connect-step">
+      <span class="wb-step-number" aria-hidden="true">2</span>
+      <div>
+        <strong>Создайте ключ для NoSale</strong>
+        <p>Откройте вкладку <b>«Для интеграции вручную»</b> и выберите <b>«Базовый токен»</b>. Укажите:</p>
+        <div class="wb-key-settings">
+          <span>Название <b>NoSale</b></span>
+          <span>Категории <b>Цены и скидки, Контент</b></span>
+          <span>Доступ <b>Только чтение</b></span>
+        </div>
+        <p>Нажмите <b>«Создать» → «Скопировать и закрыть»</b>.</p>
+      </div>
+    </div>
+    <div class="wb-connect-step">
+      <span class="wb-step-number" aria-hidden="true">3</span>
+      <div>
+        <strong>Вставьте ключ сюда</strong>
+        <p>Вернитесь в NoSale и вставьте скопированный ключ в поле ниже.</p>
+      </div>
+    </div>
+  </div>
+
+  <a class="wb-guide-link" href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token" target="_blank" rel="noopener noreferrer">Нужна помощь? Пошаговая инструкция Wildberries ↗</a>
+
+  {% if messages %}<div class="setup-feedback" role="alert" aria-live="assertive">
+    {% for message in messages %}<p class="setup-feedback-line">{{ message }}</p>{% endfor %}
+  </div>{% endif %}
+
+  <form method="post" action="{% url 'connect_wb' %}" class="setup-form">
+    {% csrf_token %}
+    <label for="onboarding-token">Ключ доступа Wildberries</label>
+    <textarea id="onboarding-token" name="token" autocomplete="off" autocapitalize="off" spellcheck="false" rows="2" required maxlength="4096" placeholder="Вставьте скопированный ключ" aria-describedby="setup-security"></textarea>
+    <p id="setup-security" class="setup-security">Мы проверим подключение и покажем ваши товары. Никакие цены и скидки автоматически не изменятся.</p>
+    <button type="submit" class="setup-submit">Подключить магазин</button>
+  </form>
+
+  <p class="setup-bottom">{% if trial_status.trial_started %}Повторное подключение не продлевает пробный период.{% else %}Пробные 5 дней начнутся после успешного подключения. Без оплаты и списаний.{% endif %}</p>
+  <details class="wb-connect-details">
+    <summary>Как работает защита скидок?</summary>
+    <p>Сейчас вы подключаете безопасный просмотр товаров. Для автоматического управления скидками понадобится отдельное подключение с правами изменения цен. Базовый ключ для этого не подходит.</p>
+  </details>
+</dialog>
+<script>
+(() => {
+  const dialog = document.getElementById('wb-setup');
+  if (!dialog || !dialog.showModal) return;
+  dialog.close();
+  dialog.showModal();
+  dialog.addEventListener('cancel', event => event.preventDefault());
+  const field = dialog.querySelector('#onboarding-token');
+  const submit = dialog.querySelector('.setup-submit');
+  dialog.querySelector('form').addEventListener('submit', () => {
+    submit.disabled = true;
+    submit.textContent = 'Проверяем подключение…';
+  });
+  if (dialog.querySelector('.setup-feedback') && field) field.focus();
+})();
+</script>
