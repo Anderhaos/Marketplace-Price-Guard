@@ -197,6 +197,42 @@ class OwnerGatewayConnectionTests(TestCase):
         self.assertEqual(same.status_code, 302)
         self.assertEqual(runtime_gateway(), None)
 
+    def test_removed_model_rejected_before_seller_quota_and_provider_call(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from billing.models import AccessGrant
+        from guard.models import AssistantAIRequest, GuardAccount, Product
+        from guard.smart_assistant import smart_store_reply
+        from guard.ai_gateway import AIGatewayUnavailable
+
+        connection = self.add_connection()
+        connection.last_check_ok = True
+        connection.catalog_models = ["deepseek/approved-model"]
+        connection.save(update_fields=["last_check_ok", "catalog_models"])
+        OwnerAISettings.objects.create(
+            ai_enabled=True, gateway_model_id="old/deauthorized-model",
+            smart_questions_per_day=2, monthly_budget_kopeks=1000,
+        )
+        AccessGrant.objects.create(
+            user=self.owner, source="admin", source_ref="verified-model-test",
+            plan="smart", starts_at=timezone.now() - timedelta(minutes=5),
+            ends_at=timezone.now() + timedelta(days=1),
+        )
+        account = GuardAccount.objects.create(
+            user=self.owner, name="Owner test store", marketplace="wb",
+            token_ciphertext="fake-only", last_check_at=timezone.now(),
+            initial_sync_completed_at=timezone.now(),
+        )
+        Product.objects.create(
+            account=account, nm_id=123, current_discount=18,
+            checked_at=timezone.now(),
+        )
+        with patch("guard.smart_assistant.gateway_chat") as provider:
+            with self.assertRaises(AIGatewayUnavailable):
+                smart_store_reply(self.owner.pk, account, "Какие товары проверить?")
+            provider.assert_not_called()
+        self.assertFalse(AssistantAIRequest.objects.filter(user=self.owner).exists())
+
     def test_env_override_remains_emergency_only(self):
         self.add_connection()
         with override_settings(NOSALE_AI_GATEWAY_URL="https://platform.svdev.pro/v1/chat/completions",
