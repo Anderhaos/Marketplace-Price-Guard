@@ -7,7 +7,7 @@ Never decrypts secrets or reflects provider messages to HTML.
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from billing.models import OwnerAISettings, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerTariffOffer, OwnerOperationsSettings
+from billing.models import OwnerAISettings, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerTariffOffer, OwnerOperationsSettings, OwnerMCPAdapter
 from guard.models import GuardAccount
 from push.models import PushDelivery
 
@@ -17,6 +17,7 @@ def integration_readiness():
     ai = OwnerAISettings.objects.filter(pk=1).first()
     gateway = OwnerAIGatewayConnection.objects.filter(pk=1).first()
     mcp = OwnerMCPSettings.runtime()
+    adapters = list(OwnerMCPAdapter.objects.filter(slug__in=("wb", "ozon")).order_by("slug"))
     operations = OwnerOperationsSettings.runtime()
     model = (ai.gateway_model_id or "").strip() if ai else ""
     catalog = gateway.catalog_models if gateway and isinstance(gateway.catalog_models, list) else []
@@ -44,7 +45,12 @@ def integration_readiness():
             "state": "enabled" if mcp and mcp.enabled else "disabled",
             "tools": enabled_tools,
             "tool_count": len(enabled_tools),
-            "ozon_status": bool(mcp and mcp.enabled and mcp.ozon_status_enabled),
+            "ozon_status": bool(mcp and mcp.allows("ozon_adapter_status")),
+            "adapters": [
+                {"slug": item.slug, "enabled": item.enabled,
+                 "implementation": item.implementation}
+                for item in adapters
+            ],
             "max_products": mcp.max_products if mcp else None,
             "last_change": mcp.updated_at if mcp else None,
         },
