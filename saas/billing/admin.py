@@ -2,7 +2,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.models import LogEntry
-from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings
+from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerOperationsSettings
 from .ai_platform_connection import (
     PlatformConnectionError, normalize_base_url, save_gateway_token, verify_gateway,
 )
@@ -308,7 +308,7 @@ class OwnerConfigurationAuditAdmin(admin.ModelAdmin):
             content_type__app_label="billing",
             content_type__model__in=(
                 "ownermcpsettings", "owneraisettings",
-                "owneraigatewayconnection", "ownertariffoffer",
+                "owneraigatewayconnection", "ownertariffoffer", "owneroperationssettings",
             ),
         ).select_related("user", "content_type")
 
@@ -323,6 +323,52 @@ class OwnerConfigurationAuditAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(OwnerOperationsSettings)
+class OwnerOperationsSettingsAdmin(admin.ModelAdmin):
+    """Persisted global background-work controls. Seller portal never sees this."""
+    list_display = (
+        "__str__", "guard_checks_enabled", "instant_events_enabled",
+        "daily_digests_enabled", "push_delivery_enabled", "updated_at",
+    )
+    readonly_fields = ("updated_at",)
+    fieldsets = (
+        ("Мониторинг Wildberries", {
+            "fields": ("guard_checks_enabled", "guard_poll_seconds"),
+            "description": (
+                "Отключение фоновых проверок WB приостанавливает защиту скидок для ВСЕХ магазинов! "
+                "Оно не отменяет уже начатый цикл и не меняет разрешения WB API. "
+                "Прямой мониторинг также ограничен обязательными квотами Wildberries."
+            ),
+        }),
+        ("Уведомления для продавцов", {
+            "fields": (
+                "instant_events_enabled", "daily_digests_enabled",
+                "push_delivery_enabled", "notifications_poll_seconds", "push_batch_size",
+            ),
+            "description": (
+                "Пауза доставки не удаляет очередь. Продавцы сохраняют личные настройки подписок. "
+                "Изменения применяются при следующем цикле, без редактирования файлов или перезапуска."
+            ),
+        }),
+        ("Изменено", {"fields": ("updated_at",)}),
+    )
+
+    def has_module_permission(self, request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return self.has_module_permission(request) and not OwnerOperationsSettings.objects.exists()
+
+    def has_change_permission(self, request, obj=None):
+        return self.has_module_permission(request)
 
     def has_delete_permission(self, request, obj=None):
         return False
