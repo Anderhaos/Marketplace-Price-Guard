@@ -4,6 +4,7 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
 from push.service import process_notification_cycle
+from billing.models import OwnerOperationsSettings
 
 
 class Command(BaseCommand):
@@ -28,4 +29,6 @@ class Command(BaseCommand):
                     return
             if options["once"]:
                 return
-            time.sleep(30)
+            policy = OwnerOperationsSettings.runtime()
+            seconds = policy.notifications_poll_seconds if policy is not None else 30
+            time.sleep(max(15, min(300, seconds)))
