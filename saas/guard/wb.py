@@ -127,6 +127,27 @@ class WBClient:
             return result
         raise WBApiError("WB request retry limit reached")
 
+    PROMOTIONS_BASE_URL = "https://dp-calendar-api.wildberries.ru"
+
+    def get_promotions_calendar(self, start, end, *, limit=40):
+        """One page only; caller must label a full page as potentially partial.
+
+        GET is safe in read-only preview and never changes seller prices.
+        """
+        return self._request_to(self.PROMOTIONS_BASE_URL, "GET",
+                                "/api/v1/calendar/promotions", params={
+            "startDateTime": start, "endDateTime": end, "allPromo": "true",
+            "limit": max(1, min(40, int(limit))), "offset": 0,
+        })
+
+    def get_promotion_participants(self, promotion_id, *, limit=100):
+        """Participating goods in an ordinary promotion (not auto-promos)."""
+        return self._request_to(self.PROMOTIONS_BASE_URL, "GET",
+                                "/api/v1/calendar/promotions/nomenclatures", params={
+            "promotionID": int(promotion_id), "inAction": "true",
+            "limit": max(1, min(100, int(limit))), "offset": 0,
+        })
+
     def get_product_cards(self):
         cards = []
         cursor = {}
