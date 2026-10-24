@@ -1,0 +1,26 @@
+{% extends "guard/base.html" %}
+{% block title %}Нет доступа — NoSale{% endblock %}
+{% block content %}
+<section class="auth-wrap" aria-labelledby="access-denied-title">
+  <div class="card">
+    <span class="eyebrow">NoSale · доступ</span>
+    {% if request.path|slice:":7" == "/admin/" %}
+      <h1 id="access-denied-title">Панель владельца недоступна</h1>
+      <p class="lead">Вы вошли в обычный аккаунт NoSale. Он не имеет прав на системную панель.</p>
+      <p class="muted">Для управления сервисом войдите под подтверждённой учётной записью владельца с email и PIN. Если аккаунт владельца ещё не создан, зарегистрируйте его и завершите назначение прав у администратора сервера.</p>
+      {% if request.user.is_authenticated %}
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit">Выйти и сменить аккаунт</button>
+        </form>
+      {% else %}
+        <a class="button" href="{% url 'login' %}?next=/admin/">Войти как владелец</a>
+      {% endif %}
+    {% else %}
+      <h1 id="access-denied-title">Недостаточно прав</h1>
+      <p class="lead">Для выполнения этого действия у текущего аккаунта нет разрешения.</p>
+      <a class="button" href="{% url 'dashboard' %}">Вернуться в кабинет</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -65,8 +65,13 @@ class AdminPinGatewayTests(TestCase):
         self.client.post("/login/", {"email": self.seller.email})
         success = self.client.post("/login/", {"email": self.seller.email, "pin": "7295"})
         self.assertRedirects(success, "/", fetch_redirect_response=False)
-        # Owner-only admin now rejects authenticated non-owner sellers explicitly.\n        self.assertEqual(self.client.get("/admin/login/").status_code, 403)
-        self.assertNotEqual(self.client.get("/admin/").status_code, 200)
+        # An authenticated seller must not get a second login form or admin access.
+        self.assertEqual(self.client.get("/admin/login/").status_code, 403)
+        denied = self.client.get("/admin/")
+        self.assertContains(denied, "Панель владельца недоступна", status_code=403)
+        self.assertContains(denied, 'action="/logout/"', status_code=403)
+        self.assertNotContains(denied, "owner@svdev.pro", status_code=403)
+        self.assertContains(denied, "csrfmiddlewaretoken", status_code=403)
 
     def test_external_next_url_never_redirects_credentials(self):
         for candidate in ("https://evil.example", "//evil.example", "/admin/../../evil"):
