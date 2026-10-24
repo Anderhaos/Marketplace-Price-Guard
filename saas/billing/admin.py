@@ -159,6 +159,19 @@ class OwnerAIGatewayConnectionForm(forms.ModelForm):
 
     def save(self, commit=True):
         connection = super().save(commit=False)
+        old = OwnerAIGatewayConnection.objects.filter(pk=1).values(
+            "base_url", "catalog_mode"
+        ).first()
+        if old and (
+            old["base_url"] != connection.base_url
+            or old["catalog_mode"] != connection.catalog_mode
+        ):
+            # Changing either catalog scope or endpoint invalidates a previous
+            # authorization snapshot, even when the secret itself is unchanged.
+            connection.catalog_models = []
+            connection.last_check_ok = None
+            connection.last_checked_at = None
+            connection.last_check_message = ""
         if self.cleaned_data["service_token"]:
             save_gateway_token(connection, self.cleaned_data["service_token"])
         if commit:
