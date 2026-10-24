@@ -33,7 +33,7 @@ jobs:
       - name: Schema drift
         run: python manage.py makemigrations --check --dry-run
       - name: Unit and isolation tests
-        run: python manage.py test guard billing push
+        run: python manage.py test guard billing push nosale_mcp
       - name: Docker build and import smoke
         run: |
           docker build -t mpnosale-saas-ci .
