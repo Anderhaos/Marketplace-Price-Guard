@@ -14,6 +14,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import AccessGrant, SubscriptionPayment
+from .trial import next_paid_period_start
 from .tochka import (
     AcquiringUnavailable, InvalidWebhook, approved_price_kopeks,
     configured, create_tochka_link, normalize_bank_event, get_tochka_operation,
@@ -130,11 +131,7 @@ def apply_verified_event(payload):
     if not payment.operation_id:
         payment.operation_id = operation
     now = timezone.now()
-    previous = AccessGrant.objects.filter(
-        user_id=payment.user_id, revoked_at__isnull=True,
-        ends_at__gt=now,
-    ).order_by("-ends_at").first()
-    start = max(now, previous.ends_at) if previous else now
+    start = next_paid_period_start(payment.user_id, at=now)
     AccessGrant.objects.create(
         user_id=payment.user_id,
         source="payment", plan=payment.plan,
