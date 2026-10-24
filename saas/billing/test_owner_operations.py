@@ -157,12 +157,17 @@ class OwnerOperationsTests(TestCase):
         self.policy.guard_poll_seconds = 17
         self.policy.notifications_poll_seconds = 63
         self.policy.save(update_fields=["guard_poll_seconds", "notifications_poll_seconds"])
-        with patch("guard.management.commands.run_guard.run_due_checks", return_value=0), \
+        # The real management command deliberately closes old connections;
+        # patch that lifecycle hook in this TestCase's atomic transaction,
+        # otherwise PostgreSQL loses its test connection for subsequent cases.
+        with patch("guard.management.commands.run_guard.close_old_connections"), \
+             patch("guard.management.commands.run_guard.run_due_checks", return_value=0), \
              patch("guard.management.commands.run_guard.time.sleep", side_effect=RuntimeError("stop")) as sleep:
             with self.assertRaisesRegex(RuntimeError, "stop"):
                 call_command("run_guard")
             sleep.assert_called_once_with(17)
-        with patch("push.management.commands.run_notifications.process_notification_cycle", return_value={}), \
+        with patch("push.management.commands.run_notifications.close_old_connections"), \
+             patch("push.management.commands.run_notifications.process_notification_cycle", return_value={}), \
              patch("push.management.commands.run_notifications.time.sleep", side_effect=RuntimeError("stop")) as sleep:
             with self.assertRaisesRegex(RuntimeError, "stop"):
                 call_command("run_notifications")
