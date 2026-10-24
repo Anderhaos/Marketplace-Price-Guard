@@ -1,0 +1,97 @@
+{% extends "admin/owner_base.html" %}
+{% block page_title %}Обзор{% endblock %}
+{% block crumb %}Обзор системы{% endblock %}
+{% block owner_content %}
+<section class="owner-page-heading">
+  <div><div class="owner-kicker"><span class="owner-kicker-dot"></span> ПАНЕЛЬ ВЛАДЕЛЬЦА</div>
+    <h1>Управление NoSale</h1>
+    <p>Состояние продукта, AI, маркетплейсов и фоновых задач в одном месте.</p>
+  </div>
+  <a class="owner-outline-button" href="{% url 'nosale_owner_integrations' %}">Подробная диагностика ↗</a>
+</section>
+<div class="owner-caption-row">
+  <span>СИСТЕМНЫЙ ОБЗОР</span><span class="owner-fineprint">Значения из базы и конфигурации · не онлайн-проверка</span>
+</div>
+<div class="owner-stat-grid">
+  <article class="owner-stat">
+    <span class="owner-stat-label">Пользователи</span><strong>{{ readiness.identity.seller_count }}</strong>
+    <span class="owner-stat-note">Активные клиентские аккаунты</span>
+  </article>
+  <article class="owner-stat">
+    <span class="owner-stat-label">Wildberries</span><strong>{{ readiness.wb.store_count }}</strong>
+    <span class="owner-stat-note">Магазины в базе данных</span>
+  </article>
+  <article class="owner-stat">
+    <span class="owner-stat-label">MCP инструменты</span><strong>{{ readiness.mcp.tool_count }}</strong>
+    <span class="owner-stat-note">Разрешённые инструменты WB</span>
+  </article>
+  <article class="owner-stat">
+    <span class="owner-stat-label">Очередь уведомлений</span><strong>{{ readiness.notifications.undelivered_count }}</strong>
+    <span class="owner-stat-note">Ожидают / не доставлены</span>
+  </article>
+</div>
+<div class="owner-caption-row owner-caption-row--gap"><span>ЦЕНТР УПРАВЛЕНИЯ</span><span class="owner-fineprint">Настройки действуют без редактирования файлов</span></div>
+<div class="owner-control-grid">
+  <section class="owner-service owner-service--wide">
+    <div class="owner-service-icon">AI</div>
+    <div class="owner-service-top"><span>01 / ИНТЕЛЛЕКТ</span><span class="owner-status{% if readiness.ai.usable %} is-positive{% endif %}">{% if readiness.ai.usable %}Настроен{% else %}Не готов{% endif %}</span></div>
+    <h2>AI Platform</h2>
+    <p>Подключение модели и контроль расходов. Ключ хранится зашифрованно; запросы отправляются через общую AI Platform.</p>
+    <div class="owner-service-metrics">
+      <div><small>КЛЮЧ</small><b>{% if readiness.ai.key_saved %}Сохранён{% else %}Не задан{% endif %}</b></div>
+      <div><small>МОДЕЛЬ</small><b>{{ readiness.ai.selected_model|truncatechars:28 }}</b></div>
+      <div><small>КАТАЛОГ</small><b>{{ readiness.ai.verified_model_count }} моделей</b></div>
+    </div>
+    <a href="{% url 'nosale_owner_section' 'ai' %}" class="owner-card-link">Подключение и модели <span>↗</span></a>
+  </section>
+  <section class="owner-service">
+    <div class="owner-service-icon owner-service-icon--purple">M</div>
+    <div class="owner-service-top"><span>02 / ИНТЕГРАЦИИ</span><span class="owner-status{% if readiness.mcp.state == 'enabled' %} is-positive{% endif %}">{% if readiness.mcp.state == 'enabled' %}Разрешён{% else %}Отключён{% endif %}</span></div>
+    <h2>MCP и площадки</h2>
+    <p>WB — чтение сохранённых данных. Ozon — только статус, API не реализован.</p>
+    <a href="{% url 'nosale_owner_section' 'mcp' %}" class="owner-card-link">Адаптеры и ограничения <span>↗</span></a>
+  </section>
+  <section class="owner-service">
+    <div class="owner-service-icon owner-service-icon--blue">↻</div>
+    <div class="owner-service-top"><span>03 / ПРОЦЕССЫ</span><span class="owner-status{% if readiness.operations.guard_checks_enabled %} is-positive{% endif %}">{% if readiness.operations.guard_checks_enabled %}Guard включён{% else %}Пауза Guard{% endif %}</span></div>
+    <h2>Автоматизация</h2>
+    <p>Мониторинг цен, фоновые задания, Push и интервалы выполнения.</p>
+    <a href="{% url 'nosale_owner_section' 'operations' %}" class="owner-card-link">Управление процессами <span>↗</span></a>
+  </section>
+  <section class="owner-service">
+    <div class="owner-service-icon owner-service-icon--green">₽</div>
+    <div class="owner-service-top"><span>04 / МОНЕТИЗАЦИЯ</span><span class="owner-status">{{ readiness.payments.enabled_tariffs }} тарифа</span></div>
+    <h2>Тарифы</h2>
+    <p>Standard и Smart, цены и доступность новых покупок. Платежи не запускаются автоматически.</p>
+    <a href="{% url 'nosale_owner_section' 'tariffs' %}" class="owner-card-link">Настроить тарифы <span>↗</span></a>
+  </section>
+  <section class="owner-service">
+    <div class="owner-service-icon owner-service-icon--gray">↗</div>
+    <div class="owner-service-top"><span>05 / КОНТРОЛЬ</span><span class="owner-status">Только чтение</span></div>
+    <h2>Модели и лимиты Smart</h2>
+    <p>Суточные квоты, бюджет AI и версия системных инструкций.</p>
+    <a href="{% url 'nosale_owner_section' 'ai' %}#assistant" class="owner-card-link">Настроить помощника <span>↗</span></a>
+  </section>
+</div>
+<section class="owner-bottom-grid">
+  <div class="owner-info-panel">
+    <div class="owner-caption-row"><span>СВЯЗАННЫЕ СИСТЕМЫ</span></div>
+    <div class="owner-statusline"><span>Wildberries API</span><b>{% if readiness.wb.network_allowed %}Разрешён сервером{% else %}Отключён сервером{% endif %}</b></div>
+    <div class="owner-statusline"><span>Ozon API</span><b>Не реализован</b></div>
+    <div class="owner-statusline"><span>AI-модель</span><b>{% if readiness.ai.model_verified %}Есть в проверенном каталоге{% else %}Не подтверждена{% endif %}</b></div>
+    <div class="owner-statusline"><span>Приём платежей</span><b>{% if readiness.payments.enabled_by_deploy %}Разрешён конфигурацией{% else %}Отключён{% endif %}</b></div>
+  </div>
+  <div class="owner-info-panel">
+    <div class="owner-caption-row"><span>АДМИНИСТРИРОВАНИЕ</span></div>
+    <div class="owner-quicklinks">
+      <a href="{% url 'admin:auth_user_changelist' %}">Клиенты и подписки <span>↗</span></a>
+      <a href="{% url 'admin:guard_guardevent_changelist' %}">Мониторинг <span>↗</span></a>
+      <a href="{% url 'admin:admin_logentry_changelist' %}">Журнал изменений <span>↗</span></a>
+      <a href="{% url 'admin:billing_ownermcpadapter_changelist' %}">Реестр MCP-адаптеров <span>↗</span></a>
+      <a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Расширенные настройки MCP <span>↗</span></a>
+      <a href="{% url 'admin:billing_owneraisettings_changelist' %}">Расширенные настройки AI <span>↗</span></a>
+      <a href="{% url 'admin:billing_owneraigatewayconnection_changelist' %}">Подключения AI Platform <span>↗</span></a>
+    </div>
+  </div>
+</section>
+{% endblock %}

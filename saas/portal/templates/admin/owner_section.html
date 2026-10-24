@@ -1,0 +1,127 @@
+{% extends "admin/owner_base.html" %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block crumb %}{{ title }}{% endblock %}
+{% block owner_content %}
+<section class="owner-page-heading">
+  <div><div class="owner-kicker"><span class="owner-kicker-dot"></span> НАСТРОЙКИ СЕРВИСА</div>
+  <h1>{{ title }}</h1>
+  <p>Изменения сохраняются в PostgreSQL. Секретные ключи не отображаются после сохранения.</p></div>
+  <a href="{% url 'nosale_owner_home' %}" class="owner-outline-button">← К обзору</a>
+</section>
+{% if form_errors %}<div class="owner-notice owner-notice--warning">Проверьте поля формы. При ошибке изменения не сохраняются.</div>{% endif %}
+
+{% if section == "ai" %}
+  <div class="owner-notice"><strong>Интеграция только через AI Platform.</strong> Не вставляйте сюда ключи DeepSeek / OpenRouter напрямую. Подключение допускается только к platform.svdev.pro. Проверка каталога запускается отдельно по кнопке и обращается к внешнему сервису.</div>
+  <div class="owner-section-grid">
+    <div class="owner-formcard" id="gateway">
+      <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПОДКЛЮЧЕНИЕ</span><h2>AI Platform</h2></div><span class="owner-status{% if readiness.ai.last_verified %} is-positive{% endif %}">{% if readiness.ai.last_verified %}Проверено ранее{% else %}Не проверено{% endif %}</span></div>
+      {% if forms.gateway %}
+        <div class="owner-inline-stats"><span>Ключ: <strong>{% if gateway.configured %}сохранён зашифрованно{% else %}не задан{% endif %}</strong></span><span>Каталог: <strong>{{ readiness.ai.verified_model_count }} моделей</strong></span></div>
+        <form method="post" class="owner-settings-form">
+          {% csrf_token %}<input type="hidden" name="_panel" value="gateway">
+          {% for field in forms.gateway %}
+            <div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>
+          {% endfor %}
+          {% for error in forms.gateway.non_field_errors %}<div class="owner-field-error">{{ error }}</div>{% endfor %}
+          <button type="submit" class="owner-primary-button">Сохранить подключение</button>
+        </form>
+        <form method="post" class="owner-verify-form">{% csrf_token %}<input type="hidden" name="_panel" value="verify-gateway"><button type="submit" class="owner-outline-button">Проверить доступ и загрузить модели ↗</button></form>
+        {% if gateway.last_checked_at %}<p class="owner-small-note">Последняя проверка: {{ gateway.last_checked_at|date:"d.m.Y H:i" }}. Это не гарантия доступности сейчас.</p>{% endif %}
+      {% else %}<div class="owner-notice owner-notice--warning">Конфигурация отсутствует. Проверьте миграции базы данных.</div>{% endif %}
+    </div>
+    <div class="owner-formcard" id="assistant">
+      <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">МОДЕЛЬ И ЛИМИТЫ</span><h2>Помощник Standard / Smart</h2></div><span class="owner-status{% if readiness.ai.usable %} is-positive{% endif %}">{% if readiness.ai.usable %}Настроен{% else %}Не готов{% endif %}</span></div>
+      {% if forms.ai %}
+        <p class="owner-small-note">Сначала подтвердите доступ к моделям. Нулевой месячный бюджет блокирует AI-запросы.</p>
+        <form method="post" class="owner-settings-form">
+          {% csrf_token %}<input type="hidden" name="_panel" value="ai">
+          {% for field in forms.ai %}
+            <div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>
+          {% endfor %}
+          {% for error in forms.ai.non_field_errors %}<div class="owner-field-error">{{ error }}</div>{% endfor %}
+          <button class="owner-primary-button" type="submit">Сохранить настройки AI</button>
+        </form>
+      {% else %}<div class="owner-notice owner-notice--warning">Конфигурация отсутствует.</div>{% endif %}
+    </div>
+  </div>
+{% elif section == "mcp" %}
+  <div class="owner-notice"><strong>Безопасные встроенные адаптеры.</strong> Wildberries: только чтение сохранённых сведений. Ozon: пока исключительно статус not_implemented. Произвольные MCP URL и инструменты записи не допускаются.</div>
+  <div class="owner-section-grid">
+    <section class="owner-formcard">
+      <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПОЛИТИКА</span><h2>Инструменты и ограничения</h2></div><span class="owner-status">{{ readiness.mcp.tool_count }} WB</span></div>
+      {% if forms.mcp %}
+        <form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="mcp">
+          {% for field in forms.mcp %}
+            <div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>
+          {% endfor %}
+          {% for error in forms.mcp.non_field_errors %}<div class="owner-field-error">{{ error }}</div>{% endfor %}
+          <button class="owner-primary-button" type="submit">Сохранить MCP</button>
+        </form>
+      {% else %}<div class="owner-notice owner-notice--warning">MCP конфигурация отсутствует.</div>{% endif %}
+    </section>
+    <div class="owner-formstack">
+      <section class="owner-formcard">
+        <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">РЕЕСТР ДРАЙВЕРОВ</span><h2>Wildberries</h2></div><span class="owner-status is-positive">Встроен · read-only</span></div>
+
+        {% with form=forms.adapter_wb %}
+        {% if form %}
+          <form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="adapter_wb">
+            {% for field in form %}<div class="owner-field owner-field--check">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}<small>{{ field.help_text }}</small></div>{% endfor %}
+            <button class="owner-outline-button" type="submit">Сохранить разрешение WB</button>
+          </form>
+        {% else %}<p class="owner-small-note">Адаптер отсутствует.</p>{% endif %}
+        {% endwith %}
+      </section>
+      <section class="owner-formcard">
+        <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">РЕЕСТР ДРАЙВЕРОВ</span><h2>Ozon</h2></div><span class="owner-status">API не реализован</span></div>
+        {% with form=forms.adapter_ozon %}
+        {% if form %}
+          <form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="adapter_ozon">
+            {% for field in form %}<div class="owner-field owner-field--check">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}<small>{{ field.help_text }}</small></div>{% endfor %}
+            <button class="owner-outline-button" type="submit">Сохранить разрешение Ozon</button>
+          </form>
+        {% else %}<p class="owner-small-note">Адаптер отсутствует.</p>{% endif %}
+        {% endwith %}
+        <p class="owner-small-note">Включение не подключает Ozon API и не загружает товары.</p>
+      </section>
+    </div>
+  </div>
+{% elif section == "operations" %}
+  <div class="owner-notice owner-notice--warning"><strong>Внимание.</strong> Отключение Guard останавливает запуск новых проверок скидок для всех продавцов. Это не обычный переключатель уведомлений.</div>
+  <div class="owner-section-grid owner-section-grid--narrow">
+    <section class="owner-formcard"><div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПРОЦЕССЫ</span><h2>Мониторинг и доставка</h2></div><span class="owner-status{% if readiness.operations.guard_checks_enabled %} is-positive{% endif %}">{% if readiness.operations.guard_checks_enabled %}Guard включён{% else %}Пауза{% endif %}</span></div>
+      {% if forms.operations %}<form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="operations">
+        {% for field in forms.operations %}<div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>{% endfor %}
+        {% for error in forms.operations.non_field_errors %}<div class="owner-field-error">{{ error }}</div>{% endfor %}<button type="submit" class="owner-primary-button">Сохранить процессы</button></form>
+      {% else %}<div class="owner-notice owner-notice--warning">Конфигурация отсутствует.</div>{% endif %}
+    </section>
+    <section class="owner-info-panel"><div class="owner-caption-row"><span>СОСТОЯНИЕ ОЧЕРЕДИ</span></div>
+      <div class="owner-statusline"><span>Push pending / failed</span><b>{{ readiness.notifications.undelivered_count }}</b></div>
+      <div class="owner-statusline"><span>Фоновые проверки</span><b>{% if readiness.operations.guard_checks_enabled %}Разрешены{% else %}Пауза{% endif %}</b></div>
+      <p class="owner-small-note">Изменение в базе вступает в силу при следующем цикле воркера. Эта страница не подтверждает сетевую доставку.</p>
+    </section>
+  </div>
+{% elif section == "tariffs" %}
+  <div class="owner-notice"><strong>Действует только для новых покупок.</strong> Выключение тарифа не отменяет уже оплаченные подписки. Фактическое проведение платежей и фискализация ограничены серверной конфигурацией.</div>
+  <div class="owner-section-grid">
+    {% with form=forms.tariff_standard %}
+    <section class="owner-formcard"><div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПЛАН 01</span><h2>Standard</h2></div></div>
+      {% if form %}<form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="tariff_standard">
+        {% for field in form %}<div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>{% endfor %}
+        <button type="submit" class="owner-primary-button">Сохранить Standard</button></form>{% else %}<div class="owner-notice owner-notice--warning">Тариф не найден.</div>{% endif %}
+    </section>{% endwith %}
+    {% with form=forms.tariff_smart %}
+    <section class="owner-formcard"><div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПЛАН 02</span><h2>Smart</h2></div></div>
+      {% if form %}<form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="tariff_smart">
+        {% for field in form %}<div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>{% endfor %}
+        <button type="submit" class="owner-primary-button">Сохранить Smart</button></form>{% else %}<div class="owner-notice owner-notice--warning">Тариф не найден.</div>{% endif %}
+    </section>{% endwith %}
+  </div>
+{% endif %}
+<div class="owner-advanced"><span>РАСШИРЕННЫЙ РЕЖИМ · Django Admin</span>
+{% if section == "ai" %}<a href="{% url 'admin:billing_owneraigatewayconnection_changelist' %}">AI Platform ↗</a><a href="{% url 'admin:billing_owneraisettings_changelist' %}">Настройки Smart ↗</a>
+{% elif section == "mcp" %}<a href="{% url 'admin:billing_ownermcpadapter_changelist' %}">Реестр адаптеров ↗</a><a href="{% url 'admin:billing_ownermcpsettings_changelist' %}">Инструменты MCP ↗</a>
+{% elif section == "operations" %}<a href="{% url 'admin:billing_owneroperationssettings_changelist' %}">Системные процессы ↗</a>
+{% else %}<a href="{% url 'admin:billing_ownertariffoffer_changelist' %}">Тарифы ↗</a>{% endif %}
+</div>
+{% endblock %}
