@@ -11,6 +11,18 @@ from guard.forms import EmailLoginForm
 from push import views as push_views
 from billing import views as billing_views
 
+def owner_admin_permission(request):
+    """Customers and ordinary staff cannot access any SaaS system-admin page."""
+    return bool(request.user.is_authenticated and request.user.is_active and request.user.is_superuser)
+
+
+admin.site.has_permission = owner_admin_permission
+admin.site.site_header = "NoSale · Панель владельца SaaS"
+admin.site.site_title = "NoSale · Управление сервисом"
+admin.site.index_title = "Управление NoSale"
+admin.site.index_template = "admin/owner_index.html"
+
+
 def admin_login_gateway(request):
     """Use the rate-limited email/PIN login instead of Django's raw password form.
 
