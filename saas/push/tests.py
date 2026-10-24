@@ -159,6 +159,22 @@ class PushTests(TestCase):
         self.assertEqual(delivery.state, "sent")
         self.assertEqual(deliver_due_pushes(send=sender), 0)
 
+    def test_push_delivery_routes_only_allowlisted_internal_pages(self):
+        sub = self.subscribe()
+        for path, expected in (
+            ("/advisor/", "/advisor/"),
+            ("/stores/", "/stores/"),
+            ("https://evil.example/steal", "/notifications/"),
+        ):
+            with self.subTest(path=path):
+                notice = PushMessage.objects.create(
+                    user=self.alice, kind="event", title="Test", body="Action", url=path,
+                )
+                PushDelivery.objects.create(message=notice, subscription=sub)
+                sender = Mock()
+                self.assertEqual(deliver_due_pushes(send=sender), 1)
+                self.assertEqual(json.loads(sender.call_args.kwargs["data"])["url"], expected)
+
     def test_gone_delivery_disables_subscription(self):
         sub = self.subscribe()
         event = GuardEvent.objects.create(account=self.shop, kind="confirmed", message="Confirmed")
