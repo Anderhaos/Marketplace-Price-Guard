@@ -10,7 +10,7 @@ from django.core.signing import BadSignature, SignatureExpired
 from billing.access import has_active_access
 from guard.models import GuardAccount
 
-RESOURCE = "http://nosale-mcp:8099/mcp"
+RESOURCE = "http://mcp:8099/mcp"
 SALT = "nosale.mcp.auth.v1"
 TTL_SECONDS = 90
 
