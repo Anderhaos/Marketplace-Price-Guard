@@ -53,6 +53,10 @@
           <input type="checkbox" id="ai-consent" name="ai_consent" value="yes">
           <span>Я согласен(на), что мой вопрос и краткая сводка данных выбранного магазина будут обработаны AI Platform и подключённым AI-провайдером для ответа. Не отправляйте токены WB или персональные данные.</span>
         </label>
+        <label for="mcp-consent" style="font-size:13px;display:flex;align-items:flex-start;gap:9px">
+          <input type="checkbox" id="mcp-consent" name="mcp_consent" value="yes">
+          <span>Разрешаю Smart дополнительно запросить через внутренний NoSale MCP сохранённые товары, изменения скидок или акции <strong>этого магазина</strong> и передать ограниченную выборку названий товаров, цен и дат в AI Platform и AI-провайдер для ответа. Токен WB, учётные данные и сведения других магазинов не передаются. Можно не включать: тогда используется только прежняя краткая сводка.</span>
+        </label>
         <button type="submit" name="mode" value="smart">Спросить Smart AI</button>
         <p class="muted" style="font-size:12px;margin:0">AI может ошибаться. Значения скидок и статус операций проверяйте в NoSale. Лимит AI-вопросов задаёт администратор.</p>
       </div>
@@ -61,6 +65,6 @@
 </section>
 <section class="card" style="max-width:820px;margin-inline:auto">
   <h2 style="font-size:16px;margin:0 0 10px">Примеры вопросов</h2>
-  <p class="muted" style="margin:0">«Статус проверки» · «Сколько товаров выше лимита?» · «Что изменилось за сутки?» · «Есть ли ошибки?» · «Какой у меня тариф?» · «Как настроить защиту?»</p>
+  <p class="muted" style="margin:0">«Статус проверки» · «Сколько товаров выше лимита?» · «Что изменилось за сутки?» · «Есть ли ошибки?» · «Какой у меня тариф?» · «Как настроить защиту?» · «Какие акции могут снизить цену?» · «Какие товары превышают лимит?»</p>
 </section>
 {% endblock %}
