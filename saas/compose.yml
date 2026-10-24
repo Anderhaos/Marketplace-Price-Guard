@@ -54,6 +54,23 @@ services:
       db: {condition: service_healthy}
     restart: unless-stopped
     networks: [internal]
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    env_file: .env
+    depends_on:
+      db: {condition: service_healthy}
+    command: python -m nosale_mcp.server
+    restart: unless-stopped
+    # Deliberately NO ports: MCP only on the Compose internal network.
+    # Real seller session auth is delegated through short-lived signed bearer.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8099), 2); s.close()"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
   backup:
     image: postgres:16-alpine
     env_file: .env

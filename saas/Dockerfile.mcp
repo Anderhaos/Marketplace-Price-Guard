@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt requirements-mcp.txt ./
+RUN pip install --no-cache-dir -r requirements-mcp.txt
+COPY certs/russian_trusted_root_ca_pem.crt /usr/local/share/ca-certificates/russian-trusted-root.crt
+COPY certs/russian_trusted_sub_ca_pem.crt /usr/local/share/ca-certificates/russian-trusted-sub.crt
+RUN update-ca-certificates
+COPY manage.py ./
+COPY portal ./portal
+COPY guard ./guard
+COPY billing ./billing
+COPY push ./push
+COPY nosale_mcp ./nosale_mcp
+RUN useradd --system --create-home app && chown -R app:app /app
+USER app
+EXPOSE 8099
+CMD ["python", "-m", "nosale_mcp.server"]

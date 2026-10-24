@@ -36,6 +36,25 @@ services:
       timeout: 5s
       retries: 8
     networks: [preview_internal]
+  mcp:
+    build:
+      context: ..
+      dockerfile: Dockerfile.mcp
+    env_file: ../.preview.env
+    environment:
+      SAAS_DB_HOST: db
+      SAAS_DB_PORT: "5432"
+    depends_on:
+      db: {condition: service_healthy}
+    command: python -m nosale_mcp.server
+    restart: unless-stopped
+    # SSH-only preview: neither MCP nor DB has a published host port.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8099), 2); s.close()"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks: [preview_internal]
   worker:
     build:
       context: ..
