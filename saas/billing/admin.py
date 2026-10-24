@@ -2,7 +2,7 @@ from decimal import Decimal
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.models import LogEntry
-from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerOperationsSettings
+from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerOperationsSettings, OwnerMCPAdapter
 from .ai_platform_connection import (
     PlatformConnectionError, normalize_base_url, save_gateway_token, verify_gateway,
 )
@@ -233,6 +233,41 @@ class OwnerAIGatewayConnectionAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(OwnerMCPAdapter)
+class OwnerMCPAdapterAdmin(admin.ModelAdmin):
+    """Owner-managed activation of reviewed, non-installable adapter drivers."""
+    list_display = ("__str__", "slug", "enabled", "adapter_state", "updated_at")
+    list_filter = ("enabled",)
+    fields = ("slug", "enabled", "adapter_state", "updated_at")
+    readonly_fields = ("slug", "adapter_state", "updated_at")
+    actions = None
+
+    @admin.display(description="Реальная функциональность")
+    def adapter_state(self, obj):
+        if obj is None:
+            return "Не зарегистрирован"
+        if obj.slug == "wb":
+            return "Встроенный: только сохранённые товары, скидки и акции WB"
+        if obj.slug == "ozon":
+            return "Ozon API НЕ ПОДКЛЮЧЁН. Только статус not_implemented"
+        return "Неизвестный адаптер запрещён"
+
+    def has_module_permission(self, request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(OwnerMCPSettings)
 class OwnerMCPSettingsAdmin(admin.ModelAdmin):
     """Only the actual NoSale superuser controls MCP and marketplace modules."""
@@ -308,7 +343,7 @@ class OwnerConfigurationAuditAdmin(admin.ModelAdmin):
             content_type__app_label="billing",
             content_type__model__in=(
                 "ownermcpsettings", "owneraisettings",
-                "owneraigatewayconnection", "ownertariffoffer", "owneroperationssettings",
+                "owneraigatewayconnection", "ownertariffoffer", "owneroperationssettings", "ownermcpadapter",
             ),
         ).select_related("user", "content_type")
 
