@@ -19,6 +19,14 @@
   {% endif %}
   <h2 style="font-size:18px">Тарифы на месяц</h2>
   <p class="muted">Оплата разовая, автоматического продления и списаний нет. При покупке следующего тарифа оплаченный месяц начнётся после окончания существующего доступа.</p>
+  {% if subscription_state.active or subscription_state.upcoming_plan %}
+    <p class="muted">Ориентировочное начало нового оплаченного периода при подтверждении платежа сейчас:
+      <b>{{ subscription_state.next_purchase_starts_at|date:"d.m.Y H:i" }}</b>.
+      Окончательная дата фиксируется после подтверждения банком и может измениться при изменении доступа.
+    </p>
+  {% else %}
+    <p class="muted">Если нет действующего или уже запланированного доступа, новый тариф начнёт действовать после подтверждения оплаты банком.</p>
+  {% endif %}
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">
     {% for offer in tariff_offers %}
       <div class="notice" style="margin:0">
