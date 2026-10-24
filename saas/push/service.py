@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from guard.models import GuardAccount, GuardEvent, Product
 from guard.advisor import store_recommendations
-from billing.access import has_active_access, has_smart_access
+from billing.access import has_smart_access
 from .models import NotificationPreference, PushDelivery, PushMessage, PushSubscription
 
 IMPORTANT_KINDS = ("confirmed", "error", "upload_error")
@@ -173,13 +173,17 @@ def create_daily_digests(now=None):
     now = now or timezone.now()
     count = 0
     User = get_user_model()
-    for user in User.objects.filter(is_active=True).iterator(chunk_size=100):
-        # Seller access is the canonical entitlement for both Standard and Smart.
-        # A user with expired/future/revoked access must not keep receiving
-        # automated daily store reports. Legacy deployments with access
-        # enforcement explicitly disabled retain their previous behavior.
-        if not has_active_access(user.pk, at=now):
-            continue
+    sellers = User.objects.filter(is_active=True)
+    if settings.SAAS_ACCESS_ENFORCED:
+        # Filter with the canonical AccessGrant ledger *in the database*.
+        # Avoid one entitlement query per registered user every 30 seconds;
+        # distinct prevents duplicate rows for overlapping paid/trial grants.
+        sellers = sellers.filter(
+            saas_access_grants__starts_at__lte=now,
+            saas_access_grants__ends_at__gt=now,
+            saas_access_grants__revoked_at__isnull=True,
+        ).distinct()
+    for user in sellers.iterator(chunk_size=100):
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         if not pref.daily_enabled:
             continue
