@@ -1,0 +1,35 @@
+{% extends 'guard/base.html' %}
+{% block title %}Подтверждение владельца — NoSale{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/welcome.css">
+<div class="welcome-layout auth-flow-layout">
+  <section class="welcome-story auth-flow-story" aria-labelledby="owner-email-title">
+    <div class="welcome-kicker">NoSale · панель владельца</div>
+    <p class="auth-flow-progress">Защищённый вход · второй этап</p>
+    <h1 class="auth-flow-title" id="owner-email-title">Подтвердите вход <span>по email.</span></h1>
+    <p class="welcome-text">PIN уже проверен. Для доступа к системным настройкам требуется одноразовый код, отправленный на адрес владельца. Код действует 10 минут.</p>
+    <div class="auth-flow-hint">Только владелец управляет MCP, моделями, провайдерами, лимитами и тарифами. Продавцам доступ в этот раздел запрещён.</div>
+  </section>
+  <section class="welcome-panel auth-flow-panel" aria-labelledby="owner-code-title">
+    <div class="welcome-panel-top">
+      <span class="welcome-label">Системный доступ</span>
+      <span class="welcome-stage">Код из письма</span>
+    </div>
+    <h2 id="owner-code-title">Введите 4 цифры</h2>
+    <p class="welcome-explainer">Проверьте входящие письма и папку «Спам». Если не запрашивали вход, никому не сообщайте код.</p>
+    {% if error %}<p role="alert" class="welcome-form-errors">{{ error }}</p>{% endif %}
+    <form method="post" class="welcome-form" novalidate>{% csrf_token %}
+      {{ form.non_field_errors }}
+      <label for="owner-email-code">Одноразовый код</label>
+      <input id="owner-email-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="0000" required autofocus>
+      {% if form.code.errors %}<div role="alert" class="welcome-form-errors">{{ form.code.errors }}</div>{% endif %}
+      <button type="submit" class="welcome-submit">Открыть панель владельца →</button>
+    </form>
+    <form method="post" class="welcome-form" style="margin-top:14px">{% csrf_token %}
+      <button type="submit" name="action" value="resend" class="welcome-submit">Запросить новый код</button>
+    </form>
+    <p class="welcome-form-help">Повторная отправка доступна не чаще одного раза в минуту. После пяти ошибок код блокируется до окончания срока действия.</p>
+    <div class="welcome-form-help"><a href="{% url 'logout' %}">Выйти из аккаунта</a></div>
+  </section>
+</div>
+{% endblock %}
