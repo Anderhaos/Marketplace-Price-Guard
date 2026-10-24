@@ -17,7 +17,7 @@ from django.db import transaction
 from django.db.utils import OperationalError
 import logging
 from django.db.models import Q
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponseNotAllowed, HttpResponseForbidden
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
@@ -264,6 +264,133 @@ def finish_pin(request):
     })
 
 
+
+SESSION_OWNER_CODE = "nosale_owner_code_challenge_id"
+SESSION_OWNER_VERIFIED = "nosale_owner_admin_verified"
+OWNER_ACCESS_TTL = timedelta(minutes=30)
+
+
+def owner_admin_verified(request):
+    """An authenticated superuser needs fresh email possession per admin session."""
+    user = request.user
+    if not (user.is_authenticated and user.is_active and user.is_superuser):
+        return False
+    if not settings.SAAS_PIN_AUTH_ENABLED:
+        return True
+    grant = request.session.get(SESSION_OWNER_VERIFIED)
+    return (
+        isinstance(grant, dict)
+        and type(grant.get("user_id")) is int
+        and grant["user_id"] == user.pk
+        and type(grant.get("valid_until")) in (int, float)
+        and grant["valid_until"] > timezone.now().timestamp()
+    )
+
+
+def _issue_owner_email_code(request, *, resend=False):
+    now = timezone.now()
+    email = request.user.email.strip().lower()
+    if not email or email != request.user.username.strip().lower():
+        return "invalid"
+    with transaction.atomic():
+        challenge, created = EmailPinChallenge.objects.select_for_update().get_or_create(
+            email=email,
+            purpose=EmailPinChallenge.PURPOSE_OWNER,
+            defaults={"sent_at": now - CODE_RESEND_WAIT, "expires_at": now},
+        )
+        if challenge.expires_at > now and challenge.attempts >= MAX_CODE_ATTEMPTS:
+            return "locked"
+        fresh = not created and challenge.expires_at > now and bool(challenge.code_hash)
+        if fresh and (not resend or now - challenge.sent_at < CODE_RESEND_WAIT):
+            request.session[SESSION_OWNER_CODE] = challenge.pk
+            return "sent"
+        code = f"{secrets.randbelow(10000):04d}"
+        challenge.code_hash = make_password(code)
+        if not fresh:
+            challenge.attempts = 0
+        challenge.sent_at = now
+        challenge.expires_at = now + CODE_TTL
+        challenge.verified_until = None
+        challenge.save(update_fields=[
+            "code_hash", "attempts", "sent_at", "expires_at", "verified_until",
+        ])
+        send_pin_verification_email(email=email, code=code, purpose="owner")
+        request.session[SESSION_OWNER_CODE] = challenge.pk
+    return "sent"
+
+
+def owner_admin_code(request):
+    """One-time email code required after PIN for every privileged session."""
+    if request.method not in ("GET", "POST"):
+        return HttpResponseNotAllowed(["GET", "POST"])
+    user = request.user
+    if not user.is_authenticated:
+        return redirect("/login/?next=/admin/")
+    if not (user.is_active and user.is_superuser):
+        return HttpResponseForbidden("NoSale owner permission required")
+    if owner_admin_verified(request):
+        return redirect("/admin/")
+    form = CodeForm(request.POST or None)
+    error = None
+    if request.method == "POST" and request.POST.get("action") == "resend":
+        form = CodeForm()
+        try:
+            status = _issue_owner_email_code(request, resend=True)
+            if status == "locked":
+                error = "Слишком много попыток. Запросите новый код после истечения срока."
+            elif status == "invalid":
+                error = "Аккаунт владельца не подтверждён."
+        except Exception:
+            log.exception("nosale_owner_stepup_delivery_failed")
+            error = "Не удалось отправить письмо. Повторите позже."
+    elif request.method == "POST" and form.is_valid():
+        challenge_id = request.session.get(SESSION_OWNER_CODE)
+        if type(challenge_id) is not int:
+            form.add_error("code", "Запросите код заново.")
+        else:
+            with transaction.atomic():
+                challenge = EmailPinChallenge.objects.select_for_update().filter(
+                    pk=challenge_id, email=user.email.lower(),
+                    purpose=EmailPinChallenge.PURPOSE_OWNER,
+                ).first()
+                now = timezone.now()
+                if (challenge is None or challenge.expires_at <= now
+                        or challenge.attempts >= MAX_CODE_ATTEMPTS
+                        or not challenge.code_hash):
+                    form.add_error("code", "Код истёк или заблокирован.")
+                elif check_password(form.cleaned_data["code"], challenge.code_hash):
+                    challenge.code_hash = ""
+                    challenge.expires_at = now
+                    challenge.verified_until = None
+                    challenge.save(update_fields=[
+                        "code_hash", "expires_at", "verified_until",
+                    ])
+                    request.session.pop(SESSION_OWNER_CODE, None)
+                    request.session.cycle_key()
+                    request.session[SESSION_OWNER_VERIFIED] = {
+                        "user_id": user.pk,
+                        "valid_until": (now + OWNER_ACCESS_TTL).timestamp(),
+                    }
+                    return redirect("/admin/")
+                else:
+                    challenge.attempts += 1
+                    challenge.save(update_fields=["attempts"])
+                    form.add_error("code", "Код неверный или истёк.")
+    elif request.method == "GET":
+        try:
+            status = _issue_owner_email_code(request)
+            if status == "locked":
+                error = "Слишком много попыток. Запросите новый код после истечения срока."
+            elif status == "invalid":
+                error = "Аккаунт владельца не подтверждён."
+        except Exception:
+            log.exception("nosale_owner_stepup_delivery_failed")
+            error = "Не удалось отправить письмо. Повторите позже."
+    return render(request, "guard/owner_code.html", {
+        "form": form, "error": error,
+    })
+
+
 SESSION_LOGIN_EMAIL = "nosale_login_email"
 SESSION_LOGIN_NEXT = "nosale_login_next"
 
@@ -275,7 +402,7 @@ def pin_login(request):
     and for compatibility with password recovery and prior clients.
     """
     if request.user.is_authenticated:
-        if request.GET.get("next") == "/admin/" and request.user.is_staff:
+        if request.GET.get("next") == "/admin/" and request.user.is_superuser:
             return redirect("/admin/")
         return redirect("dashboard")
     if request.method not in ("GET", "POST"):
@@ -334,8 +461,9 @@ def pin_login(request):
                         request.session.pop(SESSION_LOGIN_EMAIL, None)
                         requested = request.session.pop(SESSION_LOGIN_NEXT, "")
                         login(request, user)
-                        if requested == "/admin/" and user.is_staff:
-                            return redirect("/admin/")
+                        if requested == "/admin/" and user.is_superuser:
+                            request.session.pop(SESSION_OWNER_VERIFIED, None)
+                            return redirect("/admin/code/")
                         return redirect("dashboard")
     return render(request, "guard/login_pin.html", {
         "form": form, "stage": stage, "email": email,

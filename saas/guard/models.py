@@ -88,7 +88,12 @@ class EmailPinChallenge(models.Model):
     """Single active, rate-limited email challenge per recipient and purpose."""
     PURPOSE_REGISTER = "register"
     PURPOSE_RECOVER = "recover"
-    PURPOSE_CHOICES = [(PURPOSE_REGISTER, "Регистрация"), (PURPOSE_RECOVER, "Восстановление PIN")]
+    PURPOSE_OWNER = "owner"
+    PURPOSE_CHOICES = [
+        (PURPOSE_REGISTER, "Регистрация"),
+        (PURPOSE_RECOVER, "Восстановление PIN"),
+        (PURPOSE_OWNER, "Подтверждение входа владельца"),
+    ]
 
     email = models.EmailField(max_length=254)
     purpose = models.CharField(max_length=16, choices=PURPOSE_CHOICES)

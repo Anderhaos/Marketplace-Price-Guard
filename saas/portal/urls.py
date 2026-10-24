@@ -19,7 +19,7 @@ def owner_admin_permission(request):
         request.user.is_active and request.user.is_superuser
     ):
         raise PermissionDenied("NoSale owner permission required")
-    return bool(request.user.is_authenticated and request.user.is_active and request.user.is_superuser)
+    return email_pin.owner_admin_verified(request)
 
 
 admin.site.has_permission = owner_admin_permission
@@ -40,14 +40,17 @@ def admin_login_gateway(request):
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
     if request.user.is_authenticated:
-        if not owner_admin_permission(request):
+        if not (request.user.is_active and request.user.is_superuser):
             return HttpResponseForbidden("Owner access only")
+        if not owner_admin_permission(request):
+            return redirect("nosale_owner_admin_code")
         return redirect("admin:index")
     return redirect("/login/?next=/admin/")
 
 
 urlpatterns = [
     path("admin/login/", admin_login_gateway, name="nosale_admin_pin_login"),
+    path("admin/code/", email_pin.owner_admin_code, name="nosale_owner_admin_code"),
     path("admin/integrations/", admin.site.admin_view(owner_integrations), name="nosale_owner_integrations"),
     path("favicon.ico", RedirectView.as_view(url="/favicon.svg", permanent=False)),
     path("favicon.svg", views.favicon, name="favicon"),

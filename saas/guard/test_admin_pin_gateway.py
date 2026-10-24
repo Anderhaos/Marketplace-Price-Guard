@@ -44,8 +44,8 @@ class AdminPinGatewayTests(TestCase):
         self.client.get("/login/?next=/admin/")
         self.assertEqual(self.client.post("/login/", {"email": self.owner.email}).status_code, 200)
         success = self.client.post("/login/", {"email": self.owner.email, "pin": "6184"})
-        self.assertRedirects(success, "/admin/", fetch_redirect_response=False)
-        self.assertEqual(self.client.get("/admin/").status_code, 200)
+        self.assertRedirects(success, "/admin/code/", fetch_redirect_response=False)
+        self.assertNotEqual(self.client.get("/admin/").status_code, 200)
 
     def test_wrong_pin_hits_existing_persisted_lockout(self):
         self.client.get("/login/?next=/admin/")

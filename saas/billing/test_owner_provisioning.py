@@ -112,4 +112,5 @@ class OwnerProvisioningTests(TestCase):
                 "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
             }
         ):
-            self.assertEqual(self.client.get(url).status_code, 200)
+            self.assertNotEqual(self.client.get(url).status_code, 200)
+            self.assertRedirects(self.client.get(url), "/admin/login/?next=/admin/", fetch_redirect_response=False)
