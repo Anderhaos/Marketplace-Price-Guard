@@ -141,6 +141,34 @@ def queue_new_events(now=None):
     return queued
 
 
+
+def _highest_priority_smart_advice(user, *, now):
+    """One factual action across ALL of this user's connected WB stores.
+
+    No WB polling, model calls or cross-user data. This runs once per user's
+    local day, after the existing outbox deduplication check.
+    """
+    choice = None
+    connected_count = 0
+    stores = (
+        GuardAccount.objects.filter(user=user, marketplace="wb")
+        .exclude(token_ciphertext="")
+        .order_by("id")
+    )
+    for store in stores.iterator(chunk_size=20):
+        connected_count += 1
+        advisory = store_recommendations(store, now=now)
+        finding = next(
+            (item for item in advisory["recommendations"] if item["priority"] <= 2),
+            None,
+        )
+        if finding is None:
+            continue
+        if choice is None or finding["priority"] < choice[1]["priority"]:
+            choice = (store, finding)
+    return choice, connected_count
+
+
 def create_daily_digests(now=None):
     now = now or timezone.now()
     count = 0
@@ -170,23 +198,20 @@ def create_daily_digests(now=None):
             created_at__gte=start, created_at__lte=now,
         ).count()
         active_products = Product.objects.filter(account__user=user, active=True).count()
-        title = f"MPNO Sale — отчёт за {day:%d.%m}"
+        title = f"NoSale — отчёт за {day:%d.%m}"
         body = f"Товаров под контролем: {active_products}; проверок: {checks}; исправлений: {corrected}; ошибок: {errors}."
         link = URL
         if has_smart_access(user.pk, at=now):
-            # Smart's first daily advice is deterministic: no extra WB request
-            # and no LLM invoice just to populate a routine notification.
-            shop = (GuardAccount.objects.filter(user=user, marketplace="wb")
-                    .exclude(token_ciphertext="").order_by("id").first())
-            if shop:
-                advice = store_recommendations(shop, now=now)
-                meaningful = next(
-                    (item for item in advice["recommendations"] if item["priority"] <= 2), None
-                )
-                if meaningful:
-                    title = f"NoSale Smart — отчёт за {day:%d.%m}"
-                    body += f" Smart · {shop.name}: {meaningful['title']}."
-                    link = "/advisor/"
+            # Smart's first daily advice is deterministic: no WB network call
+            # and no LLM invoice just to populate routine notifications.
+            selected, store_count = _highest_priority_smart_advice(user, now=now)
+            if selected is not None:
+                shop, meaningful = selected
+                title = f"NoSale Smart — отчёт за {day:%d.%m}"
+                body += f" Smart · {shop.name}: {meaningful['title']}."
+                # /advisor/ shows the seller's selected store, which need
+                # not be this store. Route multi-store notices via selector.
+                link = "/stores/" if store_count > 1 else "/advisor/"
         message, created = PushMessage.objects.get_or_create(
             user=user, digest_date=day,
             defaults={"kind": "digest", "title": title, "body": body[:400], "url": link},
@@ -230,7 +255,7 @@ def deliver_due_pushes(now=None, send=None):
                 }},
                 data=json.dumps({
                     "title": delivery.message.title, "body": delivery.message.body,
-                    "url": delivery.message.url if delivery.message.url in (URL, "/advisor/") else URL,
+                    "url": delivery.message.url if delivery.message.url in (URL, "/advisor/", "/stores/") else URL,
                 }, ensure_ascii=False),
                 vapid_private_key=settings.PUSH_VAPID_PRIVATE_KEY,
                 vapid_claims={"sub": settings.PUSH_VAPID_SUBJECT},
