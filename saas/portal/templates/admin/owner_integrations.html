@@ -66,6 +66,17 @@
       <a href="{% url 'admin:billing_ownertariffoffer_changelist' %}">Цены и тарифы</a>
     </section>
     <section class="ir-card">
+      <h2>Фоновые процессы</h2>
+      <p>Запуск новых проверок WB: <strong>{% if readiness.operations.guard_checks_enabled %}Разрешён владельцем{% else %}Приостановлен{% endif %}</strong></p>
+      <p>Очередь мгновенных Push: {% if readiness.operations.instant_events_enabled %}Разрешена{% else %}Приостановлена{% endif %}</p>
+      <p>Ежедневные сводки: {% if readiness.operations.daily_digests_enabled %}Включены{% else %}Приостановлены{% endif %}</p>
+      <p>Отправка Push: <strong>{% if readiness.operations.push_delivery_enabled %}Разрешена{% else %}Приостановлена — очередь сохраняется{% endif %}</strong></p>
+      <p>Guard: {{ readiness.operations.guard_poll_seconds|default:"—" }} сек.; Push: {{ readiness.operations.notifications_poll_seconds|default:"—" }} сек.</p>
+      <p>Максимум отправок за цикл: {{ readiness.operations.push_batch_size|default:"—" }}</p>
+      <p class="ir-muted">Отключение Guard прерывает запуск последующих циклов защиты скидок, а не только AI. Сетевой доступ WB дополнительно ограничен настройками сервера.</p>
+      <a href="{% url 'admin:billing_owneroperationssettings_changelist' %}">Изменить фоновые процессы</a>
+    </section>
+    <section class="ir-card">
       <h2>Учётные записи и уведомления</h2>
       <p>Email/PIN: {% if readiness.identity.pin_enabled %}Включён{% else %}Отключён{% endif %}</p>
       <p>Проверка email: {% if readiness.identity.email_verification %}Требуется{% else %}Не требуется{% endif %}</p>

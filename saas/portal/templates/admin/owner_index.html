@@ -44,6 +44,11 @@
       <a href="{% url 'admin:billing_accessgrant_changelist' %}">Права подписок</a>
     </div>
     <div class="owner-tile">
+      <strong>Фоновые задачи и уведомления</strong>
+      <a href="{% url 'admin:billing_owneroperationssettings_changelist' %}">Глобальные настройки</a>
+      <small>Пауза Guard, мгновенные Push, ежедневные сводки, доставка и интервалы опроса. Запись в журнал изменений.</small>
+    </div>
+    <div class="owner-tile">
       <strong>Мониторинг</strong>
       <a href="{% url 'admin:guard_guardevent_changelist' %}">События Guard</a>
       <small>Аудит событий, сохранённые отчёты и интеграционные сбои.</small>

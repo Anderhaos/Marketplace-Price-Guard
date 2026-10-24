@@ -7,7 +7,7 @@ Never decrypts secrets or reflects provider messages to HTML.
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from billing.models import OwnerAISettings, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerTariffOffer
+from billing.models import OwnerAISettings, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerTariffOffer, OwnerOperationsSettings
 from guard.models import GuardAccount
 from push.models import PushDelivery
 
@@ -17,6 +17,7 @@ def integration_readiness():
     ai = OwnerAISettings.objects.filter(pk=1).first()
     gateway = OwnerAIGatewayConnection.objects.filter(pk=1).first()
     mcp = OwnerMCPSettings.runtime()
+    operations = OwnerOperationsSettings.runtime()
     model = (ai.gateway_model_id or "").strip() if ai else ""
     catalog = gateway.catalog_models if gateway and isinstance(gateway.catalog_models, list) else []
     verified_model = bool(
@@ -83,6 +84,17 @@ def integration_readiness():
                 else "configured_unverified"
             ),
             "seller_count": seller_count,
+        },
+        "operations": {
+            "configured": operations is not None,
+            "guard_checks_enabled": bool(operations and operations.guard_checks_enabled),
+            "instant_events_enabled": bool(operations and operations.instant_events_enabled),
+            "daily_digests_enabled": bool(operations and operations.daily_digests_enabled),
+            "push_delivery_enabled": bool(operations and operations.push_delivery_enabled),
+            "guard_poll_seconds": operations.guard_poll_seconds if operations else None,
+            "notifications_poll_seconds": operations.notifications_poll_seconds if operations else None,
+            "push_batch_size": operations.push_batch_size if operations else None,
+            # Local DB switch is not a claim of WB, mail, or push network health.
         },
         "notifications": {
             "undelivered_count": undelivered,

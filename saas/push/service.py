@@ -18,6 +18,7 @@ from django.utils import timezone
 from guard.models import GuardAccount, GuardEvent, Product
 from guard.advisor import store_recommendations
 from billing.access import has_smart_access
+from billing.models import OwnerOperationsSettings
 from .models import NotificationPreference, PushDelivery, PushMessage, PushSubscription
 
 IMPORTANT_KINDS = ("confirmed", "error", "upload_error")
@@ -108,6 +109,10 @@ def _enqueue_for_devices(message, not_before=None):
 
 def queue_new_events(now=None):
     now = now or timezone.now()
+    policy = OwnerOperationsSettings.runtime()
+    if policy is None:
+        return 0
+    instant_enabled = policy.instant_events_enabled
     cutoff = now - timedelta(hours=48)
     events = (
         GuardEvent.objects.filter(kind__in=IMPORTANT_KINDS, created_at__gte=cutoff)
@@ -135,8 +140,11 @@ def queue_new_events(now=None):
             },
         )
         if created:
-            if pref.instant_enabled:
-                _enqueue_for_devices(message, not_before=event.created_at)
+            if instant_enabled and pref.instant_enabled:
+                # Owner may disable mid-cycle; do not create new push deliveries.
+                live_policy = OwnerOperationsSettings.runtime()
+                if live_policy is not None and live_policy.instant_events_enabled:
+                    _enqueue_for_devices(message, not_before=event.created_at)
             queued += 1
     return queued
 
@@ -171,6 +179,9 @@ def _highest_priority_smart_advice(user, *, now):
 
 def create_daily_digests(now=None):
     now = now or timezone.now()
+    policy = OwnerOperationsSettings.runtime()
+    if policy is None or not policy.daily_digests_enabled:
+        return 0
     count = 0
     User = get_user_model()
     sellers = User.objects.filter(is_active=True)
@@ -184,6 +195,9 @@ def create_daily_digests(now=None):
             saas_access_grants__revoked_at__isnull=True,
         ).distinct()
     for user in sellers.iterator(chunk_size=100):
+        live_policy = OwnerOperationsSettings.runtime()
+        if live_policy is None or not live_policy.daily_digests_enabled:
+            break
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         if not pref.daily_enabled:
             continue
@@ -233,7 +247,10 @@ def create_daily_digests(now=None):
 
 
 def deliver_due_pushes(now=None, send=None):
-    """Deliver in a separate worker. Failed endpoints never block WB monitoring."""
+    """Deliver independently; owner pause retains pending items for later."""
+    policy = OwnerOperationsSettings.runtime()
+    if policy is None or not policy.push_delivery_enabled:
+        return 0
     if not (settings.PUSH_VAPID_PRIVATE_KEY and settings.PUSH_VAPID_PUBLIC_KEY):
         return 0
     if send is None:
@@ -243,9 +260,12 @@ def deliver_due_pushes(now=None, send=None):
     due = PushDelivery.objects.filter(
         Q(state="pending", next_attempt_at__lte=now) |
         Q(state="sending", locked_at__lt=expired_lease)
-    ).select_related("message", "subscription").order_by("next_attempt_at", "id")[:20]
+    ).select_related("message", "subscription").order_by("next_attempt_at", "id")[:max(1, min(20, policy.push_batch_size))]
     processed = 0
     for delivery in due:
+        live_policy = OwnerOperationsSettings.runtime()
+        if live_policy is None or not live_policy.push_delivery_enabled:
+            break
         claim = PushDelivery.objects.filter(pk=delivery.pk).filter(
             Q(state="pending", next_attempt_at__lte=now) |
             Q(state="sending", locked_at__lt=expired_lease)
