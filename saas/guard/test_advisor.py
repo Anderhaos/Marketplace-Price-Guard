@@ -98,14 +98,14 @@ class StoreAdvisorTests(TestCase):
         self.assertFalse(has_plan_capability(self.seller.pk, "ai_advice"))
         self.grant(plan="standard")
         self.assertEqual(effective_plan(self.seller.pk), "standard")
-        self.assertTrue(has_plan_capability(self.seller.pk, "telegram_alerts"))
+        self.assertTrue(has_plan_capability(self.seller.pk, "web_assistant_basic"))
         self.assertTrue(has_plan_capability(self.seller.pk, "discount_guard"))
         self.assertFalse(has_plan_capability(self.seller.pk, "ai_questions"))
         self.assertFalse(has_plan_capability(self.seller.pk, "store_advice"))
         self.grant(plan="smart")
         self.assertEqual(effective_plan(self.seller.pk), "smart")
         self.assertTrue(has_plan_capability(self.seller.pk, "store_advice"))
-        self.assertTrue(has_plan_capability(self.seller.pk, "telegram_alerts"))
+        self.assertTrue(has_plan_capability(self.seller.pk, "web_assistant_basic"))
         self.assertFalse(has_plan_capability(self.seller.pk, "unknown_capability"))
 
     def test_smart_expires_then_standard_remains(self):

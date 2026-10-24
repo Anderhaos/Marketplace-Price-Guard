@@ -34,6 +34,7 @@ urlpatterns = [
     path("password-reset/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(template_name="guard/password_reset_confirm.html", success_url="/login/"), name="password_reset_confirm"),
     path("stores/", views.stores, name="stores"),
     path("stores/select/<int:store_id>/", views.select_store, name="select_store"),
+    path("assistant/", views.assistant_chat, name="assistant_chat"),
     path("advisor/", views.store_advisor, name="store_advisor"),
     path("settings/", views.settings_view, name="settings"),
     path("products/<int:nm_id>/", views.product_rule, name="product_rule"),

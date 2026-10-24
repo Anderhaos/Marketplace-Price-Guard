@@ -109,3 +109,19 @@ class EmailPinLoginThrottle(models.Model):
     lock_count = models.PositiveSmallIntegerField(default=0)
     first_failed_at = models.DateTimeField(null=True, blank=True)
     locked_until = models.DateTimeField(null=True, blank=True)
+
+
+class AssistantMessage(models.Model):
+    """Bounded, tenant-scoped web assistant history; no secrets or raw WB payloads."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="nosale_assistant_messages")
+    account = models.ForeignKey(GuardAccount, on_delete=models.CASCADE, related_name="assistant_messages")
+    question = models.CharField(max_length=400)
+    answer = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "account", "created_at"], name="guard_assis_user_id_593b14_idx")]
+
+    def __str__(self):
+        return f"Помощник: магазин {self.account_id}, {self.created_at:%Y-%m-%d}"

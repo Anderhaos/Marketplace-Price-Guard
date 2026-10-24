@@ -1,0 +1,11 @@
+{% extends "guard/base.html" %}
+{% block title %}Доступ к помощнику — NoSale{% endblock %}
+{% block content %}
+<section class="page-hero" style="max-width:730px;margin:25px auto">
+  <span class="eyebrow">NoSale / подписка</span>
+  <h1>{{ access_title }}</h1>
+  <p class="lead">{{ access_explanation }}</p>
+  <a class="button" href="{% url 'subscription' %}">Посмотреть тарифы</a>
+  <a class="button secondary" href="{% url 'dashboard' %}">Вернуться в кабинет</a>
+</section>
+{% endblock %}

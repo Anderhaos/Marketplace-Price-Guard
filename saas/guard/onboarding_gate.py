@@ -14,7 +14,7 @@ class RequireWbConnectionMiddleware:
         "stores", "select_store", "settings", "product_rule",
         "product_history_data", "history", "notifications",
         "mark_notifications_read", "push_subscribe", "push_unsubscribe",
-        "push_preferences", "subscription", "billing_checkout", "store_advisor",
+        "push_preferences", "subscription", "billing_checkout", "store_advisor", "assistant_chat",
     })
 
     def __init__(self, get_response):
