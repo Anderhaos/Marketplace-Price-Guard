@@ -63,7 +63,7 @@ class OwnerIntegrationReadinessTests(TestCase):
         self.assertContains(response, "Ozon")
         self.assertContains(response, "Не реализован")
         self.assertContains(response, "approved-chat")
-        self.assertContains(response, "Проверить готовность" if False else "AI Platform")
+        self.assertContains(response, "AI Platform")
         self.assertContains(response, "Отключено")
         self.assertNotContains(response, "SECRET_DO_NOT_RENDER_THIS")
         self.assertEqual(gateway.encrypted_service_token, "SECRET_DO_NOT_RENDER_THIS")
