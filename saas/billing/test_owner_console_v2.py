@@ -134,7 +134,8 @@ class OwnerConsoleV2Tests(TestCase):
             "tariff_standard-price_rub": "599.00", "tariff_standard-enabled": "on",
         })
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(OwnerTariffOffer.objects.count(), before)
+        self.assertEqual(OwnerTariffOffer.objects.count(), before + 1)
+        self.assertEqual(set(OwnerTariffOffer.objects.values_list("slug", flat=True)), {"standard"})
         offer = OwnerTariffOffer.objects.get(pk="standard")
         self.assertEqual(offer.price_kopeks, 59900)
         self.assertTrue(offer.enabled)
