@@ -144,6 +144,40 @@ class SmartAssistantTests(TestCase):
         self.assertEqual(AssistantMessage.objects.get().mode, "basic")
         self.assertNotIn("987654", AssistantMessage.objects.get().answer)
 
+    def test_financial_hallucination_rejected_even_with_matching_discount_number(self):
+        # Current numeric-only check could accept "18 рублей прибыли" because
+        # 18 was observed as a discount. There is no financial source for it.
+        evidence = {"metrics": {"over_limit": 1}, "recommendations": [
+            {"detail": "Товар: скидка 18%, предел 10%", "observed_at": "2026-10-23T10:00:00"}
+        ]}
+        self.assertFalse(_numbers_are_grounded("Прибыль составила 18 рублей.", evidence))
+        self.assertFalse(_numbers_are_grounded("WB финансирует скидку 18%.", evidence))
+        self.assertFalse(_numbers_are_grounded("Выручка выросла на 10%.", evidence))
+        self.assertTrue(_numbers_are_grounded("Проверьте товар со скидкой 18%.", evidence))
+        self.assertFalse(_numbers_are_grounded("Проверьте скидку 987654%.", evidence))
+
+    def test_finance_claim_in_model_response_falls_back_to_verified_basic(self):
+        with patch("guard.smart_assistant.gateway_chat", return_value=(
+            "Прибыль по товару равна 18 рублей.", {"input_tokens": 10, "output_tokens": 11},
+        )):
+            response = self.ask("Что проверить?")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(AssistantAIRequest.objects.get().status, "failed")
+        self.assertEqual(AssistantMessage.objects.get().mode, "basic")
+        self.assertNotIn("18 рублей", AssistantMessage.objects.get().answer)
+
+    def test_provider_and_bearer_secrets_never_enter_chat_history(self):
+        for question in (
+            "Мой ключ sk-" + "x" * 28 + ", что с ним?",
+            "Authorization: Bearer " + "abc123" * 5,
+            "API key: " + "super-secret-value-12345",
+        ):
+            with self.subTest(question=question[:16]), patch("guard.smart_assistant.gateway_chat") as gateway:
+                self.assertEqual(self.ask(question).status_code, 400)
+                gateway.assert_not_called()
+        self.assertEqual(AssistantAIRequest.objects.count(), 0)
+        self.assertEqual(AssistantMessage.objects.count(), 0)
+
     def test_sensitive_api_token_not_persisted_or_sent(self):
         token = "eyJ" + "a" * 30 + "." + "b" * 30
         with patch("guard.smart_assistant.gateway_chat") as gateway:
