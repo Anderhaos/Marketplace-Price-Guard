@@ -10,7 +10,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from billing.access import has_plan_capability
-from billing.models import OwnerAISettings
+from billing.models import OwnerAISettings, OwnerMCPSettings
 from .advisor import store_recommendations
 from .ai_gateway import AIGatewayUnavailable, gateway_chat, gateway_choose_tool, is_gateway_configured
 from nosale_mcp.client import MCPToolUnavailable, call_owned_tool, definitions
@@ -142,7 +142,7 @@ def smart_store_reply(user_id, account, question, *, use_mcp=False):
             try:
                 selection, plain, selection_usage = gateway_choose_tool(
                     model_id=model_id, messages=messages,
-                    tools=definitions(account.marketplace),
+                    tools=definitions(account.marketplace, policy=OwnerMCPSettings.runtime()),
                     timeout_seconds=timeout,
                 )
                 if selection:
