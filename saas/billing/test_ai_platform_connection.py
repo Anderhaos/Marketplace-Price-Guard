@@ -131,7 +131,7 @@ class OwnerGatewayConnectionTests(TestCase):
             status = 200
             def __enter__(self): return self
             def __exit__(self, *_): return False
-            def read(self, _): return b'{"choices":[{"message":{"content":"Проверьте товар"}}]}'
+            def read(self, _): return json.dumps({"choices": [{"message": {"content": "Проверьте товар"}}]}, ensure_ascii=False).encode("utf-8")
         class Opener:
             def open(self, request, timeout):
                 self.request, self.timeout = request, timeout
