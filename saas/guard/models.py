@@ -146,3 +146,22 @@ class AssistantAIRequest(models.Model):
 
     def __str__(self):
         return f"Smart AI request {self.pk} ({self.status})"
+
+
+class PromotionSnapshot(models.Model):
+    """Last read-only campaign audit for one seller-owned WB store.
+
+    JSON stores only curated campaign/product facts, never WB API credentials.
+    """
+    account = models.OneToOneField(
+        GuardAccount, on_delete=models.CASCADE, related_name="promotion_snapshot",
+    )
+    promotions = models.JSONField(default=list)
+    partial = models.BooleanField(default=True)
+    fetched_at = models.DateTimeField(null=True, blank=True)
+    next_refresh_at = models.DateTimeField(null=True, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=220, blank=True)
+
+    def __str__(self):
+        return f"Акции WB: магазин {self.account_id}"
