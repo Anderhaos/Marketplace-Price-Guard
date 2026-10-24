@@ -46,7 +46,7 @@ class OwnerGatewayConnectionTests(TestCase):
         self.assertTrue(connection.configured)
         self.assertNotIn("test-only-service-key", connection.encrypted_service_token)
         self.assertEqual(connection.base_url, "https://platform.svdev.pro/v1")
-        self.assertEqual(runtime_gateway(), (connection.base_url, "test-only-service-key-123456789"))
+        self.assertIsNone(runtime_gateway())  # A saved but unverified token must never send seller context.
         url = reverse("admin:billing_owneraigatewayconnection_change", args=[connection.pk])
         html = self.client.get(url).content.decode()
         self.assertNotIn("test-only-service-key", html)
@@ -60,7 +60,7 @@ class OwnerGatewayConnectionTests(TestCase):
         self.assertEqual(result.status_code, 302)
         connection.refresh_from_db()
         self.assertEqual(connection.catalog_mode, "curated")
-        self.assertEqual(runtime_gateway()[1], "test-only-service-key-123456789")
+        self.assertIsNone(runtime_gateway())
 
     def test_superuser_only_no_delete_or_second_connection(self):
         self.client.force_login(self.staff)
@@ -126,7 +126,10 @@ class OwnerGatewayConnectionTests(TestCase):
         self.assertFalse(OwnerAIGatewayConnection.objects.exists())
 
     def test_inference_uses_encrypted_connection_not_browser_token(self):
-        self.add_connection()
+        connection = self.add_connection()
+        connection.last_check_ok = True
+        connection.catalog_models = ["deepseek/deepseek-chat"]
+        connection.save(update_fields=["last_check_ok", "catalog_models"])
         class Response:
             status = 200
             def __enter__(self): return self
