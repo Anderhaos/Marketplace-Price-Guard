@@ -24,6 +24,7 @@ from .ai_gateway import AIGatewayUnavailable
 from .smart_assistant import smart_store_reply
 from .ai_safety import contains_credential
 from billing.trial import access_snapshot
+from billing.models import OwnerAISettings
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
 from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
@@ -436,12 +437,22 @@ def dashboard(request):
     })
 
 
-def _assistant_message_limit_reached(user_id, now):
-    """One message quota shared by Standard and Smart/fallback modes."""
+def _web_assistant_policy():
+    """Web chat policy: owner-configurable, independent of AI availability."""
+    owner = OwnerAISettings.objects.filter(pk=1).values(
+        "web_assistant_enabled", "web_messages_per_day",
+    ).first()
+    if owner is None:
+        return True, 80  # preserve pre-owner configuration behavior
+    return bool(owner["web_assistant_enabled"]), max(1, min(1000, owner["web_messages_per_day"]))
+
+
+def _assistant_message_limit_reached(user_id, now, *, daily_limit):
+    """One bounded message quota shared by Standard and Smart/fallback modes."""
     messages = AssistantMessage.objects.filter(user_id=user_id)
     recent = messages.filter(created_at__gte=now - timedelta(minutes=1)).count()
     daily = messages.filter(created_at__gte=now - timedelta(hours=24)).count()
-    return recent >= 8 or daily >= 80
+    return recent >= 8 or daily >= daily_limit
 
 
 @login_required
@@ -454,6 +465,13 @@ def assistant_chat(request):
             "access_title": "Помощник пока недоступен",
             "access_explanation": "Базовый помощник включён в действующий пробный период или подписку NoSale."
         }, status=403)
+
+    web_enabled, daily_limit = _web_assistant_policy()
+    if not web_enabled:
+        return render(request, "guard/assistant_access.html", {
+            "access_title": "Веб-помощник временно отключён",
+            "access_explanation": "Владелец сервиса приостановил чат. Контроль скидок работает независимо.",
+        }, status=503)
 
     account = _account(request)  # exclusively selected via current user's stores
     if request.method == "POST":
@@ -479,7 +497,7 @@ def assistant_chat(request):
             # request already over the shared web-chat message quota.
             with transaction.atomic():
                 User.objects.select_for_update().get(pk=request.user.pk)
-                if _assistant_message_limit_reached(request.user.pk, timezone.now()):
+                if _assistant_message_limit_reached(request.user.pk, timezone.now(), daily_limit=daily_limit):
                     return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
             # Provider I/O never runs inside a DB transaction or with a seller
             # row lock held; AI quotas are reserved separately and atomically.
@@ -496,7 +514,7 @@ def assistant_chat(request):
                 User.objects.select_for_update().get(pk=request.user.pk)
                 # Recheck under the row lock: concurrent Standard or Smart
                 # requests must not bypass the limit during a gateway call.
-                if _assistant_message_limit_reached(request.user.pk, timezone.now()):
+                if _assistant_message_limit_reached(request.user.pk, timezone.now(), daily_limit=daily_limit):
                     return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
                 AssistantMessage.objects.create(
                     user_id=request.user.pk, account=account, question=question.strip(),
@@ -508,7 +526,7 @@ def assistant_chat(request):
             with transaction.atomic():
                 User.objects.select_for_update().get(pk=request.user.pk)
                 now = timezone.now()
-                if _assistant_message_limit_reached(request.user.pk, now):
+                if _assistant_message_limit_reached(request.user.pk, now, daily_limit=daily_limit):
                     return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
                 answer = basic_assistant_reply(request.user.pk, account, question.strip(), now=now)
                 AssistantMessage.objects.create(
