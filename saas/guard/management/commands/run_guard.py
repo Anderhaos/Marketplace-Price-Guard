@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 from guard.monitor import run_due_checks
 from billing.models import OwnerOperationsSettings
+from guard.worker_health import mark_success
 
 
 class Command(BaseCommand):
@@ -21,6 +22,7 @@ class Command(BaseCommand):
                 if options["once"]:
                     raise
             else:
+                mark_success("guard")
                 if options["once"]:
                     self.stdout.write(f"Processed accounts: {count}")
                     return

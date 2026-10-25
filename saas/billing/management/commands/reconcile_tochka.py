@@ -9,6 +9,7 @@ from django.utils import timezone
 from billing.models import SubscriptionPayment
 from billing.service import reconcile_payment
 from billing.tochka import AcquiringUnavailable, InvalidWebhook, configured
+from guard.worker_health import mark_success
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ class Command(BaseCommand):
             close_old_connections()
             try:
                 result = reconcile_due_payments()
+                mark_success("reconciliation")
                 if options["once"]:
                     self.stdout.write(f"Reconciled: {result}")
                     return
