@@ -7,8 +7,22 @@ from django.test import SimpleTestCase, override_settings
 from .wb import WBApiError, WBClient
 
 
-@override_settings(SAAS_WB_READ_ONLY=True)
+@override_settings(SAAS_WB_READ_ONLY=True, SAAS_WB_NETWORK_ENABLED=True)
 class ReadOnlyTransportTests(SimpleTestCase):
+    @override_settings(SAAS_WB_NETWORK_ENABLED=False)
+    def test_network_off_blocks_read_and_content_post_before_http(self):
+        client = WBClient("fixture-token")
+        with patch("guard.wb.urlopen") as urlopen:
+            with self.assertRaisesMessage(WBApiError, "Запросы к Wildberries отключены"):
+                client.validate_token(probe_prices=False)
+            with self.assertRaisesMessage(WBApiError, "Запросы к Wildberries отключены"):
+                client.get_products()
+            with self.assertRaisesMessage(WBApiError, "Запросы к Wildberries отключены"):
+                client.get_product_cards()
+            with self.assertRaisesMessage(WBApiError, "Запросы к Wildberries отключены"):
+                client.submit_discounts([(123, 10)])
+            urlopen.assert_not_called()
+
     def test_upload_blocked_before_network_even_for_service_token(self):
         client = WBClient("synthetic-test-token")
         with patch("guard.wb.urlopen") as urlopen:
