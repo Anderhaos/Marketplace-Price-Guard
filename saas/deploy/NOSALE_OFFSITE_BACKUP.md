@@ -1,35 +1,64 @@
-# NoSale offsite PostgreSQL backup (E5)
+# NoSale independent encrypted offsite backup (E5)
 
-Independent backup from other E5 projects. Does NOT replace the Docker-local
-rolling `saas_pg_backups` volume.
+NoSale retains its original Docker-local rolling backup volume; this dedicated
+systemd timer creates separate *encrypted* online PostgreSQL and SaaS environment
+snapshots daily at approximately 02:15 server local time.
 
-At 02:15 local server time the root-owned systemd timer runs
-`deploy/nosale-backup-offsite.sh`, which:
-1. Takes an online PostgreSQL custom-format dump inside the NoSale DB container.
-2. Copies the private SaaS environment (needed for decrypting encrypted tokens).
-3. Checks SHA-256 locally; uses SSH/rsync to a dedicated offsite subtree; verifies
-   SHA-256 remotely before atomically renaming the snapshot.
-4. Retains completed snapshots 7 days locally / 21 days offsite.
-   The existing shared E4 remote backup has its own retention policy: run daily.
-5. Prints only a timestamp on success, never credentials, DB content or settings.
+## Encryption and key custody
 
-Root-only `/etc/nosale-saas/offsite.env` (mode 0600) must define
-`NOSALE_OFFSITE_HOST`, `NOSALE_OFFSITE_USER`, `NOSALE_OFFSITE_SSH_KEY`,
-`NOSALE_OFFSITE_REMOTE_ROOT`. Provision these on the **host**, not in Git.
-Remote directory and its ancestors must be owned by the authorized backup user.
-The existing trusted E5 offsite SSH identity is permitted for a separate NoSale
-subtree but must not modify shared backup jobs, permissions or schedules.
+Format `nosale-openpgp-v1`: GnuPG public-key encryption of two independent
+artifacts, `postgres.dump.gpg` and `saas.env.gpg`, plus `FORMAT` and
+`SHA256SUMS` covering ciphertext and metadata. No PostgreSQL dump or .env is
+stored as a plaintext file in the new local/offsite snapshot. The DB dump
+stream goes directly from `docker exec pg_dump` to GPG.
 
-First-run acceptance:
-- `bash -n deploy/nosale-backup-offsite.sh`
-- `systemctl start nosale-backup-offsite.service` returns 0
-- `journalctl -u nosale-backup-offsite.service -n 15` shows `NOSALE_OFFSITE_VERIFIED`
-- Check latest remote `SHA256SUMS` by SSH (script does this automatically)
-- Restore a local PostgreSQL archive into an isolated temporary PostgreSQL server
-  without any network to production (already proved on 2026-10-25)
-- `systemctl list-timers nosale-backup-offsite.timer` is active.
+- E5 contains a **public** key only under root-only
+  `/etc/nosale-saas/gpg-public`.
+- A **separate recovery machine** stores the private OpenPGP key, under a
+  root-only GPG homedir, not on E5 or the offsite storage host.
+- `NOSALE_OFFSITE_GPG_RECIPIENT` pins the complete 40-character verified
+  fingerprint in the root-only host `/etc/nosale-saas/offsite.env`.
+- Never commit secret keys, the environment file, DB dumps or tokens to Git.
+- The owner must export an independently protected **offline copy of the
+  private key** and test its restoration before commercial launch.
+  Root-only storage on a third host is good separation but not durable escrow.
+- The separate backup storage host receives ciphertext only for new snapshots.
+  **Old snapshots before migration remain plaintext** until their original
+  retention has elapsed or they are separately migrated and verified.
 
-Security: files include tokens, account data, keys, and personal data. Remote
-offsite account must be access restricted, and secure independent credential
-escrow/remote-disk encryption should be reviewed before commercial launch.
-No public endpoint serves archives, and no WB/AI/Tochka service is contacted.
+## Execution and verification
+
+Service: `nosale-backup-offsite.service`, timer:
+`nosale-backup-offsite.timer`. No changes to shared E4 jobs.
+
+1. `bash -n saas/deploy/nosale-backup-offsite.sh`
+2. Confirm public key fingerprint and that E5 has no secret keys.
+3. Verify root-only service environment has the recipient fingerprint.
+4. `systemctl start nosale-backup-offsite.service` and confirm it succeeds.
+5. Newest snapshot contains only `postgres.dump.gpg`, `saas.env.gpg`,
+   `FORMAT`, `SHA256SUMS`. Remote checksum verification occurs before
+   atomic publish (old partial snapshots are never promoted).
+6. Confirm the ciphertext can be decrypted **on the recovery machine** and
+   that `pg_restore -l` accepts the decrypted PG dump stream; decrypt config
+   into an isolated tmpfs with 0600 mode only if actual disaster recovery
+   requires it. Avoid printing secrets to terminal logs.
+7. `systemctl list-timers --all nosale-backup-offsite.timer`.
+
+A failed recipient, gpg or SSH transport should abort nonzero and trigger the
+host-side NoSale operations alert. The backup service fails **closed** instead
+of falling back to plaintext uploads.
+
+Local completed backup retention: 7 days; offsite: 21 days.
+The original unencrypted offsite snapshot directories must not be represented
+as encrypted. Do not remove legacy plaintext copies until an encrypted
+snapshot and independent decryption drill have passed.
+
+## Threat model and limitations
+
+Asymmetric encryption protects new offsite data at rest if the storage account
+is compromised without access to the private key. It does not eliminate the
+need to protect E5 at runtime, to safeguard the recovery host, or to test
+recovery key backups. SHA-256 detects transport corruption but is not a
+substitute for the GPG integrity check when decrypting. A compromised E5 could
+replace the encryption key; compare its fingerprint to the independently
+recorded recovery public key before trusting newly written snapshots.
