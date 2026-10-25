@@ -141,6 +141,7 @@ def fetch_reports_list(service_token, date_from, date_to):
 # bank, order, seller legal-name or label/serial identifiers.
 DETAIL_PATH_PREFIX = "/api/finance/v1/sales-reports/detailed/"
 MAX_DETAIL_ROWS = 30
+MAX_DETAIL_STORED_ROWS = MAX_DETAIL_ROWS * 10  # finite, operator-defined cap
 DETAIL_FIELDS = (
     "reportId", "rrdId", "nmId", "currency", "saleDt",
     "retailAmount", "forPay", "sellerPromoId", "sellerPromoDiscount",
@@ -166,9 +167,12 @@ def _bounded_percent(value):
         return None
 
 
-def normalize_report_detail_page(raw, expected_report_id):
+def normalize_report_detail_page(raw, expected_report_id, *, after_rrd_id=0):
     """Whitelist-only normalization; zero conclusions about funding or profit."""
     _positive_id(expected_report_id)
+    if type(after_rrd_id) is not int or not 0 <= after_rrd_id < 2**63:
+        raise FinanceUnavailable("Некорректный курсор детализации.")
+    previous = after_rrd_id
     if not isinstance(raw, list) or len(raw) > MAX_DETAIL_ROWS:
         raise FinanceUnavailable("Недопустимый размер детализации WB.")
     result, seen = [], set()
@@ -177,9 +181,10 @@ def normalize_report_detail_page(raw, expected_report_id):
             raise FinanceUnavailable("Некорректная строка детализации WB.")
         report_id = _positive_id(item.get("reportId"))
         row_id = _positive_id(item.get("rrdId"))
-        if report_id != expected_report_id or row_id in seen:
-            raise FinanceUnavailable("Несоответствие отчёта или повтор строки WB.")
+        if report_id != expected_report_id or row_id in seen or row_id <= previous:
+            raise FinanceUnavailable("Порядок строк WB нарушен или курсор не продвинулся.")
         seen.add(row_id)
+        previous = row_id
         nm_id = item.get("nmId")
         if type(nm_id) is not int or not 0 < nm_id < 2**63:
             nm_id = None  # Some accounting adjustments have no product.
@@ -209,14 +214,16 @@ def normalize_report_detail_page(raw, expected_report_id):
     return result
 
 
-def fetch_report_detail_page(service_token, report_id):
+def fetch_report_detail_page(service_token, report_id, rrd_id=0):
     """One manual page only, from a server-verified report ID. NEVER retry or paginate automatically."""
     if not settings.SAAS_WB_NETWORK_ENABLED or not settings.NOSALE_WB_FINANCE_ENABLED:
         raise FinanceUnavailable("WB Finance API отключён оператором.")
     service_token = require_finance_service_token(service_token)
     report_id = _positive_id(report_id)
+    if type(rrd_id) is not int or not 0 <= rrd_id < 2**63:
+        raise FinanceUnavailable("Некорректный курсор отчёта.")
     body = json.dumps({
-        "limit": MAX_DETAIL_ROWS, "rrdId": 0, "fields": list(DETAIL_FIELDS),
+        "limit": MAX_DETAIL_ROWS, "rrdId": rrd_id, "fields": list(DETAIL_FIELDS),
     }, separators=(",", ":")).encode("utf-8")
     request = Request(
         BASE_URL + DETAIL_PATH_PREFIX + str(report_id),
@@ -243,4 +250,8 @@ def fetch_report_detail_page(service_token, report_id):
         raw = json.loads(payload)
     except (UnicodeDecodeError, ValueError) as exc:
         raise FinanceUnavailable("Некорректный JSON детализации WB.") from exc
-    return normalize_report_detail_page(raw, report_id), True
+    rows = normalize_report_detail_page(raw, report_id, after_rrd_id=rrd_id)
+    if not rows:
+        # Only 204 means completion; 200 [] must not become an infinite loop.
+        raise FinanceUnavailable("WB вернул пустую страницу без завершения.")
+    return rows, True

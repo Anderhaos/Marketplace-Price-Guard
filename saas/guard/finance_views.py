@@ -12,7 +12,10 @@ from django.utils import timezone
 
 from billing.access import has_plan_capability
 from .crypto import decrypt_token, encrypt_token
-from .finance import FinanceUnavailable, fetch_reports_list, fetch_report_detail_page, require_finance_service_token
+from .finance import (
+    FinanceUnavailable, MAX_DETAIL_ROWS, MAX_DETAIL_STORED_ROWS,
+    fetch_reports_list, fetch_report_detail_page, require_finance_service_token,
+)
 from .models import FinanceSnapshot, FinanceRateGate
 from .stores import selected_store
 
@@ -84,7 +87,7 @@ def finance_audit(request):
                 snapshot.last_error = ""
                 snapshot.save()
             messages.info(request, "Отдельный финансовый токен сохранён зашифрованным. Проверка доступа произойдёт при обновлении.")
-        elif action in ("refresh", "detail"):
+        elif action in ("refresh", "detail", "detail_more"):
             now = timezone.now()
             with transaction.atomic():
                 get_user_model().objects.select_for_update().get(pk=request.user.pk)
@@ -104,6 +107,23 @@ def finance_audit(request):
                     ):
                         messages.error(request, "Выберите отчёт из сохранённого списка.")
                         return redirect("finance_audit")
+                cursor = 0
+                if action == "detail_more":
+                    # The server, NOT the browser, selects the report and cursor.
+                    selected_report_id = snapshot.detail_report_id
+                    prior = snapshot.detail_rows
+                    if (not snapshot.fetched_at or not snapshot.detail_fetched_at
+                            or not snapshot.detail_partial
+                            or type(selected_report_id) is not int or not 0 < selected_report_id < 2**63
+                            or not any(r.get("report_id") == selected_report_id for r in snapshot.reports)
+                            or not isinstance(prior, list) or not prior
+                            or len(prior) + MAX_DETAIL_ROWS > MAX_DETAIL_STORED_ROWS
+                            or not isinstance(prior[-1], dict)
+                            or type(prior[-1].get("rrd_id")) is not int
+                            or not 0 < prior[-1]["rrd_id"] < 2**63):
+                        messages.info(request, "Догрузка недоступна: отчёт завершён или достигнут безопасный предел.")
+                        return redirect("finance_audit")
+                    cursor = prior[-1]["rrd_id"]
                 # WB imposes a limit per seller, not per store or token alias.
                 gate, _ = FinanceRateGate.objects.select_for_update().get_or_create(
                     user=request.user,
@@ -128,6 +148,8 @@ def finance_audit(request):
                 token = decrypt_token(snapshot.encrypted_finance_token)
                 if action == "detail":
                     summaries, partial = fetch_report_detail_page(token, selected_report_id)
+                elif action == "detail_more":
+                    summaries, partial = fetch_report_detail_page(token, selected_report_id, cursor)
                 else:
                     end = now.date()
                     start = end - timedelta(days=30)
@@ -150,16 +172,33 @@ def finance_audit(request):
                     pk=snapshot.pk, encrypted_finance_token=snapshot.encrypted_finance_token,
                     consented_at=snapshot.consented_at,
                 )
-                if action == "detail":
-                    # Do not publish an old response if the list was refreshed meanwhile.
+                if action in ("detail", "detail_more"):
                     current = current.filter(fetched_at=snapshot.fetched_at)
-                    published = current.update(
-                        detail_report_id=selected_report_id, detail_rows=summaries,
-                        detail_partial=partial, detail_fetched_at=timezone.now(),
-                        last_error="", locked_until=None,
-                    )
-                    if published:
-                        messages.info(request, "Загружена только первая страница детализации. Вывод о финансировании скидки и прибыли не подтверждён.")
+                    if action == "detail_more":
+                        # Also require the exact previous evidence version.
+                        current = current.filter(
+                            detail_report_id=selected_report_id,
+                            detail_fetched_at=snapshot.detail_fetched_at,
+                        )
+                        combined = snapshot.detail_rows + summaries
+                        if len(combined) > MAX_DETAIL_STORED_ROWS:
+                            messages.error(request, "Превышен предел сохранённых строк WB.")
+                        else:
+                            published = current.update(
+                                detail_rows=combined, detail_partial=partial,
+                                detail_fetched_at=timezone.now(), last_error="",
+                                locked_until=None,
+                            )
+                            if published:
+                                messages.info(request, "Догружена страница. Полнота доказана только ответом WB 204; финансирование скидок и прибыль неизвестны.")
+                    else:
+                        published = current.update(
+                            detail_report_id=selected_report_id, detail_rows=summaries,
+                            detail_partial=partial, detail_fetched_at=timezone.now(),
+                            last_error="", locked_until=None,
+                        )
+                        if published:
+                            messages.info(request, "Загружена только первая страница детализации. Вывод о финансировании скидки и прибыли не подтверждён.")
                 else:
                     current.update(
                         reports=summaries, partial=partial, fetched_at=timezone.now(),
@@ -182,4 +221,14 @@ def finance_audit(request):
         "can_refresh": bool(enabled and snapshot and snapshot.encrypted_finance_token
                             and (not snapshot.next_refresh_at or snapshot.next_refresh_at <= timezone.now())
                             and (not snapshot.locked_until or snapshot.locked_until <= timezone.now())),
+        "can_continue": bool(
+            enabled and snapshot and snapshot.encrypted_finance_token
+            and snapshot.detail_fetched_at and snapshot.detail_partial
+            and snapshot.detail_report_id
+            and isinstance(snapshot.detail_rows, list) and snapshot.detail_rows
+            and len(snapshot.detail_rows) + MAX_DETAIL_ROWS <= MAX_DETAIL_STORED_ROWS
+            and (not snapshot.next_refresh_at or snapshot.next_refresh_at <= timezone.now())
+            and (not snapshot.locked_until or snapshot.locked_until <= timezone.now())
+        ),
+        "detail_page_limit": MAX_DETAIL_STORED_ROWS,
     })
