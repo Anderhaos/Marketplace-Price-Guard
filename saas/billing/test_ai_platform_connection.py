@@ -94,7 +94,8 @@ class OwnerGatewayConnectionTests(TestCase):
             def __exit__(self, *_): return False
             def read(self, _): return json.dumps({"data": [
                 {"id": "deepseek/deepseek-chat", "category": "chat", "selectable": True,
-                 "execution": {"supported": True, "endpoints": ["/v1/chat/completions"]}},
+                 "execution": {"supported": True, "endpoints": ["/v1/chat/completions"]},
+                 "capabilities": {"tools": True}},
                 {"id": "openai/gpt-image", "category": "image", "selectable": True,
                  "execution": {"supported": True, "endpoints": ["/v1/images"]}},
                 {"id": "hidden/unavailable", "category": "chat", "selectable": False},
@@ -112,6 +113,7 @@ class OwnerGatewayConnectionTests(TestCase):
         conn.refresh_from_db()
         self.assertTrue(conn.last_check_ok)
         self.assertEqual(conn.catalog_models, ["deepseek/deepseek-chat"])
+        self.assertEqual(conn.catalog_tool_models, ["deepseek/deepseek-chat"])
         # Admin selector derives from the verified platform catalog, not a hand-coded provider list.
         self.client.force_login(self.owner)
         self.assertContains(self.client.get(reverse("admin:billing_owneraisettings_add")), "deepseek/deepseek-chat")
@@ -185,6 +187,7 @@ class OwnerGatewayConnectionTests(TestCase):
         self.assertEqual(connection.catalog_mode, "full")
         self.assertIsNone(connection.last_check_ok)
         self.assertEqual(connection.catalog_models, [])
+        self.assertEqual(connection.catalog_tool_models, [])
         self.assertFalse(is_gateway_configured(model_id="deepseek/deepseek-chat"))
         self.assertIsNone(runtime_gateway())
         # Unchanged settings with a valid token must preserve the cleared state.

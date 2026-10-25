@@ -10,6 +10,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from billing.access import has_plan_capability
+from billing.ai_platform_connection import is_verified_tool_model
 from billing.models import OwnerAISettings, OwnerMCPSettings
 from .advisor import store_recommendations
 from .ai_gateway import AIGatewayUnavailable, gateway_chat, gateway_choose_tool, is_gateway_configured
@@ -85,6 +86,8 @@ def smart_store_reply(user_id, account, question, *, use_mcp=False):
             # A removed/deauthorized catalog model must not reserve quota,
             # incur provider cost or export any seller context.
             raise AIGatewayUnavailable("Selected AI model is not verified for NoSale")
+        if use_mcp and not is_verified_tool_model(ai.gateway_model_id):
+            raise AIGatewayUnavailable("Selected AI model is not verified for MCP tools")
         now = timezone.now()
         recent = AssistantAIRequest.objects.filter(
             user_id=user_id, created_at__gte=now - timedelta(hours=24),

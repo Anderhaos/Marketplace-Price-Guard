@@ -73,6 +73,7 @@ def integration_readiness():
             "monthly_budget_kopeks": ai.monthly_budget_kopeks if ai else 0,
             "usable": ai_ready,
             "verified_model_count": len(catalog) if gateway and gateway.last_check_ok else 0,
+            "verified_tool_model_count": len(gateway.catalog_tool_models) if gateway and gateway.last_check_ok else 0,
         },
         "payments": {
             "enabled_by_deploy": acquiring,
