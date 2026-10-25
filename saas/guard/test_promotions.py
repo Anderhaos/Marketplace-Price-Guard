@@ -97,7 +97,7 @@ class PromotionAuditLogicTests(SimpleTestCase):
         self.assertEqual(result["promotions"][0]["participation"]["missing_prices"], 2)
 
 
-@override_settings(SAAS_WB_READ_ONLY=True)
+@override_settings(SAAS_WB_READ_ONLY=True, SAAS_WB_NETWORK_ENABLED=True)
 class PromotionTransportTests(SimpleTestCase):
     def test_only_official_get_methods_are_used_with_fixed_host(self):
         wb = WBClient("opaque-fixture-only")
