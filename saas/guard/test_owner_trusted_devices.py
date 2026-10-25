@@ -62,7 +62,7 @@ class OwnerTrustedDeviceTests(TestCase):
         self.assertTrue(cookie["httponly"])
         self.assertTrue(cookie["secure"])
         self.assertEqual(cookie["samesite"], "Lax")
-        self.assertEqual(cookie["max-age"], "2592000")
+        self.assertEqual(int(cookie["max-age"]), 2592000)
         trusted = OwnerTrustedDevice.objects.get(user=self.owner)
         self.assertNotEqual(trusted.token_digest, cookie.value)
         self.assertEqual(len(trusted.token_digest), 64)
