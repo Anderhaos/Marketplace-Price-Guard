@@ -76,6 +76,10 @@ class WBClient:
         return self._request_to(self.BASE_URL, method, path, params, body)
 
     def _request_to(self, base_url, method, path, params=None, body=None):
+        # Global egress kill switch: every WB endpoint, including initial
+        # token validation and read-only Content API POST, must fail closed.
+        if not settings.SAAS_WB_NETWORK_ENABLED:
+            raise WBApiError("Запросы к Wildberries отключены в этой среде.")
         # Defense in depth for preview: allow GET and the WB content *read*
         # endpoint (which happens to use POST). Never allow discount uploads
         # or any other write-oriented request, regardless of UI state.
