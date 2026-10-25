@@ -46,16 +46,20 @@ class OwnerAISettingsTests(TestCase):
         self.assertEqual(self.client.get(changelist).status_code, 200)
         add = reverse("admin:billing_owneraisettings_add")
         self.assertEqual(self.client.get(add).status_code, 200)
+        # Settings without runtime implementation must not be advertised.
+        form_page = self.client.get(add)
+        for unused in ("standard_questions_per_day", "smart_briefs_per_day", "prompt_version"):
+            self.assertNotContains(form_page, f'name="{unused}"')
         self.client.post(add, {
             "web_assistant_enabled": "on",
             "web_messages_per_day": "12",
             "ai_enabled": "on",
             "gateway_model_id": "published-model-id",
-            "prompt_version": "v1",
+            "prompt_version": "pretend-enabled",
             "system_instructions": "Read-only",
-            "standard_questions_per_day": "1",
+            "standard_questions_per_day": "999",
             "smart_questions_per_day": "2",
-            "smart_briefs_per_day": "2",
+            "smart_briefs_per_day": "999",
             "max_output_tokens": "500",
             "timeout_seconds": "20",
             "monthly_budget_kopeks": "10000",
@@ -66,6 +70,10 @@ class OwnerAISettingsTests(TestCase):
         self.assertTrue(item.web_assistant_enabled)
         self.assertEqual(item.web_messages_per_day, 12)
         self.assertEqual(item.gateway_model_id, "published-model-id")
+        # Forged POST values cannot mutate legacy nonfunctional controls.
+        self.assertEqual(item.standard_questions_per_day, 1)
+        self.assertEqual(item.smart_briefs_per_day, 2)
+        self.assertEqual(item.prompt_version, "v1")
         self.assertEqual(self.client.get(add).status_code, 403)
         self.assertEqual(
             self.client.get(reverse("admin:billing_owneraisettings_delete", args=[item.pk])).status_code,

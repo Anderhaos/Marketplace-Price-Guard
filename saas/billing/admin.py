@@ -21,10 +21,20 @@ class SubscriptionPaymentAdmin(admin.ModelAdmin):
 class OwnerAISettingsForm(forms.ModelForm):
     class Meta:
         model = OwnerAISettings
-        exclude = ()
+        # These legacy fields are not consumed by any runtime path. They
+        # remain in the DB for compatibility but must not imply working limits.
+        exclude = ("standard_questions_per_day", "smart_briefs_per_day", "prompt_version")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["web_messages_per_day"].help_text = (
+            "Реальный общий предел сообщений Standard/Smart на 24 часа; "
+            "также действует ограничение 8 сообщений в минуту."
+        )
+        self.fields["smart_questions_per_day"].help_text = (
+            "Реальный предел AI-вопросов Smart на пользователя за 24 часа. "
+            "Обычные сводки Push не являются AI-ответами."
+        )
         gateway = OwnerAIGatewayConnection.objects.filter(
             pk=1, last_check_ok=True,
         ).first()
@@ -46,8 +56,7 @@ class OwnerAISettingsForm(forms.ModelForm):
 class OwnerAISettingsAdmin(admin.ModelAdmin):
     form = OwnerAISettingsForm
     """Operational controls require superuser, not mere staff permission."""
-    list_display = ("__str__", "web_assistant_enabled", "web_messages_per_day", "ai_enabled", "gateway_model_id", "standard_questions_per_day",
-                    "smart_questions_per_day", "monthly_budget_kopeks", "updated_at")
+    list_display = ("__str__", "web_assistant_enabled", "web_messages_per_day", "ai_enabled", "gateway_model_id", "smart_questions_per_day", "monthly_budget_kopeks", "updated_at")
     readonly_fields = ("updated_at",)
     fieldsets = (
         ("Веб-помощник Standard / Smart", {
@@ -57,11 +66,10 @@ class OwnerAISettingsAdmin(admin.ModelAdmin):
                 "но не контроль скидок WB. Общий суточный лимит не отменяет защиту 8/мин."
             ),
         }),
-        ("AI Platform", {"fields": ("ai_enabled", "gateway_model_id", "prompt_version",
+        ("AI Platform", {"fields": ("ai_enabled", "gateway_model_id",
                                      "system_instructions", "timeout_seconds", "max_output_tokens")}),
         ("Лимиты и бюджет", {
-            "fields": ("standard_questions_per_day", "smart_questions_per_day",
-                       "smart_briefs_per_day", "monthly_budget_kopeks"),
+            "fields": ("smart_questions_per_day", "monthly_budget_kopeks"),
             "description": (
                 "Бюджет в копейках ограничивает локальные резервы AI-запросов, "
                 "но не является точным счётом провайдера. Фактические расходы "
