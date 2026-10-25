@@ -117,6 +117,47 @@ class FinanceContractTests(SimpleTestCase):
             with self.assertRaises(FinanceUnavailable):
                 fetch_report_detail_page(finance_token(), bad)
 
+
+    @override_settings(SAAS_WB_NETWORK_ENABLED=True, NOSALE_WB_FINANCE_ENABLED=True)
+    def test_detail_cursor_validation_and_204_only_completion(self):
+        class FakeResponse:
+            def __init__(self, status, data):
+                self.status, self.data = status, data
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self, n): return self.data
+        class Opener:
+            def __init__(self, response):
+                self.response = response
+                self.request = None
+            def open(self, request, timeout):
+                self.request = request
+                return self.response
+        row = b'[{"reportId":321,"rrdId":100,"nmId":55,"currency":"RUB"}]'
+        op = Opener(FakeResponse(200, row))
+        with patch("guard.finance.build_opener", return_value=op):
+            rows, partial = fetch_report_detail_page(finance_token(), 321, 99)
+        self.assertTrue(partial)
+        self.assertEqual(rows[0]["rrd_id"], 100)
+        self.assertEqual(json.loads(op.request.data)["rrdId"], 99)
+        with patch("guard.finance.build_opener", return_value=Opener(FakeResponse(204, b""))):
+            self.assertEqual(fetch_report_detail_page(finance_token(), 321, 100), ([], False))
+        with patch("guard.finance.build_opener", return_value=Opener(FakeResponse(200, b"[]"))):
+            with self.assertRaises(FinanceUnavailable):
+                fetch_report_detail_page(finance_token(), 321, 100)
+        with patch("guard.finance.build_opener") as call:
+            for cursor in (-1, True, "99", 2**63):
+                with self.assertRaises(FinanceUnavailable):
+                    fetch_report_detail_page(finance_token(), 321, cursor)
+            call.assert_not_called()
+        for sample, after in (
+            ([{"reportId": 321, "rrdId": 99, "currency": "RUB"}], 99),
+            ([{"reportId": 321, "rrdId": 102, "currency": "RUB"},
+              {"reportId": 321, "rrdId": 101, "currency": "RUB"}], 99),
+        ):
+            with self.assertRaises(FinanceUnavailable):
+                normalize_report_detail_page(sample, 321, after_rrd_id=after)
+
     @override_settings(SAAS_WB_NETWORK_ENABLED=False, NOSALE_WB_FINANCE_ENABLED=True)
     def test_detail_network_off_stops_before_transport(self):
         with patch("guard.finance.build_opener") as opener:
@@ -273,6 +314,96 @@ class FinanceSellerPortalTests(TestCase):
             return ([{"report_id": 321, "rrd_id": 2}], True)
         with patch("guard.finance_views.fetch_report_detail_page", side_effect=revoked):
             self.client.post(reverse("finance_audit"), {"action": "detail", "report_id": "321"})
+        self.assertFalse(FinanceSnapshot.objects.filter(account=self.store).exists())
+
+
+    def test_manual_next_pages_share_gate_end_only_on_204_and_ignore_user_cursor(self):
+        tok = finance_token()
+        self.client.post(reverse("finance_audit"), {
+            "action": "connect", "finance_consent": "yes", "finance_token": tok,
+        })
+        state = FinanceSnapshot.objects.get(account=self.store)
+        state.reports = [{"report_id": 321}]
+        state.fetched_at = timezone.now()
+        state.save(update_fields=["reports", "fetched_at"])
+        first = [{"report_id": 321, "rrd_id": 100, "currency": "RUB", "funding": "unknown"}]
+        second = [{"report_id": 321, "rrd_id": 200, "currency": "RUB", "funding": "unknown"}]
+        with patch("guard.finance_views.fetch_report_detail_page", return_value=(first, True)) as fetch:
+            self.client.post(reverse("finance_audit"), {"action": "detail", "report_id": "321"})
+            fetch.assert_called_once_with(tok, 321)
+        with patch("guard.finance_views.fetch_report_detail_page") as fetch:
+            self.client.post(reverse("finance_audit"), {"action": "detail_more", "rrd_id": "999999"})
+            fetch.assert_not_called()
+        FinanceRateGate.objects.filter(user=self.seller).update(
+            next_allowed_at=timezone.now() - timedelta(seconds=1)
+        )
+        FinanceSnapshot.objects.filter(account=self.store).update(
+            next_refresh_at=timezone.now() - timedelta(seconds=1)
+        )
+        with patch("guard.finance_views.fetch_report_detail_page", return_value=(second, True)) as fetch:
+            self.client.post(reverse("finance_audit"), {"action": "detail_more", "rrd_id": "999999"})
+            fetch.assert_called_once_with(tok, 321, 100)
+        state.refresh_from_db()
+        self.assertEqual([row["rrd_id"] for row in state.detail_rows], [100, 200])
+        self.assertTrue(state.detail_partial)
+        FinanceRateGate.objects.filter(user=self.seller).update(
+            next_allowed_at=timezone.now() - timedelta(seconds=1)
+        )
+        FinanceSnapshot.objects.filter(account=self.store).update(
+            next_refresh_at=timezone.now() - timedelta(seconds=1)
+        )
+        with patch("guard.finance_views.fetch_report_detail_page", return_value=([], False)) as fetch:
+            self.client.post(reverse("finance_audit"), {"action": "detail_more"})
+            fetch.assert_called_once_with(tok, 321, 200)
+        state.refresh_from_db()
+        self.assertEqual(len(state.detail_rows), 2)
+        self.assertFalse(state.detail_partial)
+        self.assertContains(self.client.get(reverse("finance_audit")), "WB подтвердил конец страниц")
+        with patch("guard.finance_views.fetch_report_detail_page") as fetch:
+            self.client.post(reverse("finance_audit"), {"action": "detail_more"})
+            fetch.assert_not_called()
+
+    def test_next_page_denied_without_prior_evidence_or_after_bounded_cap(self):
+        tok = finance_token()
+        self.client.post(reverse("finance_audit"), {
+            "action": "connect", "finance_consent": "yes", "finance_token": tok,
+        })
+        with patch("guard.finance_views.fetch_report_detail_page") as fetch:
+            self.client.post(reverse("finance_audit"), {"action": "detail_more"})
+            fetch.assert_not_called()
+        state = FinanceSnapshot.objects.get(account=self.store)
+        state.reports = [{"report_id": 321}]
+        state.fetched_at = timezone.now()
+        state.detail_report_id = 321
+        state.detail_fetched_at = timezone.now()
+        state.detail_partial = True
+        from guard.finance import MAX_DETAIL_STORED_ROWS
+        state.detail_rows = [
+            {"report_id": 321, "rrd_id": i, "funding": "unknown"}
+            for i in range(1, MAX_DETAIL_STORED_ROWS + 1)
+        ]
+        state.save()
+        with patch("guard.finance_views.fetch_report_detail_page") as fetch:
+            self.client.post(reverse("finance_audit"), {"action": "detail_more"})
+            fetch.assert_not_called()
+
+    def test_next_page_during_revocation_does_not_restore_evidence(self):
+        tok = finance_token()
+        self.client.post(reverse("finance_audit"), {
+            "action": "connect", "finance_consent": "yes", "finance_token": tok,
+        })
+        state = FinanceSnapshot.objects.get(account=self.store)
+        state.reports = [{"report_id": 321}]
+        state.fetched_at = timezone.now()
+        state.detail_report_id = 321
+        state.detail_fetched_at = timezone.now()
+        state.detail_rows = [{"report_id": 321, "rrd_id": 12}]
+        state.save()
+        def revoked(*args):
+            FinanceSnapshot.objects.filter(account=self.store).delete()
+            return ([{"report_id": 321, "rrd_id": 13}], True)
+        with patch("guard.finance_views.fetch_report_detail_page", side_effect=revoked):
+            self.client.post(reverse("finance_audit"), {"action": "detail_more"})
         self.assertFalse(FinanceSnapshot.objects.filter(account=self.store).exists())
 
     def test_rotation_preserves_75_second_rate_limit(self):

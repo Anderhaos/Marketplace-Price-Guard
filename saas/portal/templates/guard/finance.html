@@ -50,7 +50,7 @@
   {% if snapshot.detail_fetched_at %}
   <section aria-label="Детализация выбранного отчёта">
     <h3>Операции отчёта №{{ snapshot.detail_report_id }}</h3>
-    <p class="notice">Первая страница, не полная финансовая история. Проверено: {{ snapshot.detail_fetched_at|date:"d.m.Y H:i" }}. Скидка продавца в финансовой строке не доказывает, кто профинансировал остальные скидки. Прибыль не рассчитана.</p>
+    <p class="notice">Первая страница и последующие ручные страницы: {{ detail_rows|length }} строк. Проверено: {{ snapshot.detail_fetched_at|date:"d.m.Y H:i" }}. Скидка продавца не доказывает финансирование остальных скидок. Прибыль не рассчитана.</p>
     {% for row in detail_rows %}
     <article class="card">
       <strong>Товар WB №{{ row.nm_id|default:"не указан" }}</strong>
@@ -60,9 +60,20 @@
       <small>Финансирование всех скидок: неизвестно · Прибыль: не подтверждена</small>
     </article>
     {% empty %}
-    <p>Операций на первой странице нет.</p>
+    <p>Строк по выбранному отчёту нет.</p>
     {% endfor %}
-    {% if snapshot.detail_partial %}<p class="notice">Проверена только одна страница. Другие операции этого отчёта могут отсутствовать.</p>{% endif %}
+    {% if snapshot.detail_partial %}
+      <p class="notice">Отчёт не завершён: другие строки могут отсутствовать. Продолжение — отдельный ручной запрос WB с интервалом не менее 75 секунд, максимум {{ detail_page_limit }} сохранённых строк.</p>
+      {% if can_continue %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="detail_more">
+        <button type="submit" class="secondary">Загрузить следующую страницу вручную</button>
+      </form>
+      {% elif detail_rows|length >= detail_page_limit %}
+      <p class="notice">Достигнут предел сохранения данных. Загрузка остановлена; полнота отчёта не подтверждена.</p>
+      {% endif %}
+    {% else %}
+      <p class="notice">WB подтвердил конец страниц ответом 204. Это не доказывает прибыль или источник финансирования скидки.</p>
+    {% endif %}
   </section>
   {% endif %}
   {% endif %}
