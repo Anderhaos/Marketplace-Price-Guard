@@ -1,0 +1,33 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Доверенные устройства — NoSale{% endblock %}
+{% block content %}
+<style>
+.device-wrap{max-width:760px;margin:20px 0;font:inherit}
+.device-wrap h1{font-size:28px;margin-bottom:12px}
+.device-intro{color:var(--body-quiet-color,#aab);line-height:1.6;margin-bottom:24px}
+.device-row{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:18px;margin:12px 0;border:1px solid var(--hairline-color,#444);border-radius:12px;background:var(--darkened-bg,#181b20)}
+.device-row strong,.device-row small{display:block}
+.device-row small{margin-top:6px;color:var(--body-quiet-color,#aaa)}
+.device-row button{border:1px solid #dd583f;background:transparent;color:#ef765a;padding:10px 13px;border-radius:9px;cursor:pointer}
+@media(max-width:560px){.device-row{align-items:flex-start;flex-direction:column}}
+</style>
+<section class="device-wrap">
+  <h1>Доверенные устройства</h1>
+  <p class="device-intro">Здесь перечислены браузеры, для которых вход владельца подтверждался по email. Доверие действует до 30 дней и не даёт доступа без действующей авторизованной сессии. Можно отозвать любое устройство.</p>
+  {% for device in devices %}
+    <div class="device-row">
+      <div><strong>{{ device.label }}{% if device.is_current %} · это устройство{% endif %}</strong>
+        <small>Добавлено: {{ device.created_at|date:"d.m.Y H:i" }} · Последнее использование: {{ device.last_used_at|date:"d.m.Y H:i" }}</small>
+        <small>Срок доверия: до {{ device.expires_at|date:"d.m.Y H:i" }}</small>
+      </div>
+      <form method="post" action="{% url 'nosale_owner_devices' %}">{% csrf_token %}
+        <input type="hidden" name="device_id" value="{{ device.pk }}">
+        <button type="submit">Отозвать</button>
+      </form>
+    </div>
+  {% empty %}
+    <p>Сохранённых доверенных устройств нет.</p>
+  {% endfor %}
+  <p><a href="/admin/">Вернуться в панель владельца</a></p>
+</section>
+{% endblock %}

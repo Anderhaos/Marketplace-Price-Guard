@@ -51,6 +51,7 @@ def admin_login_gateway(request):
 urlpatterns = [
     path("admin/login/", admin_login_gateway, name="nosale_admin_pin_login"),
     path("admin/code/", email_pin.owner_admin_code, name="nosale_owner_admin_code"),
+    path("admin/devices/", admin.site.admin_view(email_pin.owner_devices), name="nosale_owner_devices"),
     path("admin/integrations/", admin.site.admin_view(owner_integrations), name="nosale_owner_integrations"),
     path("admin/control/<str:section>/", admin.site.admin_view(owner_section), name="nosale_owner_section"),
     path("admin/", admin.site.admin_view(owner_home), name="nosale_owner_home"),
@@ -72,7 +73,7 @@ urlpatterns = [
     path("auth/pin/", email_pin.finish_pin, name="auth_pin"),
     path("verify/<uidb64>/<token>/", email_pin.legacy_verify_entry, name="verify"),
     path("login/", email_pin.login_entry, name="login"),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("logout/", email_pin.OwnerTrustedLogoutView.as_view(), name="logout"),
     path("password-reset/", email_pin.recovery_entry, name="password_reset"),
     path("password-reset/sent/", auth_views.PasswordResetDoneView.as_view(template_name="guard/message.html", extra_context={"notice": "Письмо для восстановления пароля отправлено."}), name="password_reset_done"),
     path("password-reset/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(template_name="guard/password_reset_confirm.html", success_url="/login/"), name="password_reset_confirm"),

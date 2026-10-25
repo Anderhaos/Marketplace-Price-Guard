@@ -107,6 +107,20 @@ class EmailPinChallenge(models.Model):
         constraints = [models.UniqueConstraint(fields=["email", "purpose"], name="saas_email_challenge_one_active")]
 
 
+class OwnerTrustedDevice(models.Model):
+    """Revocable browser trust, issued only after owner email challenge."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="nosale_trusted_devices")
+    token_digest = models.CharField(max_length=64, unique=True)
+    user_agent_digest = models.CharField(max_length=64)
+    label = models.CharField(max_length=80)
+    created_at = models.DateTimeField(default=timezone.now)
+    last_used_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
 class EmailPinLoginThrottle(models.Model):
     """Persisted across Gunicorn workers; limits guesses against six-digit PINs."""
     email = models.EmailField(max_length=254, unique=True)
