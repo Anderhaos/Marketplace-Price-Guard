@@ -1,0 +1,11 @@
+[Unit]
+Description=NoSale owner incident alert check every five minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=nosale-ops-alert.service
+
+[Install]
+WantedBy=timers.target
