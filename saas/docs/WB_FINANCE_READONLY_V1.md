@@ -12,3 +12,13 @@
 Official references:
 - https://dev.wildberries.ru/docs/openapi/documents-and-accounting
 - https://dev.wildberries.ru/knowledge-base/articles/019d50e0-4e66-71d7-a147-be50f8dda5e9/pagination-and-working-with-large-datasets-in-wb-api
+
+## R5.2 — bounded report details (experimental, disabled in public deployment)
+
+- After a *seller-consented* manual list refresh, the seller may choose an ID strictly from **their own stored report list**. It cannot submit arbitrary report IDs. This is the first page only, 30 records maximum, single HTTP request; further pages are **not** fetched or represented as complete.
+- Official read-only `POST /api/finance/v1/sales-reports/detailed/{reportId}`; fields whitelist: `reportId, rrdId, nmId, currency, saleDt, retailAmount, forPay, sellerPromoId, sellerPromoDiscount`. Never request/store `srid`, buyer identity, order identifiers, seller names, barcodes, tax details or raw body.
+- Store only sanitized first-page evidence for one report per shop, reset it on token rotation/list refresh, purge on revoke. Gate shared with list queries (durable 75-second cooldown); no retries, batch jobs or pricing writes. Disable with `NOSALE_WB_FINANCE_ENABLED=0` / global WB network switch.
+- `sellerPromoId` and `sellerPromoDiscount` indicate that a seller promotion exists in a report row; these DO NOT establish financing of *every* price discount or profitability. Per-product margin requires seller cost basis and verified finance rows, returns, delivery, commissions and final bank reconciliation. All output retains `funding=unknown`, `profit_verified=false`.
+- **No live test / deployment enablement** until approved seller account scopes and per-seller 1/min shared budget are verified. Synthetic CI checks only.
+
+Reference: https://dev.wildberries.ru/docs/openapi/financial-reports-and-accounting#tag/financialReports

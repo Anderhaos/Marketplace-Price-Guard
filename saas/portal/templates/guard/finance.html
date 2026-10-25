@@ -36,10 +36,35 @@
     <p>По отчёту к перечислению: {{ item.for_pay|default:"не подтверждено" }}</p>
     <p>Розничная сумма: {{ item.retail_amount|default:"не подтверждено" }}</p>
     <small>Кто финансирует конкретную скидку — неизвестно. Прибыль не рассчитана.</small>
+    {% if snapshot.fetched_at %}
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="detail">
+      <input type="hidden" name="report_id" value="{{ item.report_id }}">
+      <button type="submit" class="secondary" {% if not can_refresh %}disabled{% endif %}>Посмотреть первую страницу операций</button>
+    </form>
+    {% endif %}
   </article>
   {% empty %}
   {% if snapshot.fetched_at %}<p>За выбранный период отчёты не найдены или WB вернул отсутствие данных.</p>{% endif %}
   {% endfor %}
+  {% if snapshot.detail_fetched_at %}
+  <section aria-label="Детализация выбранного отчёта">
+    <h3>Операции отчёта №{{ snapshot.detail_report_id }}</h3>
+    <p class="notice">Первая страница, не полная финансовая история. Проверено: {{ snapshot.detail_fetched_at|date:"d.m.Y H:i" }}. Скидка продавца в финансовой строке не доказывает, кто профинансировал остальные скидки. Прибыль не рассчитана.</p>
+    {% for row in detail_rows %}
+    <article class="card">
+      <strong>Товар WB №{{ row.nm_id|default:"не указан" }}</strong>
+      <p>Операция №{{ row.rrd_id }} · {{ row.sale_date|default:"дата не указана" }} · {{ row.currency }}</p>
+      <p>Розничная сумма: {{ row.retail_amount|default:"не подтверждена" }} · К перечислению: {{ row.for_pay|default:"не подтверждено" }}</p>
+      <p>Собственная акция продавца (ID): {{ row.seller_promo_id|default:"не указана" }} · Скидка по ней: {{ row.seller_promo_discount_pct|default:"неизвестна" }}%</p>
+      <small>Финансирование всех скидок: неизвестно · Прибыль: не подтверждена</small>
+    </article>
+    {% empty %}
+    <p>Операций на первой странице нет.</p>
+    {% endfor %}
+    {% if snapshot.detail_partial %}<p class="notice">Проверена только одна страница. Другие операции этого отчёта могут отсутствовать.</p>{% endif %}
+  </section>
+  {% endif %}
   {% endif %}
 </section>
 {% endblock %}
