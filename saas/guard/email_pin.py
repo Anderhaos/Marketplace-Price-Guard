@@ -5,12 +5,15 @@ login throttles live in SaaS PostgreSQL, not process-local state.
 """
 import secrets
 import os
+import hashlib
+import hmac
 from datetime import timedelta
 
 from django import forms
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.views import LogoutView
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -22,7 +25,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from .mail_templates import send_pin_verification_email
-from .models import EmailPinChallenge, EmailPinLoginThrottle, GuardAccount
+from .models import EmailPinChallenge, EmailPinLoginThrottle, GuardAccount, OwnerTrustedDevice
 
 log = logging.getLogger(__name__)
 SESSION_CHALLENGE = "mpno_saas_email_challenge_id"
@@ -270,6 +273,73 @@ SESSION_OWNER_VERIFIED = "nosale_owner_admin_verified"
 OWNER_ACCESS_TTL = timedelta(minutes=30)
 
 
+TRUSTED_DEVICE_COOKIE = "nosale_owner_trusted"
+TRUSTED_DEVICE_TTL = timedelta(days=30)
+TRUSTED_DEVICE_LIMIT = 5
+
+
+def _token_digest(user, token):
+    # Password rotation invalidates all existing device tokens.
+    return hashlib.sha256(f"{user.pk}:{user.password}:{token}".encode()).hexdigest()
+
+
+def _agent_digest(request):
+    return hashlib.sha256(request.META.get("HTTP_USER_AGENT", "")[:512].encode()).hexdigest()
+
+
+def _device_label(request):
+    agent = request.META.get("HTTP_USER_AGENT", "")[:512]
+    browser = ("Edge" if "Edg/" in agent else "Opera" if "OPR/" in agent
+               else "Chrome" if "Chrome/" in agent else "Firefox" if "Firefox/" in agent
+               else "Safari" if "Safari/" in agent else "Браузер")
+    system = ("Windows" if "Windows" in agent else "macOS" if "Macintosh" in agent
+              else "Android" if "Android" in agent else "iOS" if "iPhone" in agent or "iPad" in agent
+              else "Linux" if "Linux" in agent else "Устройство")
+    return f"{browser} · {system}"
+
+
+def _trusted_device(request, user):
+    token = request.COOKIES.get(TRUSTED_DEVICE_COOKIE, "")
+    if not token or len(token) > 128:
+        return None
+    match = OwnerTrustedDevice.objects.filter(
+        user=user, token_digest=_token_digest(user, token),
+        expires_at__gt=timezone.now(),
+    ).first()
+    if match is None or not hmac.compare_digest(match.user_agent_digest, _agent_digest(request)):
+        return None
+    if match.last_used_at < timezone.now() - timedelta(days=1):
+        OwnerTrustedDevice.objects.filter(pk=match.pk).update(last_used_at=timezone.now())
+    return match
+
+
+def _remember_owner_device(request, user):
+    now = timezone.now()
+    OwnerTrustedDevice.objects.filter(user=user, expires_at__lte=now).delete()
+    raw_token = secrets.token_urlsafe(32)
+    OwnerTrustedDevice.objects.create(
+        user=user, token_digest=_token_digest(user, raw_token),
+        user_agent_digest=_agent_digest(request), label=_device_label(request),
+        expires_at=now + TRUSTED_DEVICE_TTL,
+    )
+    # Keep at most five devices, evict oldest. Never store plaintext tokens.
+    old_ids = list(OwnerTrustedDevice.objects.filter(user=user)
+                   .order_by("-created_at", "-pk").values_list("pk", flat=True)[TRUSTED_DEVICE_LIMIT:])
+    if old_ids:
+        OwnerTrustedDevice.objects.filter(user=user, pk__in=old_ids).delete()
+    return raw_token
+
+
+def _set_device_cookie(response, token):
+    response.set_cookie(
+        TRUSTED_DEVICE_COOKIE, token,
+        max_age=int(TRUSTED_DEVICE_TTL.total_seconds()),
+        secure=settings.SESSION_COOKIE_SECURE, httponly=True,
+        samesite="Lax", path="/",
+    )
+    return response
+
+
 def owner_admin_verified(request):
     """An authenticated superuser needs fresh email possession per admin session."""
     user = request.user
@@ -278,13 +348,14 @@ def owner_admin_verified(request):
     if not settings.SAAS_PIN_AUTH_ENABLED:
         return True
     grant = request.session.get(SESSION_OWNER_VERIFIED)
-    return (
+    session_granted = (
         isinstance(grant, dict)
         and type(grant.get("user_id")) is int
         and grant["user_id"] == user.pk
         and type(grant.get("valid_until")) in (int, float)
         and grant["valid_until"] > timezone.now().timestamp()
     )
+    return session_granted or _trusted_device(request, user) is not None
 
 
 def _issue_owner_email_code(request, *, resend=False):
@@ -371,6 +442,11 @@ def owner_admin_code(request):
                         "user_id": user.pk,
                         "valid_until": (now + OWNER_ACCESS_TTL).timestamp(),
                     }
+                    if request.POST.get("remember_device") == "yes":
+                        token = _remember_owner_device(request, user)
+                        # Persistent login avoids retyping PIN after browser restart.
+                        request.session.set_expiry(int(TRUSTED_DEVICE_TTL.total_seconds()))
+                        return _set_device_cookie(redirect("/admin/"), token)
                     return redirect("/admin/")
                 else:
                     challenge.attempts += 1
@@ -389,6 +465,52 @@ def owner_admin_code(request):
     return render(request, "guard/owner_code.html", {
         "form": form, "error": error,
     })
+
+
+class OwnerTrustedLogoutView(LogoutView):
+    """Explicit logout untrusts the current browser; other devices are untouched."""
+
+    def post(self, request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.is_superuser:
+            token = request.COOKIES.get(TRUSTED_DEVICE_COOKIE, "")
+            if token and len(token) <= 128:
+                OwnerTrustedDevice.objects.filter(
+                    user=request.user, token_digest=_token_digest(request.user, token)
+                ).delete()
+        response = super().post(request, *args, **kwargs)
+        response.delete_cookie(TRUSTED_DEVICE_COOKIE, path="/", samesite="Lax")
+        return response
+
+
+def owner_devices(request):
+    """The owner can inspect and revoke their own browser approvals."""
+    if not owner_admin_verified(request):
+        if not request.user.is_authenticated:
+            return redirect("/login/?next=/admin/")
+        if not request.user.is_superuser:
+            return HttpResponseForbidden("Owner access only")
+        return redirect("/admin/code/")
+    user = request.user
+    raw_token = request.COOKIES.get(TRUSTED_DEVICE_COOKIE, "")
+    current_digest = _token_digest(user, raw_token) if raw_token and len(raw_token) <= 128 else ""
+    deleted_current = False
+    if request.method == "POST":
+        pk = request.POST.get("device_id", "")
+        if not pk.isdecimal() or len(pk) > 20:
+            return HttpResponseNotAllowed(["GET"])
+        device = OwnerTrustedDevice.objects.filter(user=user, pk=int(pk)).first()
+        if device:
+            deleted_current = bool(current_digest and hmac.compare_digest(device.token_digest, current_digest))
+            device.delete()
+        response = redirect("/admin/devices/")
+        if deleted_current:
+            response.delete_cookie(TRUSTED_DEVICE_COOKIE, path="/", samesite="Lax")
+            request.session.pop(SESSION_OWNER_VERIFIED, None)
+        return response
+    devices = list(OwnerTrustedDevice.objects.filter(user=user, expires_at__gt=timezone.now()))
+    for device in devices:
+        device.is_current = bool(current_digest and hmac.compare_digest(device.token_digest, current_digest))
+    return render(request, "guard/owner_devices.html", {"devices": devices})
 
 
 SESSION_LOGIN_EMAIL = "nosale_login_email"
