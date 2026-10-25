@@ -32,6 +32,8 @@ jobs:
         run: bash -n deploy/nosale-backup-offsite.sh
       - name: Encrypted offsite backup regression
         run: python -m unittest discover -s deploy -p test_nosale_offsite_crypto.py -v
+      - name: Local PostgreSQL restore drill safety
+        run: python -m unittest discover -s deploy -p test_nosale_local_restore_drill.py -v
       - name: Host ops alert tests
         run: python -m unittest discover -s deploy -p test_nosale_ops_alert.py -v
       - name: Django validation
