@@ -184,3 +184,42 @@ class PromotionSnapshot(models.Model):
 
     def __str__(self):
         return f"Акции WB: магазин {self.account_id}"
+
+
+class FinanceSnapshot(models.Model):
+    """Opt-in WB Finance credentials and minimal report evidence per owned store.
+
+    Financial permissions are deliberately separate from price/discount tokens.
+    Never store raw Finance rows, buyer information, seller names, or API tokens
+    in report metadata. A report total is NOT proof of a promotion's funding.
+    """
+    account = models.OneToOneField(
+        GuardAccount, on_delete=models.CASCADE, related_name="finance_snapshot",
+    )
+    encrypted_finance_token = models.TextField(blank=True)
+    token_hint = models.CharField(max_length=16, blank=True)
+    consented_at = models.DateTimeField(null=True, blank=True)
+    reports = models.JSONField(default=list)
+    partial = models.BooleanField(default=True)
+    fetched_at = models.DateTimeField(null=True, blank=True)
+    next_refresh_at = models.DateTimeField(null=True, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=220, blank=True)
+
+    def __str__(self):
+        return f"WB Finance: магазин {self.account_id}"
+
+
+class FinanceRateGate(models.Model):
+    """Per NoSale user cooldown that survives token rotation and revocation.
+
+    The official WB limit is per *actual seller account*. Until verified seller
+    ID mapping exists, this additionally limits all this user's WB stores.
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="finance_rate_gate",
+    )
+    next_allowed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"WB Finance rate gate user {self.user_id}"
