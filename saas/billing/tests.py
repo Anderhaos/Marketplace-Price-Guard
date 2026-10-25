@@ -12,7 +12,7 @@ from guard.models import GuardAccount
 from guard.monitor import check_account, run_due_checks
 
 
-@override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_ACCESS_ENFORCED=True)
+@override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=False, SAAS_ACCESS_ENFORCED=True)
 class AccessGateTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(

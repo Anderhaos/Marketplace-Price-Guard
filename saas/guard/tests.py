@@ -11,7 +11,7 @@ from .monitor import check_account, run_due_checks
 from .wb import WBClient, get_token_permissions
 
 
-@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", SAAS_WB_NETWORK_ENABLED=True, SAAS_ACCESS_ENFORCED=False)
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=False, SAAS_ACCESS_ENFORCED=False)
 class PortalTests(TestCase):
     def test_favicon_request_redirects_to_static_icon(self):
         response = self.client.get("/favicon.ico")

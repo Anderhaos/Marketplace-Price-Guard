@@ -70,7 +70,9 @@ else:
         raise RuntimeError("Generated SAAS_DB_PASSWORD required for production")
 SAAS_WB_NETWORK_ENABLED = env_bool("SAAS_WB_NETWORK_ENABLED", False)
 SAAS_WB_TOKEN_VALIDATION_ENABLED = env_bool("SAAS_WB_TOKEN_VALIDATION_ENABLED", False)
-SAAS_WB_READ_ONLY = env_bool("SAAS_WB_READ_ONLY", False)
+# New deployments must explicitly opt into discount writes. The network
+# switch and the read-only switch are independent fail-closed controls.
+SAAS_WB_READ_ONLY = env_bool("SAAS_WB_READ_ONLY", True)
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
 # Same acquiring contract as MiniBook, separate NoSale merchant configuration.
 # Fail closed until a merchant, verified RS256 webhook key, and approved RUB price exist.
