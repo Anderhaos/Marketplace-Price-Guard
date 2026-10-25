@@ -53,6 +53,7 @@ def save_gateway_token(connection, raw_token):
         raise PlatformConnectionError("Некорректный сервисный ключ AI Platform")
     connection.encrypted_service_token = encrypt_token(token)
     connection.catalog_models = []
+    connection.catalog_tool_models = []
     connection.last_checked_at = None
     connection.last_check_ok = None
     connection.last_check_message = ""
@@ -87,8 +88,8 @@ def runtime_gateway(*, model_id=None):
         return None
 
 
-def fetch_platform_models(connection):
-    """Explicit, owner-triggered verification of available chat models."""
+def _fetch_model_catalog(connection):
+    """Fetch authorized chat models and their explicitly advertised tool support."""
     if not connection.encrypted_service_token:
         raise PlatformConnectionError("Сначала сохраните сервисный ключ")
     base = normalize_base_url(connection.base_url)
@@ -120,6 +121,7 @@ def fetch_platform_models(connection):
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
         raise PlatformConnectionError("Некорректная структура каталога AI Platform")
     models = []
+    tool_models = []
     for item in payload["data"][:500]:
         if not isinstance(item, dict):
             continue
@@ -141,24 +143,53 @@ def fetch_platform_models(connection):
                 continue
         if identifier not in models:
             models.append(identifier)
+            capabilities = item.get("capabilities")
+            if isinstance(capabilities, dict) and capabilities.get("tools") is True:
+                tool_models.append(identifier)
     if not models:
         raise PlatformConnectionError("Нет доступных моделей чата для проекта NoSale")
-    return models
+    return models, tool_models
+
+
+def fetch_platform_models(connection):
+    """Backwards-compatible chat model list; no mutation or external inference."""
+    return _fetch_model_catalog(connection)[0]
+
+
+def is_verified_tool_model(model_id):
+    """Allow Smart MCP only for models explicitly listed with capabilities.tools=true.
+
+    An explicit deployment emergency override retains the existing trusted
+    ops contract; ordinary owner-managed catalog entries fail closed.
+    """
+    if not isinstance(model_id, str) or not model_id:
+        return False
+    if getattr(settings, "NOSALE_AI_GATEWAY_URL", "") and getattr(settings, "NOSALE_AI_SERVICE_TOKEN", ""):
+        return runtime_gateway(model_id=model_id) is not None
+    conn = OwnerAIGatewayConnection.objects.filter(pk=1, last_check_ok=True).first()
+    return bool(
+        conn and isinstance(conn.catalog_models, list)
+        and isinstance(conn.catalog_tool_models, list)
+        and model_id in conn.catalog_models
+        and model_id in conn.catalog_tool_models
+    )
 
 
 def verify_gateway(connection):
     try:
-        models = fetch_platform_models(connection)
+        models, tool_models = _fetch_model_catalog(connection)
     except (PlatformConnectionError, ValueError) as exc:
         connection.last_check_ok = False
         connection.last_check_message = str(exc)[:220]
         connection.last_checked_at = timezone.now()
         connection.catalog_models = []
-        connection.save(update_fields=["last_check_ok", "last_check_message", "last_checked_at", "catalog_models", "updated_at"])
+        connection.catalog_tool_models = []
+        connection.save(update_fields=["last_check_ok", "last_check_message", "last_checked_at", "catalog_models", "catalog_tool_models", "updated_at"])
         raise PlatformConnectionError(str(exc)) from exc
     connection.catalog_models = models
+    connection.catalog_tool_models = tool_models
     connection.last_checked_at = timezone.now()
     connection.last_check_ok = True
-    connection.last_check_message = f"AI Platform подключена. Моделей чата: {len(models)}"
-    connection.save(update_fields=["catalog_models", "last_checked_at", "last_check_ok", "last_check_message", "updated_at"])
+    connection.last_check_message = f"AI Platform подключена. Чат: {len(models)}, MCP tools: {len(tool_models)}"
+    connection.save(update_fields=["catalog_models", "catalog_tool_models", "last_checked_at", "last_check_ok", "last_check_message", "updated_at"])
     return models

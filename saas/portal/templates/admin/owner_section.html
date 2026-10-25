@@ -16,7 +16,7 @@
     <div class="owner-formcard" id="gateway">
       <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПОДКЛЮЧЕНИЕ</span><h2>AI Platform</h2></div><span class="owner-status{% if readiness.ai.last_verified %} is-positive{% endif %}">{% if readiness.ai.last_verified %}Проверено ранее{% else %}Не проверено{% endif %}</span></div>
       {% if forms.gateway %}
-        <div class="owner-inline-stats"><span>Ключ: <strong>{% if gateway.configured %}сохранён зашифрованно{% else %}не задан{% endif %}</strong></span><span>Каталог: <strong>{{ readiness.ai.verified_model_count }} моделей</strong></span></div>
+        <div class="owner-inline-stats"><span>Ключ: <strong>{% if gateway.configured %}сохранён зашифрованно{% else %}не задан{% endif %}</strong></span><span>Каталог: <strong>{{ readiness.ai.verified_model_count }} моделей</strong></span><span>MCP tools: <strong>{{ readiness.ai.verified_tool_model_count }} моделей</strong></span></div>
         <form method="post" class="owner-settings-form">
           {% csrf_token %}<input type="hidden" name="_panel" value="gateway">
           {% for field in forms.gateway %}
@@ -32,7 +32,7 @@
     <div class="owner-formcard" id="assistant">
       <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">МОДЕЛЬ И ЛИМИТЫ</span><h2>Помощник Standard / Smart</h2></div><span class="owner-status{% if readiness.ai.usable %} is-positive{% endif %}">{% if readiness.ai.usable %}Настроен{% else %}Не готов{% endif %}</span></div>
       {% if forms.ai %}
-        <p class="owner-small-note">Сначала подтвердите доступ к моделям. Нулевой месячный бюджет блокирует AI-запросы.</p>
+        <p class="owner-small-note">Сначала подтвердите доступ к моделям. Для инструментов MCP нужна модель с отметкой «MCP tools». После обновления проверьте каталог повторно. Нулевой бюджет блокирует AI-запросы.</p>
         <form method="post" class="owner-settings-form">
           {% csrf_token %}<input type="hidden" name="_panel" value="ai">
           {% for field in forms.ai %}

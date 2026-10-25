@@ -113,6 +113,7 @@ class OwnerAIGatewayConnection(models.Model):
     )
     encrypted_service_token = models.TextField(blank=True, editable=False)
     catalog_models = models.JSONField(default=list, blank=True, editable=False)
+    catalog_tool_models = models.JSONField(default=list, blank=True, editable=False)
     last_checked_at = models.DateTimeField(null=True, blank=True, editable=False)
     last_check_ok = models.BooleanField(null=True, blank=True, editable=False)
     last_check_message = models.CharField(max_length=220, blank=True, editable=False)

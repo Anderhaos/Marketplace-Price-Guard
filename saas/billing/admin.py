@@ -40,7 +40,11 @@ class OwnerAISettingsForm(forms.ModelForm):
         ).first()
         if gateway and gateway.catalog_models:
             choices = [("", "Выберите модель AI Platform")]
-            choices.extend((m, m) for m in gateway.catalog_models)
+            verified_tools = set(gateway.catalog_tool_models or [])
+            choices.extend(
+                (model, model + (" · MCP tools" if model in verified_tools else " · только чат"))
+                for model in gateway.catalog_models
+            )
             value = self.instance.gateway_model_id
             # Keep historical selection visible, but require new selections
             # to be available in the verified catalog.
@@ -48,7 +52,7 @@ class OwnerAISettingsForm(forms.ModelForm):
                 choices.append((value, f"{value} (больше не доступна)"))
             self.fields["gateway_model_id"] = forms.ChoiceField(
                 choices=choices, required=False, label="Модель AI Platform",
-                help_text="Только проверенные модели этого подключения.",
+                help_text="MCP доступен только для моделей с отметкой MCP tools после проверки каталога.",
             )
 
 
@@ -185,6 +189,7 @@ class OwnerAIGatewayConnectionForm(forms.ModelForm):
             # Changing either catalog scope or endpoint invalidates a previous
             # authorization snapshot, even when the secret itself is unchanged.
             connection.catalog_models = []
+            connection.catalog_tool_models = []
             connection.last_check_ok = None
             connection.last_checked_at = None
             connection.last_check_message = ""
