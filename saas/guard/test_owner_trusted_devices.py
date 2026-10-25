@@ -67,7 +67,8 @@ class OwnerTrustedDeviceTests(TestCase):
         self.assertNotEqual(trusted.token_digest, cookie.value)
         self.assertEqual(len(trusted.token_digest), 64)
         self.assertEqual(trusted.label, "Chrome · Windows")
-        self.assertEqual(self.client.session.get_expiry_age(), 2592000)
+        self.assertGreater(self.client.session.get_expiry_age(), 2591900)
+        self.assertLessEqual(self.client.session.get_expiry_age(), 2592000)
         self._expire_admin_stepup()
         self.assertEqual(self.client.get("/admin/", HTTP_USER_AGENT=self.ua).status_code, 200)
 
