@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily NoSale offsite archive and checksum verification
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+RandomizedDelaySec=240
+Unit=nosale-backup-offsite.service
+
+[Install]
+WantedBy=timers.target

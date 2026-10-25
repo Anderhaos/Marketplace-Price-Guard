@@ -1,0 +1,17 @@
+[Unit]
+Description=NoSale PostgreSQL and private app config offsite snapshot
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+EnvironmentFile=/etc/nosale-saas/offsite.env
+WorkingDirectory=/srv/mpnosale-saas/source/saas
+ExecStart=/usr/bin/bash /srv/mpnosale-saas/source/saas/deploy/nosale-backup-offsite.sh
+TimeoutStartSec=1200
+NoNewPrivileges=true
+PrivateTmp=true
