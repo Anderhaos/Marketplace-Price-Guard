@@ -30,6 +30,8 @@ jobs:
         run: echo "TOKEN_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
       - name: Backup script syntax
         run: bash -n deploy/nosale-backup-offsite.sh
+      - name: Encrypted offsite backup regression
+        run: python -m unittest discover -s deploy -p test_nosale_offsite_crypto.py -v
       - name: Host ops alert tests
         run: python -m unittest discover -s deploy -p test_nosale_ops_alert.py -v
       - name: Django validation
