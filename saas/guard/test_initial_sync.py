@@ -175,7 +175,9 @@ class InitialSyncGateTests(TestCase):
 
     @override_settings(SAAS_WB_NETWORK_ENABLED=False)
     def test_preview_explains_disabled_real_import_without_inventing_products(self):
-        self.connect()
+        # Token was validated before the operator turned WB network off.
+        with override_settings(SAAS_WB_NETWORK_ENABLED=True):
+            self.connect()
         r = self.client.get("/")
         self.assertContains(r, "В изолированном тестовом окружении запросы Wildberries отключены")
         self.assertNotContains(r, 'class="compact-summary"')

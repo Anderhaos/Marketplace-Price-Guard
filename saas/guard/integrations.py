@@ -18,6 +18,10 @@ def connect_wb_token(account, token):
     token = (token or "").strip()
     if not token or len(token) > 4096:
         raise ConnectError("Вставьте полный API-токен Wildberries.")
+    # Token onboarding calls the live WB API. Never bypass the global
+    # network switch just because token validation is independently enabled.
+    if not settings.SAAS_WB_NETWORK_ENABLED:
+        raise ConnectError("Подключение WB API отключено в тестовой среде. Попробуйте позже.")
     if not getattr(settings, "SAAS_WB_TOKEN_VALIDATION_ENABLED", False):
         raise ConnectError("Проверка WB API пока недоступна. Попробуйте позже.")
     permissions = get_token_permissions(token)

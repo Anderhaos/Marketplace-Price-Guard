@@ -16,7 +16,7 @@ from .wb import WBApiError, WBClient
 from django.contrib.auth.models import User
 
 
-@override_settings(SAAS_WB_READ_ONLY=True)
+@override_settings(SAAS_WB_READ_ONLY=True, SAAS_WB_NETWORK_ENABLED=True)
 class BasicPriceApiLimitTests(SimpleTestCase):
     def test_short_last_page_avoids_one_extra_price_api_request(self):
         result = {"data": {"listGoods": [
