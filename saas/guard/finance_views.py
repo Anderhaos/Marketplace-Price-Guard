@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from billing.access import has_plan_capability
 from .crypto import decrypt_token, encrypt_token
-from .finance import FinanceUnavailable, fetch_reports_list, require_finance_service_token
+from .finance import FinanceUnavailable, fetch_reports_list, fetch_report_detail_page, require_finance_service_token
 from .models import FinanceSnapshot, FinanceRateGate
 from .stores import selected_store
 
@@ -72,6 +72,10 @@ def finance_audit(request):
                 snapshot.reports = []
                 snapshot.partial = True
                 snapshot.fetched_at = None
+                snapshot.detail_report_id = None
+                snapshot.detail_rows = []
+                snapshot.detail_fetched_at = None
+                snapshot.detail_partial = True
                 # WB's quota belongs to the seller, not the credential. A
                 # rotated token must never reset a running rate cooldown.
                 previous_cooldown = snapshot.next_refresh_at
@@ -80,7 +84,7 @@ def finance_audit(request):
                 snapshot.last_error = ""
                 snapshot.save()
             messages.info(request, "Отдельный финансовый токен сохранён зашифрованным. Проверка доступа произойдёт при обновлении.")
-        elif action == "refresh":
+        elif action in ("refresh", "detail"):
             now = timezone.now()
             with transaction.atomic():
                 get_user_model().objects.select_for_update().get(pk=request.user.pk)
@@ -88,6 +92,18 @@ def finance_audit(request):
                 if not snapshot or not snapshot.encrypted_finance_token or not snapshot.consented_at:
                     messages.error(request, "Сначала подключите отдельный сервисный токен категории «Финансы».")
                     return redirect("finance_audit")
+                selected_report_id = None
+                if action == "detail":
+                    raw_id = request.POST.get("report_id", "")
+                    if not raw_id.isascii() or not raw_id.isdecimal() or len(raw_id) > 19:
+                        messages.error(request, "Неизвестный финансовый отчёт.")
+                        return redirect("finance_audit")
+                    selected_report_id = int(raw_id)
+                    if not 0 < selected_report_id < 2**63 or not snapshot.fetched_at or not any(
+                        item.get("report_id") == selected_report_id for item in snapshot.reports
+                    ):
+                        messages.error(request, "Выберите отчёт из сохранённого списка.")
+                        return redirect("finance_audit")
                 # WB imposes a limit per seller, not per store or token alias.
                 gate, _ = FinanceRateGate.objects.select_for_update().get_or_create(
                     user=request.user,
@@ -110,11 +126,14 @@ def finance_audit(request):
                 snapshot.save(update_fields=["locked_until", "next_refresh_at"])
             try:
                 token = decrypt_token(snapshot.encrypted_finance_token)
-                end = now.date()
-                start = end - timedelta(days=30)
-                summaries, partial = fetch_reports_list(
-                    token, start.isoformat(), end.isoformat()
-                )
+                if action == "detail":
+                    summaries, partial = fetch_report_detail_page(token, selected_report_id)
+                else:
+                    end = now.date()
+                    start = end - timedelta(days=30)
+                    summaries, partial = fetch_reports_list(
+                        token, start.isoformat(), end.isoformat()
+                    )
             except (ValueError, FinanceUnavailable):
                 FinanceSnapshot.objects.filter(
                     pk=snapshot.pk, encrypted_finance_token=snapshot.encrypted_finance_token,
@@ -127,14 +146,27 @@ def finance_audit(request):
             else:
                 # Token rotation/revocation during a slow upstream request must
                 # never publish evidence produced under the former consent.
-                FinanceSnapshot.objects.filter(
+                current = FinanceSnapshot.objects.filter(
                     pk=snapshot.pk, encrypted_finance_token=snapshot.encrypted_finance_token,
                     consented_at=snapshot.consented_at,
-                ).update(
-                    reports=summaries, partial=partial, fetched_at=timezone.now(),
-                    last_error="", locked_until=None,
                 )
-                messages.success(request, "Получен список отчётов WB. Источник финансирования конкретной акции по нему не определяется.")
+                if action == "detail":
+                    # Do not publish an old response if the list was refreshed meanwhile.
+                    current = current.filter(fetched_at=snapshot.fetched_at)
+                    published = current.update(
+                        detail_report_id=selected_report_id, detail_rows=summaries,
+                        detail_partial=partial, detail_fetched_at=timezone.now(),
+                        last_error="", locked_until=None,
+                    )
+                    if published:
+                        messages.info(request, "Загружена только первая страница детализации. Вывод о финансировании скидки и прибыли не подтверждён.")
+                else:
+                    current.update(
+                        reports=summaries, partial=partial, fetched_at=timezone.now(),
+                        detail_report_id=None, detail_rows=[], detail_fetched_at=None,
+                        detail_partial=True, last_error="", locked_until=None,
+                    )
+                    messages.success(request, "Получен список отчётов WB. Источник финансирования конкретной акции по нему не определяется.")
         else:
             return HttpResponseNotAllowed(["GET"])
         return redirect("finance_audit")
@@ -146,6 +178,7 @@ def finance_audit(request):
         "connected": bool(snapshot and snapshot.encrypted_finance_token),
         "snapshot": snapshot,
         "reports": snapshot.reports if snapshot else [],
+        "detail_rows": snapshot.detail_rows if snapshot else [],
         "can_refresh": bool(enabled and snapshot and snapshot.encrypted_finance_token
                             and (not snapshot.next_refresh_at or snapshot.next_refresh_at <= timezone.now())
                             and (not snapshot.locked_until or snapshot.locked_until <= timezone.now())),
