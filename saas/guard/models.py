@@ -197,7 +197,7 @@ class FinanceSnapshot(models.Model):
         GuardAccount, on_delete=models.CASCADE, related_name="finance_snapshot",
     )
     encrypted_finance_token = models.TextField(blank=True)
-    token_hint = models.CharField(max_length=16, blank=True)
+    token_hint = models.CharField(max_length=32, blank=True)
     consented_at = models.DateTimeField(null=True, blank=True)
     reports = models.JSONField(default=list)
     partial = models.BooleanField(default=True)

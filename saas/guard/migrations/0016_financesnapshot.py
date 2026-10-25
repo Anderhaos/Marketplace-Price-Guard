@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('encrypted_finance_token', models.TextField(blank=True)),
-                ('token_hint', models.CharField(blank=True, max_length=16)),
+                ('token_hint', models.CharField(blank=True, max_length=32)),
                 ('consented_at', models.DateTimeField(blank=True, null=True)),
                 ('reports', models.JSONField(default=list)),
                 ('partial', models.BooleanField(default=True)),

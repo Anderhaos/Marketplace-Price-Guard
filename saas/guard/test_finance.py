@@ -150,6 +150,8 @@ class FinanceSellerPortalTests(TestCase):
         self.assertEqual(connect.status_code, 302)
         state = FinanceSnapshot.objects.get(account=self.store)
         self.assertNotIn(tok, state.encrypted_finance_token)
+        self.assertEqual(state.token_hint, "сервисный · Финансы")
+        self.assertGreaterEqual(FinanceSnapshot._meta.get_field("token_hint").max_length, len(state.token_hint))
         self.assertIsNotNone(state.consented_at)
         self.assertNotIn(tok, self.client.get(reverse("finance_audit")).content.decode())
         fake_rows = [{
