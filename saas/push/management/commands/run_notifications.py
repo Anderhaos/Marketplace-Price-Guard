@@ -5,6 +5,7 @@ from django.db import close_old_connections
 
 from push.service import process_notification_cycle
 from billing.models import OwnerOperationsSettings
+from guard.worker_health import mark_success
 
 
 class Command(BaseCommand):
@@ -24,6 +25,7 @@ class Command(BaseCommand):
                 if options["once"]:
                     raise
             else:
+                mark_success("notifications")
                 if options["once"]:
                     self.stdout.write(str(result))
                     return

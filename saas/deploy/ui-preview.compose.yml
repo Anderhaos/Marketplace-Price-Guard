@@ -66,6 +66,12 @@ services:
       db: {condition: service_healthy}
     command: python manage.py run_guard
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; from guard.worker_health import is_healthy; sys.exit(0 if is_healthy('guard', 180) else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     networks: [preview_internal]
     # Read-only WB inventory sync is enabled in E5 preview env. Mandatory
     # SAAS_WB_READ_ONLY=1 prevents changing WB prices from this container.
