@@ -73,6 +73,10 @@ SAAS_WB_TOKEN_VALIDATION_ENABLED = env_bool("SAAS_WB_TOKEN_VALIDATION_ENABLED", 
 # New deployments must explicitly opt into discount writes. The network
 # switch and the read-only switch are independent fail-closed controls.
 SAAS_WB_READ_ONLY = env_bool("SAAS_WB_READ_ONLY", True)
+
+# Dedicated opt-in Finance read channel; independent from price/discount WB
+# authorization. Never enabled just because the general WB network is enabled.
+NOSALE_WB_FINANCE_ENABLED = env_bool("NOSALE_WB_FINANCE_ENABLED", False)
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
 # Same acquiring contract as MiniBook, separate NoSale merchant configuration.
 # Fail closed until a merchant, verified RS256 webhook key, and approved RUB price exist.

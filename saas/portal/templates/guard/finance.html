@@ -1,0 +1,45 @@
+{% extends 'guard/base.html' %}
+{% block title %}Финансовые отчёты WB — NoSale{% endblock %}
+{% block content %}
+<section class="card">
+  <span class="eyebrow">Финансовая сверка · только чтение</span>
+  <h1>Отчёты WB — {{ account.name }}</h1>
+  <p class="lead">Финансовые отчёты отделены от управления скидками. NoSale никогда не передаёт финансовый токен в AI, не изменяет цены и не объявляет акцию прибыльной или оплаченной WB без подтверждающих данных.</p>
+  {% if not finance_enabled %}
+  {% if access_expired %}
+  <p class="notice" role="status">Доступ к финансовым данным завершён. Здесь можно удалить ранее предоставленный доступ, не продлевая подписку.</p>
+  {% else %}
+  <p class="notice" role="status">Финансовое подключение ещё не открыто оператором сервиса. Не отправляйте токен WB. После разрешения финансового доступа эта страница позволит подключить отдельный сервисный токен.</p>
+  {% endif %}
+  {% if connected %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><button type="submit" class="secondary">Отключить и удалить финансовые сведения</button></form>
+  {% endif %}
+  {% elif not connected %}
+  <form method="post" autocomplete="off">{% csrf_token %}
+    <input type="hidden" name="action" value="connect">
+    <div class="field"><label for="finance-token">Отдельный сервисный API-токен WB · категория «Финансы»</label>
+    <textarea id="finance-token" name="finance_token" maxlength="4096" required autocomplete="off" spellcheck="false"></textarea></div>
+    <p class="field-help">Не используйте персональный токен Solo или токен для изменения цен. Перед сохранением убедитесь, что токен создан для подключения сервиса к вашему магазину WB.</p>
+    <label><input type="checkbox" name="finance_consent" value="yes" required> Согласен предоставить NoSale доступ на чтение финансовых отчётов этого магазина</label>
+    <p><button type="submit">Подключить финансовый доступ</button></p>
+  </form>
+  {% else %}
+  <p class="notice">Финансовый токен сохранён в зашифрованном виде. Время последней проверки: {% if snapshot.fetched_at %}{{ snapshot.fetched_at|date:"d.m.Y H:i" }}{% else %}ещё не проверялся{% endif %}.</p>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="refresh"><button type="submit" {% if not can_refresh %}disabled{% endif %}>Загрузить список отчётов (только чтение)</button></form>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><button type="submit" class="secondary">Отключить и удалить финансовые сведения</button></form>
+  {% if snapshot.last_error %}<p class="notice" role="alert">{{ snapshot.last_error }}</p>{% endif %}
+  {% if snapshot.partial %}<p class="notice">История отчётов может быть неполной. Нельзя определять прибыль, источник финансирования акции или итоговые выплаты по этой сводке.</p>{% endif %}
+  {% for item in reports %}
+  <article class="card">
+    <strong>Отчёт №{{ item.report_id }}</strong>
+    <p>{{ item.start }} — {{ item.end }} · {{ item.currency }}</p>
+    <p>По отчёту к перечислению: {{ item.for_pay|default:"не подтверждено" }}</p>
+    <p>Розничная сумма: {{ item.retail_amount|default:"не подтверждено" }}</p>
+    <small>Кто финансирует конкретную скидку — неизвестно. Прибыль не рассчитана.</small>
+  </article>
+  {% empty %}
+  {% if snapshot.fetched_at %}<p>За выбранный период отчёты не найдены или WB вернул отсутствие данных.</p>{% endif %}
+  {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}
