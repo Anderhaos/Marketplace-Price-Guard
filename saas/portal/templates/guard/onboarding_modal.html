@@ -5,7 +5,11 @@
     {% if not trial_status.trial_started %}<strong class="setup-trial-pill">5 дней бесплатно</strong>{% endif %}
   </div>
   <h1 id="wb-setup-title">Добавим ваш магазин</h1>
+  {% if not wb_connect_available %}
+  <p class="lead" id="wb-setup-lead" role="status"><strong>Подключение Wildberries временно закрыто оператором NoSale.</strong> Сейчас API-токен не проверяется и не сохраняется, поэтому не вставляйте его в сервис до открытия подключения. Действующие данные и настройки сохраняются.</p>
+  {% else %}
   <p class="lead" id="wb-setup-lead">Чтобы NoSale показал ваши товары, понадобится ключ доступа из кабинета Wildberries. Это не пароль от вашего аккаунта.</p>
+  {% endif %}
   <details class="wb-connect-details">
     <summary>У вас уже есть токен из NoSale Solo?</summary>
     <p>Если это <b>персональный токен</b>, продолжайте использовать его в Solo — менять или удалять его не нужно. Для <b>облачного NoSale</b> Wildberries требует другой тип доступа: пока сервис не опубликован в Каталоге, создайте отдельный <b>базовый токен</b> с категориями «Цены и скидки» и «Контент» и уровнем «Чтение и запись». Персональный токен не передавайте облачным сервисам.</p>
@@ -51,9 +55,9 @@
   <form method="post" action="{% url 'connect_wb' %}" class="setup-form">
     {% csrf_token %}
     <label for="onboarding-token">Ключ доступа Wildberries</label>
-    <textarea id="onboarding-token" name="token" autocomplete="off" autocapitalize="off" spellcheck="false" rows="2" required maxlength="4096" placeholder="Вставьте скопированный ключ" aria-describedby="setup-security"></textarea>
+    <textarea id="onboarding-token" name="token" autocomplete="off" autocapitalize="off" spellcheck="false" rows="2" {% if not wb_connect_available %}disabled{% else %}required{% endif %} maxlength="4096" placeholder="{% if wb_connect_available %}Вставьте скопированный ключ{% else %}Подключение временно недоступно{% endif %}" aria-describedby="setup-security"></textarea>
     <p id="setup-security" class="setup-security">Мы проверим права «Чтение и запись» и загрузим ваши товары. При подключении цены и скидки не меняются. Автоматическая защита включается отдельно после настройки пределов.</p>
-    <button type="submit" class="setup-submit">Подключить магазин</button>
+    <button type="submit" class="setup-submit" {% if not wb_connect_available %}disabled{% endif %}>{% if wb_connect_available %}Подключить магазин{% else %}Подключение временно закрыто{% endif %}</button>
   </form>
 
   <p class="setup-bottom">{% if trial_status.trial_started %}Повторное подключение не продлевает пробный период.{% else %}Пробные 5 дней начнутся после успешного подключения. Без оплаты и списаний.{% endif %}</p>

@@ -265,6 +265,7 @@ def onboarding_connect(request):
     return render(request, "guard/onboarding_start.html", {
         "onboarding_required": True,
         "trial_status": access_snapshot(request.user.pk),
+        "wb_connect_available": bool(settings.SAAS_WB_NETWORK_ENABLED and settings.SAAS_WB_TOKEN_VALIDATION_ENABLED),
     })
 
 
@@ -304,6 +305,7 @@ def dashboard(request):
             return render(request, "guard/onboarding_start.html", {
                 "onboarding_required": True,
                 "trial_status": access_snapshot(request.user.pk),
+                "wb_connect_available": bool(settings.SAAS_WB_NETWORK_ENABLED and settings.SAAS_WB_TOKEN_VALIDATION_ENABLED),
             })
         if account.initial_sync_completed_at is None:
             if request.method == "POST":
