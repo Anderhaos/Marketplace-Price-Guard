@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from billing.models import AccessGrant, OwnerAISettings
-from guard.ai_gateway import AIGatewayUnavailable, gateway_choose_tool
+from guard.ai_gateway import AIGatewayUnavailable, gateway_choose_tool, gateway_chat
 from guard.models import AssistantAIRequest, AssistantMessage, GuardAccount, Product
 from nosale_mcp.client import MCPToolUnavailable, call_owned_tool, definitions, validated_request
 
@@ -48,7 +48,8 @@ class ToolContractTests(SimpleTestCase):
             def __exit__(self, *_): return False
             def read(self, _max):
                 return json.dumps({
-                    "choices": [{"message": {"role": "assistant", "content": None, "tool_calls": [{
+                    "choices": [{"message": {"role": "assistant", "content": None,
+                       "reasoning_content": "reasoning_context_for_provider", "tool_calls": [{
                         "id": "arbitrary_untrusted",
                         "type": "function",
                         "function": {"name": "wb_products", "arguments": '{"limit":2}'},
@@ -66,7 +67,8 @@ class ToolContractTests(SimpleTestCase):
                 model_id="allowed-chat", messages=[{"role": "user", "content": "Какие товары?"}],
                 tools=definitions("wb"), timeout_seconds=7,
             )
-        self.assertEqual(selected, {"name": "wb_products", "arguments": {"limit": 2}})
+        self.assertEqual(selected, {"name": "wb_products", "arguments": {"limit": 2}, "call_id": "arbitrary_untrusted",
+                                    "reasoning_content": "reasoning_context_for_provider"})
         self.assertIsNone(content)
         self.assertEqual(usage, {"input_tokens": 100, "output_tokens": 20})
         payload = json.loads(op.request.data)
@@ -76,6 +78,49 @@ class ToolContractTests(SimpleTestCase):
         self.assertNotIn("mcp:8099", json.dumps(payload))
         self.assertNotIn("Bearer", json.dumps(payload))
         self.assertEqual(op.request.get_header("Authorization"), "Bearer wire-mocked-token-only")
+
+    @override_settings(
+        NOSALE_AI_GATEWAY_URL="https://platform.svdev.pro/v1/chat/completions",
+        NOSALE_AI_SERVICE_TOKEN="wire-mocked-token-only",
+    )
+    def test_second_round_preserves_model_call_id_and_disables_further_tools(self):
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self, _max):
+                return json.dumps({
+                    "choices": [{"message": {"content": "Данные сохранены."}}],
+                    "usage": {"prompt_tokens": 20, "completion_tokens": 4},
+                }).encode()
+        class Opener:
+            def open(self, request, timeout):
+                self.request = request
+                return Response()
+        opener = Opener()
+        followup = [
+            {"role": "user", "content": "Проверь данные"},
+            {"role": "assistant", "content": None, "tool_calls": [{
+                "id": "call_from_original_model_123", "type": "function",
+                "function": {"name": "wb_overview", "arguments": "{}"},
+            }]},
+            {"role": "tool", "tool_call_id": "call_from_original_model_123",
+             "content": '{"read_only":true}'},
+        ]
+        with patch("guard.ai_gateway.build_opener", return_value=opener):
+            reply, usage = gateway_chat(
+                model_id="allowed-chat", messages=followup,
+                max_output_tokens=120, timeout_seconds=7,
+                tools=[x for x in definitions("wb") if x["function"]["name"] == "wb_overview"],
+            )
+        self.assertEqual(reply, "Данные сохранены.")
+        self.assertEqual(usage, {"input_tokens": 20, "output_tokens": 4})
+        posted = json.loads(opener.request.data)
+        self.assertEqual(posted["tool_choice"], "none")
+        self.assertFalse(posted["parallel_tool_calls"])
+        self.assertEqual(posted["messages"][1]["tool_calls"][0]["id"], "call_from_original_model_123")
+        self.assertEqual(posted["messages"][2]["tool_call_id"], "call_from_original_model_123")
+        self.assertEqual(len(posted["tools"]), 1)
 
     @override_settings(
         NOSALE_AI_GATEWAY_URL="https://platform.svdev.pro/v1/chat/completions",
@@ -159,7 +204,7 @@ class SmartMCPIntegrationTests(TestCase):
             {"nm_id": 100, "current_discount_pct": 18, "allowed_discount_pct": 10},
         ], "source": "NoSale saved observations"}
         with patch("guard.smart_assistant.gateway_choose_tool", return_value=(
-            {"name": "wb_products", "arguments": {"limit": 1}}, None,
+            {"name": "wb_products", "arguments": {"limit": 1}, "call_id": "call_real_model_id"}, None,
             {"input_tokens": 45, "output_tokens": 12},
         )) as selection, patch("guard.smart_assistant.call_owned_tool", return_value=tool_info) as tool, \
              patch("guard.smart_assistant.gateway_chat", return_value=(
@@ -175,7 +220,9 @@ class SmartMCPIntegrationTests(TestCase):
         self.assertEqual(tool.call_args.args[1], self.store)
         self.assertEqual(tool.call_args.args[2:], ("wb_products", {"limit": 1}))
         payload = json.dumps(narration.call_args.kwargs["messages"], ensure_ascii=False)
-        self.assertIn("call_nosale_1", payload)
+        self.assertIn("call_real_model_id", payload)
+        self.assertNotIn("call_nosale_1", payload)
+        self.assertEqual(narration.call_args.kwargs["tools"], definitions("wb"))
         self.assertIn("current_discount_pct", payload)
         self.assertNotIn("987654321", payload)
         self.assertNotIn("synthetic-not-a-real-token", payload)
@@ -232,7 +279,7 @@ class SmartMCPIntegrationTests(TestCase):
 
     def test_hallucinated_finance_and_unknown_tool_fail_closed(self):
         with patch("guard.smart_assistant.gateway_choose_tool", return_value=(
-            {"name": "wb_promotions", "arguments": {}}, None,
+            {"name": "wb_promotions", "arguments": {}, "call_id": "call_finance_model"}, None,
             {"input_tokens": 1, "output_tokens": 1},
         )), patch("guard.smart_assistant.call_owned_tool", return_value={
             "items": [{"id": 12, "funding": "unknown"}],
