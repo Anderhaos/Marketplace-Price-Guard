@@ -13,7 +13,7 @@ from guard.models import GuardAccount, Product, Upload
 from guard.monitor import run_due_checks
 
 
-@override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_ACCESS_ENFORCED=True, SAAS_PIN_AUTH_ENABLED=False)
+@override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=False, SAAS_ACCESS_ENFORCED=True, SAAS_PIN_AUTH_ENABLED=False)
 class GoalWorkerTests(TestCase):
     def account(self, name, *, grant=True, minutes_ago=1, **flags):
         now = timezone.now()
