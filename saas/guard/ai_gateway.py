@@ -4,6 +4,7 @@ Never calls providers directly and never follows redirects to an arbitrary host.
 Auth is provided by the encrypted owner connection or server override, never the seller browser.
 """
 import json
+import re
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
@@ -23,7 +24,24 @@ def is_gateway_configured(model_id=None):
     return runtime_gateway(model_id=model_id) is not None
 
 
-def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds):
+def _validated_tool_names(tools):
+    if not isinstance(tools, list) or not (1 <= len(tools) <= 5):
+        raise AIGatewayUnavailable("Invalid AI tool allowlist")
+    names = set()
+    for item in tools:
+        if not isinstance(item, dict) or item.get("type") != "function":
+            raise AIGatewayUnavailable("Invalid AI tool definition")
+        fn = item.get("function")
+        if not isinstance(fn, dict) or not isinstance(fn.get("name"), str):
+            raise AIGatewayUnavailable("Invalid AI tool definition")
+        name = fn["name"]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", name) or name in names:
+            raise AIGatewayUnavailable("Invalid or duplicate AI tool name")
+        names.add(name)
+    return names
+
+
+def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds, tools=None):
     connection = runtime_gateway(model_id=model_id)
     if not connection:
         raise AIGatewayUnavailable("NoSale AI Platform integration is not configured")
@@ -36,6 +54,13 @@ def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds):
         "max_tokens": min(800, max(1, int(max_output_tokens))),
         "temperature": 0.2,
     }
+    if tools is not None:
+        # Follow-up tool-result rounds must send original tool definitions,
+        # while disallowing further model tool requests (one tool max).
+        _validated_tool_names(tools)
+        body["tools"] = tools
+        body["tool_choice"] = "none"
+        body["parallel_tool_calls"] = False
     encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(encoded) > 14000:
         raise AIGatewayUnavailable("AI context exceeds the allowed size")
@@ -82,14 +107,7 @@ def gateway_choose_tool(*, model_id, messages, tools, timeout_seconds):
         raise AIGatewayUnavailable("NoSale AI Platform connection not verified")
     if not isinstance(tools, list) or not (1 <= len(tools) <= 5):
         raise AIGatewayUnavailable("Invalid AI tool allowlist")
-    allowed_names = set()
-    for item in tools:
-        if not isinstance(item, dict) or item.get("type") != "function":
-            raise AIGatewayUnavailable("Invalid AI tool definition")
-        fn = item.get("function", {})
-        if not isinstance(fn, dict) or not isinstance(fn.get("name"), str):
-            raise AIGatewayUnavailable("Invalid AI tool definition")
-        allowed_names.add(fn["name"])
+    allowed_names = _validated_tool_names(tools)
     base_url, token = connection
     payload = {
         "model": model_id, "messages": messages, "stream": False,
@@ -137,7 +155,15 @@ def gateway_choose_tool(*, model_id, messages, tools, timeout_seconds):
             raise AIGatewayUnavailable("AI tool arguments malformed") from exc
         if not isinstance(args, dict):
             raise AIGatewayUnavailable("AI tool arguments invalid")
-        selected = {"name": fn["name"], "arguments": args}
+        model_call_id = calls[0].get("id")
+        if not isinstance(model_call_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", model_call_id):
+            raise AIGatewayUnavailable("AI tool call ID is invalid")
+        selected = {"name": fn["name"], "arguments": args, "call_id": model_call_id}
+        reasoning_content = msg.get("reasoning_content")
+        if reasoning_content is not None:
+            if not isinstance(reasoning_content, str) or len(reasoning_content) > 6000:
+                raise AIGatewayUnavailable("AI tool reasoning context invalid")
+            selected["reasoning_content"] = reasoning_content
     answer = msg.get("content")
     if answer is not None and (not isinstance(answer, str) or len(answer) > 1800):
         raise AIGatewayUnavailable("Invalid preliminary AI reply")

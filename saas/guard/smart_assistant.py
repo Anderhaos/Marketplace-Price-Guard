@@ -143,9 +143,10 @@ def smart_store_reply(user_id, account, question, *, use_mcp=False):
             )
             messages[0] = {"role": "system", "content": sys_prompt}
             try:
+                allowed_tools = definitions(account.marketplace, policy=OwnerMCPSettings.runtime())
                 selection, plain, selection_usage = gateway_choose_tool(
                     model_id=model_id, messages=messages,
-                    tools=definitions(account.marketplace, policy=OwnerMCPSettings.runtime()),
+                    tools=allowed_tools,
                     timeout_seconds=timeout,
                 )
                 if selection:
@@ -159,21 +160,27 @@ def smart_store_reply(user_id, account, question, *, use_mcp=False):
                         raise PermissionError("Smart subscription revoked")
                     grounded = {"original": evidence, "mcp": result}
                     args = json.dumps(selection["arguments"], separators=(",", ":"))
-                    messages.append({
-                        "role": "assistant", "content": None,
+                    # Preserve the original provider tool call id and, when
+                    # present, the full reasoning context required by DeepSeek.
+                    assistant_tool_message = {
+                        "role": "assistant", "content": plain,
                         "tool_calls": [{
-                            "id": "call_nosale_1", "type": "function",
+                            "id": selection["call_id"], "type": "function",
                             "function": {"name": selection["name"], "arguments": args},
                         }],
-                    })
+                    }
+                    if "reasoning_content" in selection:
+                        assistant_tool_message["reasoning_content"] = selection["reasoning_content"]
+                    messages.append(assistant_tool_message)
                     messages.append({
-                        "role": "tool", "tool_call_id": "call_nosale_1",
+                        "role": "tool", "tool_call_id": selection["call_id"],
                         "name": selection["name"],
                         "content": json.dumps(result, ensure_ascii=False, separators=(",", ":")),
                     })
                     reply, final_usage = gateway_chat(
                         model_id=model_id, messages=messages,
                         max_output_tokens=max_out, timeout_seconds=timeout,
+                        tools=allowed_tools,
                     )
                     usage = {
                         "input_tokens": selection_usage["input_tokens"] + final_usage["input_tokens"],
