@@ -279,7 +279,7 @@ class SmartMCPIntegrationTests(TestCase):
 
     def test_hallucinated_finance_and_unknown_tool_fail_closed(self):
         with patch("guard.smart_assistant.gateway_choose_tool", return_value=(
-            {"name": "wb_promotions", "arguments": {}}, None,
+            {"name": "wb_promotions", "arguments": {}, "call_id": "call_finance_model"}, None,
             {"input_tokens": 1, "output_tokens": 1},
         )), patch("guard.smart_assistant.call_owned_tool", return_value={
             "items": [{"id": 12, "funding": "unknown"}],
