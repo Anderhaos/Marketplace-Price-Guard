@@ -21,7 +21,7 @@ def token_for(kind=4, scopes=(1 << 1) | (1 << 3)):
 
 @override_settings(
     SAAS_PIN_AUTH_ENABLED=True,
-    SAAS_WB_TOKEN_VALIDATION_ENABLED=True, SAAS_WB_NETWORK_ENABLED=False,
+    SAAS_WB_TOKEN_VALIDATION_ENABLED=True, SAAS_WB_NETWORK_ENABLED=True,
     SAAS_ACCESS_ENFORCED=True,
 )
 class FirstRunOnboardingTests(TestCase):
@@ -45,6 +45,16 @@ class FirstRunOnboardingTests(TestCase):
         self.assertContains(response, "Подключить магазин")
         self.assertContains(response, "Персональный токен")
         self.assertNotContains(response, "Всего товаров")
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+
+    @override_settings(SAAS_WB_NETWORK_ENABLED=False)
+    @patch("guard.integrations.WBClient")
+    def test_disabled_wb_egress_does_not_validate_or_save_token_or_start_trial(self, mock_wb):
+        response = self.client.post(reverse("connect_wb"), {"token": token_for()}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Подключение WB API отключено")
+        mock_wb.assert_not_called()
+        self.assertFalse(GuardAccount.objects.filter(user=self.user, token_ciphertext__gt="").exists())
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
 
     @patch("guard.integrations.WBClient")
