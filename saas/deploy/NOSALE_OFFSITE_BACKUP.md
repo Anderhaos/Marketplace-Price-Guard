@@ -62,3 +62,33 @@ recovery key backups. SHA-256 detects transport corruption but is not a
 substitute for the GPG integrity check when decrypting. A compromised E5 could
 replace the encryption key; compare its fingerprint to the independently
 recorded recovery public key before trusting newly written snapshots.
+
+## Local PostgreSQL restore proof (R5.4)
+
+For a root-owned, **local plaintext custom-format dump that is already available
+to the E5 deployment administrator**, run:
+
+```sh
+bash saas/deploy/nosale-local-restore-drill.sh /srv/mpnosale-saas/secure-backups/<verified-backup>.dump
+```
+
+Repeat independently for the UI-preview archive. The command uses an existing
+`postgres:16-alpine` image, no network, no exposed ports, a read-only bind
+of the supplied dump, disposable tmpfs and Docker `--rm`. It verifies that
+the archive restores into a new database and contains the expected NoSale
+tables and migration metadata. It reports only schema counts; restored customer
+records are not shown, exported, or stored permanently. The live database
+containers and all service configuration stay untouched. The default 256 MiB
+tmpfs is intentionally bounded; larger archives may need a reviewed procedure.
+
+**Verified E5 drill on 2026-10-25 UTC**: the R5.3 release backups for NoSale
+production and UI-preview each restored successfully into isolated PostgreSQL
+16 containers; each contained 34 public tables and the Finance/Guard schema.
+These runs were conducted before this command was committed and used the same
+isolation pattern. They prove LOCAL dump recoverability only.
+
+**Not yet proven**: restore directly from the encrypted offsite storage snapshot.
+That requires reading the actual remote ciphertext and decrypting on the separate
+recovery machine that holds the private key. NEVER copy the recovery private key
+to E5 or treat local plaintext dump tests as proof of offsite disaster recovery.
+This remains a prelaunch gate in issue #52.
