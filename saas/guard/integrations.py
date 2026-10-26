@@ -4,7 +4,6 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
-from billing.trial import grant_trial_once
 from .crypto import encrypt_token
 from .models import GuardAccount, GuardEvent, Upload
 from .wb import WBApiError, WBClient, get_token_permissions, get_token_type
@@ -91,5 +90,6 @@ def connect_wb_token(account, token):
             "apply_requested_ids", "check_requested", "lock_until",
             "rules_version", "last_error", "last_check_at", "initial_sync_completed_at", "next_check_at",
         ])
-        grant, created = grant_trial_once(current.user_id)
-    return permissions, grant, created
+        # Trial is issued by the worker after the first complete import.
+        # Merely verifying a token must not burn five free days.
+    return permissions, None, False

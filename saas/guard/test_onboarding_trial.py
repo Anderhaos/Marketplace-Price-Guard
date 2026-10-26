@@ -58,7 +58,7 @@ class FirstRunOnboardingTests(TestCase):
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
 
     @patch("guard.integrations.WBClient")
-    def test_validate_issues_one_five_day_trial_without_autocorrect(self, mock_wb):
+    def test_token_validation_queues_import_without_starting_trial(self, mock_wb):
         account = GuardAccount.objects.create(user=self.user, name="Первый")
         response = self.client.post(reverse("connect_wb"), {"token": token_for()})
         self.assertRedirects(response, reverse("dashboard"))
@@ -67,17 +67,17 @@ class FirstRunOnboardingTests(TestCase):
         self.assertTrue(account.token_ciphertext)
         self.assertFalse(account.enabled)
         self.assertTrue(account.check_requested)
-        grant = AccessGrant.objects.get(user=self.user, source="trial")
-        self.assertEqual(grant.source_ref, trial_source_ref(self.user.pk))
-        self.assertAlmostEqual((grant.ends_at-grant.starts_at).total_seconds(),TRIAL_DAYS*86400,delta=1)
-        self.assertTrue(has_active_access(self.user.pk))
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        self.assertFalse(has_active_access(self.user.pk))
+        self.assertContains(self.client.get(reverse("dashboard")), "5 дней начнутся после успешной первой загрузки")
         self.assertNotContains(self.client.get(reverse("dashboard")), 'id="wb-setup"')
 
     @patch("guard.integrations.WBClient")
     def test_trial_does_not_restart_for_reconnect_or_another_store(self, mock_wb):
         account = GuardAccount.objects.create(user=self.user)
         self.client.post(reverse("connect_wb"), {"token": token_for()})
-        grant = AccessGrant.objects.get(user=self.user)
+        # Already completed first sync; reconnect must not prolong earned trial.
+        grant, _ = grant_trial_once(self.user.pk)
         then = grant.ends_at
         self.client.post(reverse("connect_wb"), {"token": token_for()})
         account_two = GuardAccount.objects.create(user=self.user, name="Второй")
@@ -143,7 +143,8 @@ class FirstRunOnboardingTests(TestCase):
         # Settings are intentionally inaccessible before first-run setup.
         self.assertRedirects(self.client.get(reverse("settings")), reverse("dashboard"))
         self.client.post(reverse("connect_wb"), {"token": token_for()})
-        self.assertTrue(has_active_access(self.user.pk))
+        self.assertFalse(has_active_access(self.user.pk))
+        grant_trial_once(self.user.pk)
         GuardAccount.objects.filter(user=self.user).update(initial_sync_completed_at=timezone.now())
         response = self.client.post(reverse("settings"), {"action":"token", "token":token_for()})
         self.assertEqual(response.status_code, 302)
@@ -212,7 +213,7 @@ class FirstRunOnboardingTests(TestCase):
         account = GuardAccount.objects.get(user=self.user)
         self.assertTrue(account.token_ciphertext)
         self.assertFalse(account.enabled)
-        self.assertTrue(has_active_access(self.user.pk))
+        self.assertFalse(has_active_access(self.user.pk))
         response = self.client.post(reverse("dashboard"), {
             "action": "apply_all", "default_allowed_discount": 12,
         })
@@ -277,6 +278,7 @@ class FirstRunOnboardingTests(TestCase):
     def test_basic_write_scope_does_not_bypass_preview_write_block(self, wb_mock, connection_mock):
         from guard.monitor import run_due_checks
         self.client.post(reverse("connect_wb"), {"token": token_for(kind=1)})
+        grant_trial_once(self.user.pk)
         account = GuardAccount.objects.get(user=self.user)
         account.enabled = True
         account.default_allowed_discount = 10
@@ -303,6 +305,7 @@ class FirstRunOnboardingTests(TestCase):
     @patch("guard.integrations.WBClient")
     def test_second_store_onboarding_does_not_promise_another_trial(self, mock_wb):
         self.client.post(reverse("connect_wb"), {"token": token_for()})
+        grant_trial_once(self.user.pk)
         second = GuardAccount.objects.create(user=self.user, name="Another")
         session = self.client.session
         session["mpno_selected_store_id"] = second.pk

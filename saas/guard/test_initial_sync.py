@@ -8,6 +8,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import GuardAccount, Product
+from billing.models import AccessGrant
+from billing.trial import TRIAL_DAYS, grant_trial_once
 from .monitor import run_due_checks
 from .test_onboarding_trial import token_for
 from .wb import WBApiError
@@ -47,6 +49,7 @@ class InitialSyncGateTests(TestCase):
         self.assertIsNone(account.initial_sync_completed_at)
         self.assertTrue(account.check_requested)
         self.assertFalse(account.enabled)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
         r = self.client.get("/")
         self.assertContains(r, "Загружаем товары")
         self.assertContains(r, "Первичная синхронизация")
@@ -71,6 +74,10 @@ class InitialSyncGateTests(TestCase):
         account.refresh_from_db()
         self.assertIsNotNone(account.initial_sync_completed_at)
         self.assertFalse(account.enabled)
+        grant = AccessGrant.objects.get(user=self.user, source="trial")
+        self.assertAlmostEqual((grant.ends_at - grant.starts_at).total_seconds(),
+                               TRIAL_DAYS * 86400, delta=1)
+        self.assertGreaterEqual(grant.starts_at, account.initial_sync_completed_at)
         product = Product.objects.get(account=account, nm_id=4201)
         self.assertEqual(product.title, "Первый товар")
         self.assertEqual(product.current_discount, 17)
@@ -89,6 +96,7 @@ class InitialSyncGateTests(TestCase):
         self.assertEqual(run_due_checks(), 1)
         account.refresh_from_db()
         self.assertIsNone(account.initial_sync_completed_at)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
         self.assertTrue(account.last_error)
         self.assertFalse(Product.objects.filter(account=account).exists())
         r = self.client.get("/")
@@ -105,8 +113,44 @@ class InitialSyncGateTests(TestCase):
         self.assertEqual(run_due_checks(), 1)
         account.refresh_from_db()
         self.assertIsNotNone(account.initial_sync_completed_at)
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="trial").count(), 1)
         self.assertEqual(Product.objects.filter(account=account).count(), 0)
         self.assertContains(self.client.get("/"), "Товары появятся после первой проверки")
+
+    @patch("guard.monitor.WBClient")
+    def test_failed_first_import_can_retry_without_burning_trial(self, wb_class):
+        account = self.connect()
+        wb = wb_class.return_value
+        wb.get_product_cards.side_effect = [WBApiError("temporary outage", 503), []]
+        wb.get_products.return_value = [{
+            "nmID": 712, "discount": 12,
+            "sizes": [{"price": 1000, "discountedPrice": 880}],
+        }]
+        self.assertEqual(run_due_checks(), 1)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        account.refresh_from_db()
+        self.assertIsNone(account.initial_sync_completed_at)
+        GuardAccount.objects.filter(pk=account.pk).update(next_check_at=timezone.now())
+        self.assertEqual(run_due_checks(), 1)
+        account.refresh_from_db()
+        self.assertIsNotNone(account.initial_sync_completed_at)
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="trial").count(), 1)
+        self.assertEqual(run_due_checks(), 0)
+
+    @patch("guard.monitor.WBClient")
+    def test_expired_trial_cannot_get_new_free_import(self, wb_class):
+        from billing.trial import grant_trial_once
+        self.connect()
+        grant, _ = grant_trial_once(self.user.pk, at=timezone.now() - timedelta(days=12))
+        self.assertLess(grant.ends_at, timezone.now())
+        account = self.connect()
+        wb_class.return_value.get_product_cards.return_value = []
+        wb_class.return_value.get_products.return_value = []
+        self.assertEqual(run_due_checks(), 0)
+        account.refresh_from_db()
+        self.assertIsNone(account.initial_sync_completed_at)
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="trial").count(), 1)
+        wb_class.return_value.get_products.assert_not_called()
 
     def test_token_replacement_resets_readiness_and_pending_import(self):
         account = self.connect()
@@ -140,6 +184,9 @@ class InitialSyncGateTests(TestCase):
     @patch("guard.monitor.WBClient")
     def test_preview_reads_service_token_inventory_without_any_price_writes(self, wb_class):
         account = self.connect(kind=4)
+        # Simulate an existing paid/trial account with a stale write flag.
+        # The first-free-import path itself refuses such write intent.
+        grant_trial_once(self.user.pk)
         account.enabled = True
         account.apply_all_requested = True
         account.save(update_fields=["enabled", "apply_all_requested"])

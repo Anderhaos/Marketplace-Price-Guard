@@ -47,6 +47,24 @@ def guard_is_permitted(account):
     return settings.SAAS_WB_NETWORK_ENABLED and has_active_access(account.user_id)
 
 
+def first_inventory_import_permitted(account):
+    """One safe first read before the trial starts; no expired-trial reset.
+
+    Any prior subscription or trial requires the normal active-access gate.
+    Never allow pending price writes to exploit onboarding access.
+    """
+    if not (settings.SAAS_PIN_AUTH_ENABLED and settings.SAAS_ACCESS_ENFORCED
+            and settings.SAAS_WB_NETWORK_ENABLED):
+        return False
+    if (account.initial_sync_completed_at is not None or not account.check_requested
+            or account.enabled or account.apply_all_requested or account.apply_requested_ids):
+        return False
+    if AccessGrant.objects.filter(user_id=account.user_id).exists():
+        return False
+    from guard.models import Upload
+    return not Upload.objects.filter(account_id=account.pk, status="pending").exists()
+
+
 def has_smart_access(user_id, at=None):
     """Compatibility alias: privileged capability always checked server-side."""
     return has_plan_capability(user_id, "store_advice", at=at)

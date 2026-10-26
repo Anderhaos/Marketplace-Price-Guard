@@ -1,10 +1,12 @@
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
+from django.db import transaction
 from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 
-from billing.access import guard_is_permitted
+from billing.access import guard_is_permitted, first_inventory_import_permitted
+from billing.trial import grant_trial_once
 from billing.models import AccessGrant, OwnerOperationsSettings
 from django.conf import settings
 from .crypto import decrypt_token
@@ -90,7 +92,7 @@ def _reconcile_uploads(account, client):
 
 
 def check_account(account):
-    if not guard_is_permitted(account):
+    if not (guard_is_permitted(account) or first_inventory_import_permitted(account)):
         return False
     token_ciphertext = account.token_ciphertext
     rules_version = account.rules_version
@@ -235,7 +237,16 @@ def run_due_checks():
             user_id=OuterRef("user_id"), starts_at__lte=now,
             ends_at__gt=now, revoked_at__isnull=True,
         )
-        due = due.annotate(_active_grant=Exists(active_grant)).filter(_active_grant=True)
+        any_grant = AccessGrant.objects.filter(user_id=OuterRef("user_id"))
+        due = due.annotate(
+            _active_grant=Exists(active_grant),
+            _any_grant=Exists(any_grant),
+        ).filter(
+            Q(_active_grant=True) |
+            Q(_any_grant=False, initial_sync_completed_at__isnull=True,
+              check_requested=True, enabled=False, apply_all_requested=False,
+              apply_requested_ids=[])
+        )
     due = due.distinct().order_by("next_check_at")[:20]
     processed = 0
     for account in due:
@@ -244,7 +255,7 @@ def run_due_checks():
         live_policy = OwnerOperationsSettings.runtime()
         if live_policy is None or not live_policy.guard_checks_enabled:
             break
-        if not guard_is_permitted(account):
+        if not (guard_is_permitted(account) or first_inventory_import_permitted(account)):
             continue
         claimed = GuardAccount.objects.filter(pk=account.pk, next_check_at__lte=now).filter(Q(enabled=True) | Q(check_requested=True) | Q(apply_all_requested=True) | ~Q(apply_requested_ids=[]) | Q(uploads__status="pending")).filter(Q(lock_until__isnull=True) | Q(lock_until__lte=now)).update(lock_until=now + timedelta(minutes=15))
         if not claimed:
@@ -287,12 +298,18 @@ def run_due_checks():
             else:
                 changes.update(check_requested=token_readonly,
                                apply_all_requested=False, apply_requested_ids=[])
-            if not GuardAccount.objects.filter(
-                pk=account.pk, lock_until=lease_until, rules_version=current_version,
-            ).update(**changes):
-                GuardAccount.objects.filter(pk=account.pk, lock_until=lease_until).update(
-                    lock_until=None, next_check_at=timezone.now()
-                )
+            with transaction.atomic():
+                updated = GuardAccount.objects.filter(
+                    pk=account.pk, lock_until=lease_until, rules_version=current_version,
+                ).update(**changes)
+                if updated and "initial_sync_completed_at" in changes:
+                    # Readiness and the idempotent five-day grant must commit
+                    # together; stale in-flight token updates cannot earn a trial.
+                    grant_trial_once(account.user_id, at=finished_at)
+                if not updated:
+                    GuardAccount.objects.filter(pk=account.pk, lock_until=lease_until).update(
+                        lock_until=None, next_check_at=timezone.now()
+                    )
         except Exception as error:
             delay = timedelta(minutes=max(60, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
             if isinstance(error, WBApiError) and error.status == 429:
