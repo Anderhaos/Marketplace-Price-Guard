@@ -106,6 +106,24 @@ class OneSellerReleaseJourneyTests(TestCase):
         self.assertTrue(account.token_ciphertext)
         self.assertFalse(account.enabled)
         self.assertTrue(account.check_requested)
+        self.assertIsNone(effective_plan(seller.pk))
+        self.assertFalse(AccessGrant.objects.filter(user=seller, source="trial").exists())
+        # A real first run waits for complete read-only inventory evidence;
+        # mock only WB HTTP, not the worker or the trial ledger.
+        from guard.monitor import run_due_checks
+        with patch("guard.monitor.WBClient") as read_client:
+            read_client.return_value.get_product_cards.return_value = [{
+                "nmID": 5101, "title": "Synthetic seller item",
+            }]
+            read_client.return_value.get_products.return_value = [{
+                "nmID": 5101, "discount": 15, "sizes": [
+                    {"price": 1000, "discountedPrice": 850},
+                ],
+            }]
+            self.assertEqual(run_due_checks(), 1)
+            read_client.return_value.submit_discounts.assert_not_called()
+        account.refresh_from_db()
+        self.assertIsNotNone(account.initial_sync_completed_at)
         self.assertEqual(effective_plan(seller.pk), "standard")
         self.assertFalse(has_plan_capability(seller.pk, "ai_questions"))
         self.assertEqual(AccessGrant.objects.filter(user=seller, source="trial").count(), 1)

@@ -1,7 +1,7 @@
 """Five-day, once-per-account trial using the canonical AccessGrant ledger.
 
-Same access-grant pattern as MiniBook. Trial starts on the first successfully
-validated marketplace integration, not on initial email confirmation.
+Same access-grant pattern as MiniBook. Trial starts after the first fully successful inventory import, not after
+email confirmation or token verification. Failures and WB 429 do not consume it.
 """
 from datetime import timedelta
 from math import ceil
