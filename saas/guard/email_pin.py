@@ -105,47 +105,57 @@ def _start(request, purpose):
             form.add_error("email", "Адрес уже зарегистрирован. Используйте вход или восстановление PIN.")
         else:
             now = timezone.now()
-            with transaction.atomic():
-                challenge, created = EmailPinChallenge.objects.select_for_update().get_or_create(
-                    email=email, purpose=purpose,
-                    defaults={"sent_at": now - CODE_RESEND_WAIT, "expires_at": now},
-                )
-                request.session[SESSION_CHALLENGE] = challenge.pk
-                if not exists and purpose == EmailPinChallenge.PURPOSE_RECOVER:
-                    # No account enumeration in recovery. Keep a locked challenge with
-                    # no valid code; the same UI is shown to the requester.
-                    challenge.code_hash = ""
-                    challenge.attempts = MAX_CODE_ATTEMPTS
-                    challenge.expires_at = now + CODE_TTL
-                    challenge.verified_until = None
-                    challenge.save(update_fields=["code_hash", "attempts", "expires_at", "verified_until"])
-                elif (not created and challenge.expires_at > now
-                      and (challenge.attempts >= MAX_CODE_ATTEMPTS
-                           or now - challenge.sent_at < CODE_RESEND_WAIT)):
-                    # Repeated requests must never silently claim that a new code
-                    # was sent when only the existing challenge is still active.
-                    if challenge.attempts >= MAX_CODE_ATTEMPTS:
-                        messages.info(request, "Попытки исчерпаны. Новый код можно запросить после истечения текущего.")
+            try:
+                with transaction.atomic():
+                    challenge, created = EmailPinChallenge.objects.select_for_update().get_or_create(
+                        email=email, purpose=purpose,
+                        defaults={"sent_at": now - CODE_RESEND_WAIT, "expires_at": now},
+                    )
+                    request.session[SESSION_CHALLENGE] = challenge.pk
+                    if not exists and purpose == EmailPinChallenge.PURPOSE_RECOVER:
+                        # No account enumeration in recovery. Keep a locked challenge with
+                        # no valid code; the same UI is shown to the requester.
+                        challenge.code_hash = ""
+                        challenge.attempts = MAX_CODE_ATTEMPTS
+                        challenge.expires_at = now + CODE_TTL
+                        challenge.verified_until = None
+                        challenge.save(update_fields=["code_hash", "attempts", "expires_at", "verified_until"])
+                    elif (not created and challenge.expires_at > now
+                          and (challenge.attempts >= MAX_CODE_ATTEMPTS
+                               or now - challenge.sent_at < CODE_RESEND_WAIT)):
+                        # Repeated requests must never silently claim that a new code
+                        # was sent when only the existing challenge is still active.
+                        if challenge.attempts >= MAX_CODE_ATTEMPTS:
+                            messages.info(request, "Попытки исчерпаны. Новый код можно запросить после истечения текущего.")
+                        else:
+                            messages.info(request, "Код уже отправлен. Повторный запрос доступен через 60 секунд.")
                     else:
-                        messages.info(request, "Код уже отправлен. Повторный запрос доступен через 60 секунд.")
-                else:
-                    code = f"{secrets.randbelow(10000):04d}"
-                    challenge.code_hash = make_password(code)
-                    challenge.attempts = 0
-                    challenge.sent_at = now
-                    challenge.expires_at = now + CODE_TTL
-                    challenge.verified_until = None
-                    challenge.save(update_fields=[
-                        "code_hash", "attempts", "sent_at", "expires_at", "verified_until",
-                    ])
-                    # Fail closed: the DB challenge is rolled back if the relay fails.
-                    send_pin_verification_email(email=email, code=code, purpose=purpose)
-                    if _preview_code_permitted(request):
-                        # The code is available only in this temporary browser session.
-                        request.session[SESSION_PREVIEW_CODE] = {
-                            "challenge_id": challenge.pk, "code": code,
-                        }
-            return redirect("auth_code")
+                        code = f"{secrets.randbelow(10000):04d}"
+                        challenge.code_hash = make_password(code)
+                        challenge.attempts = 0
+                        challenge.sent_at = now
+                        challenge.expires_at = now + CODE_TTL
+                        challenge.verified_until = None
+                        challenge.save(update_fields=[
+                            "code_hash", "attempts", "sent_at", "expires_at", "verified_until",
+                        ])
+                        # Fail closed: the DB challenge is rolled back if the relay fails.
+                        send_pin_verification_email(email=email, code=code, purpose=purpose)
+                        if _preview_code_permitted(request):
+                            # The code is available only in this temporary browser session.
+                            request.session[SESSION_PREVIEW_CODE] = {
+                                "challenge_id": challenge.pk, "code": code,
+                            }
+            except (OSError, ValueError) as error:
+                # A failed HTTPS relay must not strand registration/PIN reset
+                # on a nonexistent code or claim an email was delivered.
+                # The atomic block above rolls the challenge back.
+                request.session.pop(SESSION_CHALLENGE, None)
+                request.session.pop(SESSION_PREVIEW_CODE, None)
+                log.warning("nosale_pin_delivery_unavailable kind=%s", type(error).__name__)
+                form.add_error(None, "Не удалось отправить код. Проверьте подключение и попробуйте позже.")
+            else:
+                return redirect("auth_code")
     return render(request, "guard/auth_email.html", {
         "form": form,
         "purpose": purpose,

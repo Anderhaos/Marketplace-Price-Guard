@@ -57,6 +57,46 @@ class EmailPinAuthTests(TestCase):
         self.assertEqual(self.client.get("/auth/pin/").status_code, 302)
         self.assertFalse(User.objects.filter(email="seller@example.test").exists())
 
+    def test_failed_relay_shows_registration_error_without_storing_code(self):
+        from unittest.mock import patch
+        private_error = "private relay endpoint diagnostic"
+        with patch("guard.email_pin.send_pin_verification_email",
+                   side_effect=OSError(private_error)):
+            response = self.client.post("/register/", {"email": "retry@example.test"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Не удалось отправить код")
+        self.assertNotContains(response, private_error)
+        self.assertFalse(EmailPinChallenge.objects.filter(email="retry@example.test").exists())
+        self.assertNotIn("mpno_saas_email_challenge_id", self.client.session)
+        self.assertNotIn("mpno_saas_test_preview_code", self.client.session)
+        self.assertEqual(len(mail.outbox), 0)
+        # Failed attempt does not consume the 60-second resend cooldown.
+        self._send(email="retry@example.test")
+
+    def test_failed_relay_on_email_first_login_does_not_crash(self):
+        from unittest.mock import patch
+        with patch("guard.email_pin.send_pin_verification_email",
+                   side_effect=TimeoutError("synthetic timed-out relay")):
+            result = self.client.post("/login/", {"email": "first@example.test"})
+        self.assertEqual(result.status_code, 200)
+        self.assertContains(result, "Не удалось отправить код")
+        self.assertFalse(EmailPinChallenge.objects.filter(email="first@example.test").exists())
+        self.assertNotIn("mpno_saas_email_challenge_id", self.client.session)
+
+    def test_recovery_email_relay_failure_keeps_existing_user_and_pin(self):
+        from unittest.mock import patch
+        user = User.objects.create_user(
+            username="recover@example.test", email="recover@example.test", password="7894"
+        )
+        with patch("guard.email_pin.send_pin_verification_email",
+                   side_effect=ValueError("private relay settings")):
+            result = self.client.post("/password-reset/", {"email": user.email})
+        self.assertEqual(result.status_code, 200)
+        self.assertContains(result, "Не удалось отправить код")
+        self.assertNotContains(result, "private relay settings")
+        self.assertTrue(User.objects.get(pk=user.pk).check_password("7894"))
+        self.assertFalse(EmailPinChallenge.objects.filter(email=user.email).exists())
+
     def test_resend_cooldown_does_not_issue_new_code_or_reset_attempts(self):
         self._send()
         challenge = EmailPinChallenge.objects.get()
