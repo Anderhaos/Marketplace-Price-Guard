@@ -18,7 +18,8 @@ class SmartBriefTests(TestCase):
     evening = datetime(2026, 10, 30, 17, 5, tzinfo=dt_timezone.utc)
 
     def setUp(self):
-        OwnerOperationsSettings.objects.create()
+        # Migration 0010 seeds this singleton in both SQLite and PostgreSQL.
+        OwnerOperationsSettings.objects.get_or_create(pk=1)
         OwnerAISettings.objects.create(smart_briefs_per_day=2, ai_enabled=False)
         self.owner = User.objects.create_user("brief@example.test", "brief@example.test", "pass")
         NotificationPreference.objects.create(
