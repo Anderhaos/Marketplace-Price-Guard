@@ -41,7 +41,7 @@ def _validated_tool_names(tools):
     return names
 
 
-def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds, tools=None):
+def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds, tools=None, thinking_mode=None):
     connection = runtime_gateway(model_id=model_id)
     if not connection:
         raise AIGatewayUnavailable("NoSale AI Platform integration is not configured")
@@ -54,6 +54,12 @@ def gateway_chat(*, model_id, messages, max_output_tokens, timeout_seconds, tool
         "max_tokens": min(800, max(1, int(max_output_tokens))),
         "temperature": 0.2,
     }
+    if thinking_mode is not None:
+        # Short scheduled narration must not spend output tokens on the
+        # default-high DeepSeek reasoning mode. See official Thinking Mode API.
+        if thinking_mode != "disabled" or not model_id.startswith("deepseek/"):
+            raise AIGatewayUnavailable("Unsupported thinking mode")
+        body["thinking"] = {"type": "disabled"}
     if tools is not None:
         # Follow-up tool-result rounds must send original tool definitions,
         # while disallowing further model tool requests (one tool max).

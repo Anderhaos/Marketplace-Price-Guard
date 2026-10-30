@@ -80,3 +80,43 @@ class GatewayWireContractTests(SimpleTestCase):
             with self.assertRaises(AIGatewayUnavailable):
                 gateway_chat(model_id="m", messages=[{"role": "user", "content": "hi"}],
                              max_output_tokens=50, timeout_seconds=5)
+
+
+    def test_scheduled_nonthinking_is_scoped_to_deepseek(self):
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self, _max): return json.dumps({
+                "choices": [{"message": {"role": "assistant", "content": "Готово"}}],
+                "usage": {"prompt_tokens": 23, "completion_tokens": 4},
+            }).encode()
+
+        class Opener:
+            def open(self, request, timeout):
+                self.request = request
+                return Response()
+
+        opener = Opener()
+        with patch("guard.ai_gateway.build_opener", return_value=opener):
+            answer, usage = gateway_chat(
+                model_id="deepseek/deepseek-flash",
+                messages=[{"role": "system", "content": "Только краткое резюме"}],
+                max_output_tokens=160, timeout_seconds=15,
+                thinking_mode="disabled",
+            )
+        self.assertEqual(answer, "Готово")
+        self.assertEqual(usage, {"input_tokens": 23, "output_tokens": 4})
+        payload = json.loads(opener.request.data)
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
+        self.assertNotIn("tools", payload)
+        self.assertLessEqual(payload["max_tokens"], 160)
+
+        # Untrusted model IDs cannot enable provider-specific parameters.
+        with patch("guard.ai_gateway.build_opener") as network:
+            with self.assertRaises(AIGatewayUnavailable):
+                gateway_chat(
+                    model_id="openai/gpt-test", messages=[{"role": "user", "content": "text"}],
+                    max_output_tokens=30, timeout_seconds=5, thinking_mode="disabled",
+                )
+            network.assert_not_called()

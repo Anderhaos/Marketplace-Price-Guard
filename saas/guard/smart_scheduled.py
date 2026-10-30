@@ -52,7 +52,7 @@ def narrate_scheduled_smart(user, account, evidence, *, now=None):
             user=user, account=account, created_at=now, source="scheduled",
             model_id=model_id, reserved_kopeks=reserve,
         )
-        token_cap = min(220, max(40, ai.max_output_tokens))
+        token_cap = min(160, max(40, ai.max_output_tokens))
         timeout = ai.timeout_seconds
         owner_style = ai.system_instructions[:500]
 
@@ -69,6 +69,7 @@ def narrate_scheduled_smart(user, account, evidence, *, now=None):
     try:
         reply, usage = gateway_chat(
             model_id=model_id, max_output_tokens=token_cap, timeout_seconds=timeout,
+            thinking_mode="disabled",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": "Проверенные факты NoSale: " + facts},
