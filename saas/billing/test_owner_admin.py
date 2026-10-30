@@ -74,8 +74,8 @@ class OwnerAISettingsTests(TestCase):
         })
         item = OwnerAISettings.objects.get()
         self.assertTrue(item.ready_for_gateway)
-        self.assertTrue(item.web_assistant_enabled)
-        self.assertEqual(item.web_messages_per_day, 12)
+        self.assertFalse(item.web_assistant_enabled)
+        self.assertEqual(item.web_messages_per_day, 80)
         self.assertEqual(item.gateway_model_id, "deepseek/published-model-id")
         self.assertEqual(item.monthly_budget_kopeks, 100000)
         # Forged POST values cannot mutate legacy nonfunctional controls.
