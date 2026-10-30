@@ -1,4 +1,4 @@
-"""First Smart daily recommendation reuses existing reliable digest outbox."""
+"""Baseline daily status remains tariff-neutral; Smart briefs have their own slots."""
 from datetime import timedelta
 
 from django.contrib.auth.models import User
@@ -35,9 +35,9 @@ class SmartDailyDigestTests(TestCase):
         self.assertEqual(create_daily_digests(now=now), 1)
         digest = PushMessage.objects.get(user=user)
         self.assertEqual(digest.kind, "digest")
-        self.assertIn("NoSale Smart", digest.title)
-        self.assertIn("Проверьте товар WB 120", digest.body)
-        self.assertEqual(digest.url, "/advisor/")
+        self.assertNotIn("Smart", digest.title)
+        self.assertNotIn("Проверьте товар WB 120", digest.body)
+        self.assertEqual(digest.url, "/notifications/")
         self.assertEqual(create_daily_digests(now=now), 0)
         self.assertEqual(PushMessage.objects.filter(user=user).count(), 1)
 
@@ -57,10 +57,10 @@ class SmartDailyDigestTests(TestCase):
         now = timezone.now()
         self.assertEqual(create_daily_digests(now=now), 1)
         digest = PushMessage.objects.get(user=user)
-        self.assertIn("NoSale Smart", digest.title)
-        self.assertIn("Второй магазин с превышением", digest.body)
-        self.assertIn("Проверьте товар WB 54321", digest.body)
-        self.assertEqual(digest.url, "/stores/")
+        self.assertNotIn("Smart", digest.title)
+        self.assertNotIn("Второй магазин с превышением", digest.body)
+        self.assertNotIn("Проверьте товар WB 54321", digest.body)
+        self.assertEqual(digest.url, "/notifications/")
         self.assertEqual(create_daily_digests(now=now), 0)
 
     def test_prioritizes_critical_sync_error_over_first_store_discount(self):
@@ -73,9 +73,9 @@ class SmartDailyDigestTests(TestCase):
         )
         self.assertEqual(create_daily_digests(now=timezone.now()), 1)
         msg = PushMessage.objects.get(user=user)
-        self.assertIn("Второй магазин с ошибкой", msg.body)
-        self.assertIn("Проверьте синхронизацию WB", msg.body)
-        self.assertEqual(msg.url, "/stores/")
+        self.assertNotIn("Второй магазин с ошибкой", msg.body)
+        self.assertNotIn("Проверьте синхронизацию WB", msg.body)
+        self.assertEqual(msg.url, "/notifications/")
 
     def test_daily_smart_recommendation_never_uses_another_sellers_store(self):
         user = self.create_user_store("tenant-one", plan="smart")
@@ -107,7 +107,7 @@ class SmartDailyDigestTests(TestCase):
         )
         self.assertEqual(create_daily_digests(now=now), 1)
         self.assertEqual(PushMessage.objects.filter(user=user, kind="digest").count(), 1)
-        self.assertIn("NoSale Smart", PushMessage.objects.get(user=user, kind="digest").title)
+        self.assertNotIn("Smart", PushMessage.objects.get(user=user, kind="digest").title)
 
     def test_no_digest_for_expired_revoked_or_future_subscription(self):
         now = timezone.now()
