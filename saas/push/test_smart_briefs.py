@@ -59,7 +59,7 @@ class SmartBriefTests(TestCase):
         self.assertEqual(create_smart_briefs(now=self.morning+timedelta(minutes=1)), 0)
         # No evening update: previous morning change must not be repeated.
         self.assertEqual(create_smart_briefs(now=self.evening), 0)
-        self.event("rule", self.evening-timedelta(minutes=2))
+        self.event("rule", self.evening-timedelta(minutes=10))
         self.assertEqual(create_smart_briefs(now=self.evening), 1)
         self.assertEqual(create_smart_briefs(now=self.evening), 0)
         messages = PushMessage.objects.filter(user=self.owner, kind="smart")
@@ -85,7 +85,7 @@ class SmartBriefTests(TestCase):
         settings = OwnerAISettings.objects.get()
         settings.smart_briefs_per_day = 1
         settings.save()
-        self.event("rule", self.evening-timedelta(minutes=3))
+        self.event("rule", self.evening-timedelta(minutes=10))
         self.assertEqual(create_smart_briefs(now=self.evening), 0)
         self.assertEqual(PushMessage.objects.filter(kind="smart").count(), 1)
 
