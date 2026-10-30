@@ -197,16 +197,15 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await page.screenshot({path:snapshotDir+'/05-marketplace-selector.png'});
     step('marketplace_theme_selector_and_wb_quick_links');
     await goto('/assistant/');
-    await page.waitForSelector('[data-assistant-prompt]');
-    await page.click('[data-assistant-prompt]');
-    const promptValue=await page.$eval('#assistant-question',node=>node.value);
-    assert.equal(promptValue,'Сколько товаров выше лимита?');
-    const assistantWidth=await page.evaluate(()=>({
+    assert.ok(page.url().endsWith('/notifications/'), 'Retired assistant URL must redirect to scheduled messages');
+    await page.waitForSelector('form[action="/push/preferences/"]');
+    assert.equal(await page.$('#assistant-question'), null, 'Free AI chat must not be visible');
+    const summaryWidth=await page.evaluate(()=>({
       width:window.innerWidth,pageWidth:document.documentElement.scrollWidth
     }));
-    assert.ok(assistantWidth.pageWidth<=assistantWidth.width+2);
-    await page.screenshot({path:snapshotDir+'/06-assistant-desktop.png',fullPage:true});
-    step('assistant_responsive_layout_and_live_prompt_buttons');
+    assert.ok(summaryWidth.pageWidth<=summaryWidth.width+2);
+    await page.screenshot({path:snapshotDir+'/06-smart-summaries-desktop.png',fullPage:true});
+    step('smart_summaries_replace_interactive_chat');
     await goto('/billing/');
     await waitText('пробный период');
     const subscriptionText = await page.evaluate(()=>document.body.innerText);
@@ -260,9 +259,9 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       width:window.innerWidth,pageWidth:document.documentElement.scrollWidth,
     }));
     assert.ok(mobileAssistant.pageWidth<=mobileAssistant.width+2,
-      'Mobile assistant has horizontal overflow: '+JSON.stringify(mobileAssistant));
-    await page.screenshot({path:snapshotDir+'/07-assistant-mobile.png',fullPage:true});
-    step('assistant_mobile_no_horizontal_overflow');
+      'Mobile summaries have horizontal overflow: '+JSON.stringify(mobileAssistant));
+    await page.screenshot({path:snapshotDir+'/07-summaries-mobile.png',fullPage:true});
+    step('smart_summaries_mobile_no_horizontal_overflow');
     await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
     await goto('/');
     // CSRF-protected POST logout through actual page form (do not handcraft cookie).

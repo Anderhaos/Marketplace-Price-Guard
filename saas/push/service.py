@@ -244,19 +244,21 @@ SMART_CHANGE_KINDS = (
 
 
 def create_smart_briefs(now=None):
-    """At most two change-triggered Smart briefs per local day.
+    """Schedule read-only, useful Smart recommendations per seller-local time.
 
-    No WB requests or AI costs. Each 08:00/20:00 local window is unique in
-    PostgreSQL; late workers do not replay stale windows. Ordinary check
-    heartbeat entries cannot trigger a brief.
+    No WB polling. One deterministic evidence package and at most one
+    optional DeepSeek narration; the model never chooses tools or calculates
+    prices. Messages persist in the existing Push outbox and are deduplicated
+    by (user, local-date/hour), independent of the worker process count.
     """
+    from guard.smart_scheduled import narrate_scheduled_smart
+
     now = now or timezone.now()
-    policy = OwnerOperationsSettings.runtime()
+    operations = OwnerOperationsSettings.runtime()
     ai = OwnerAISettings.objects.filter(pk=1).first()
-    if policy is None or not policy.daily_digests_enabled or ai is None:
+    if operations is None or not operations.daily_digests_enabled or ai is None:
         return 0
-    limit = min(2, max(0, ai.smart_briefs_per_day))
-    if not limit:
+    if not (1 <= ai.smart_briefs_per_day <= 2):
         return 0
 
     sellers = get_user_model().objects.filter(
@@ -271,70 +273,109 @@ def create_smart_briefs(now=None):
         live_ai = OwnerAISettings.objects.filter(pk=1).first()
         if live_policy is None or not live_policy.daily_digests_enabled or live_ai is None:
             break
-        current_limit = min(2, max(0, live_ai.smart_briefs_per_day))
-        if current_limit == 0:
-            break
+        limit = live_ai.smart_briefs_per_day
+        morning, evening = live_ai.smart_morning_hour, live_ai.smart_evening_hour
+        if not (1 <= limit <= 2 and 0 <= morning < evening <= 23):
+            continue
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         if not pref.daily_enabled or not has_smart_access(user.pk, at=now):
             continue
         tzname = pref.timezone_name if pref.timezone_name in SUPPORTED_TIMEZONES else "Europe/Moscow"
         tz = ZoneInfo(tzname)
         local_now = timezone.localtime(now, tz)
-        hour = 20 if local_now.hour >= 20 else (8 if local_now.hour >= 8 and current_limit >= 2 else None)
+        hour = evening if local_now.hour >= evening else (
+            morning if local_now.hour >= morning and limit == 2 else None
+        )
         if hour is None:
             continue
         slot_end = datetime.combine(local_now.date(), time(hour=hour), tzinfo=tz).astimezone(dt_timezone.utc)
         if now >= slot_end + timedelta(hours=2):
             continue
-        slot_start = (datetime.combine(local_now.date(), time(hour=8 if hour == 20 else 20), tzinfo=tz)
-                      - (timedelta(days=1) if hour == 8 else timedelta())).astimezone(dt_timezone.utc)
+        slot_start = (
+            datetime.combine(
+                local_now.date(), time(hour=morning if hour == evening else evening), tzinfo=tz,
+            ) - (timedelta(days=1) if hour == morning else timedelta())
+        ).astimezone(dt_timezone.utc)
         slot = f"{local_now.date().isoformat()}:{hour:02d}"
-        # A mid-day owner quota reduction must take effect immediately:
-        # existing morning briefs already count against the new daily cap.
-        if PushMessage.objects.filter(
+        # Reducing the admin quota takes effect even after a morning message.
+        used_today = PushMessage.objects.filter(
             user=user, kind="smart",
             smart_slot__startswith=local_now.date().isoformat() + ":",
-        ).count() >= current_limit:
-            continue
-        if PushMessage.objects.filter(user=user, smart_slot=slot).exists():
+        ).count()
+        if used_today >= limit or PushMessage.objects.filter(user=user, smart_slot=slot).exists():
             continue
         events = GuardEvent.objects.filter(
             account__user=user, kind__in=SMART_CHANGE_KINDS,
             created_at__gte=slot_start, created_at__lt=slot_end,
         )
         counts = {row["kind"]: row["n"] for row in events.values("kind").annotate(n=Count("id"))}
-        if not counts:
+        selection, store_count = _highest_priority_smart_advice(user, now=now)
+        # No empty "AI news" and no duplicate regular 20:00 status report.
+        if not counts and selection is None:
             continue
-        changes = counts.get("price_changed", 0) + counts.get("discount_changed", 0)
-        rules = counts.get("rule", 0)
-        confirmed = counts.get("confirmed", 0)
-        errors = counts.get("error", 0) + counts.get("upload_error", 0)
+
+        change_count = counts.get("price_changed", 0) + counts.get("discount_changed", 0)
+        rules_count = counts.get("rule", 0)
+        fixed_count = counts.get("confirmed", 0)
+        error_count = counts.get("error", 0) + counts.get("upload_error", 0)
         parts = []
-        if changes:
-            parts.append(f"изменений цен/скидок — {changes}")
-        if rules:
-            parts.append(f"правил NoSale — {rules}")
-        if confirmed:
-            parts.append(f"подтверждений исправлений WB — {confirmed}")
-        if errors:
-            parts.append(f"ошибок — {errors}")
-        body = "За 12 часов: " + "; ".join(parts) + "."
-        selected, store_count = _highest_priority_smart_advice(user, now=now)
-        link = URL
-        if selected is not None:
-            store, advice = selected
-            body += f" Проверьте: {store.name[:60]} — {advice['title']}."
-            link = "/stores/" if store_count > 1 else "/advisor/"
+        if change_count:
+            parts.append(f"изменений скидок/цен — {change_count}")
+        if rules_count:
+            parts.append(f"изменений правил — {rules_count}")
+        if fixed_count:
+            parts.append(f"подтверждений исправления WB — {fixed_count}")
+        if error_count:
+            parts.append(f"ошибок — {error_count}")
+
+        base = "За период: " + "; ".join(parts) + "." if parts else ""
+        url = URL
+        evidence_store = None
+        advice = None
+        if selection:
+            evidence_store, recommendation = selection
+            advice = store_recommendations(evidence_store, now=now)
+            base += f" Проверьте: {recommendation['title']}."
+            url = "/stores/" if store_count > 1 else "/advisor/"
+        if not base.strip():
+            continue
+        title = f"NoSale Smart — рекомендации {local_now:%d.%m}, {hour:02d}:00"
         message, created = PushMessage.objects.get_or_create(
-            user=user, smart_slot=slot,
-            defaults={
-                "kind": "smart", "title": f"NoSale Smart — изменения {local_now:%d.%m}, {hour:02d}:00",
-                "body": body[:400], "url": link,
+            user=user, smart_slot=slot, defaults={
+                "kind": "smart", "title": title,
+                "body": base.strip()[:400], "url": url,
             },
         )
-        if created:
-            _enqueue_for_devices(message)
-            queued += 1
+        if not created:
+            continue
+
+        # Only one actual call, only precomputed seller-owned facts; consent
+        # and separate provider cost cap are checked by the narration function.
+        if evidence_store is not None and advice is not None:
+            facts = {
+                "metrics": advice["metrics"],
+                "stale": advice["is_stale"],
+                "observed_at": (
+                    advice["last_observed_at"].isoformat()
+                    if advice["last_observed_at"] else None
+                ),
+                "actions": [
+                    {"title": item["title"], "detail": item["detail"]}
+                    for item in advice["recommendations"][:2]
+                ],
+                "window": {
+                    "prices_or_discounts_changed": change_count,
+                    "rules_changed": rules_count,
+                    "confirmed_fixes": fixed_count,
+                    "errors": error_count,
+                },
+            }
+            narration = narrate_scheduled_smart(user, evidence_store, facts, now=now)
+            if narration:
+                message.body = (base.strip() + "\nDeepSeek: " + narration)[:400]
+                message.save(update_fields=["body"])
+        _enqueue_for_devices(message)
+        queued += 1
     return queued
 
 

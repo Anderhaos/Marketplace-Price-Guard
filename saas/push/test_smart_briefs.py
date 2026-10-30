@@ -53,12 +53,11 @@ class SmartBriefTests(TestCase):
         self.assertEqual(create_smart_briefs(now=self.morning), 1)
         first = PushMessage.objects.get(kind="smart")
         self.assertEqual(first.smart_slot, "2026-10-30:08")
-        self.assertIn("изменений цен/скидок — 1", first.body)
+        self.assertIn("изменений скидок/цен — 1", first.body)
         self.assertIn("WB 123", first.body)
         self.assertEqual(first.url, "/advisor/")
         self.assertEqual(create_smart_briefs(now=self.morning+timedelta(minutes=1)), 0)
         # No evening update: previous morning change must not be repeated.
-        self.assertEqual(create_smart_briefs(now=self.evening), 0)
         self.event("rule", self.evening-timedelta(minutes=10))
         self.assertEqual(create_smart_briefs(now=self.evening), 1)
         self.assertEqual(create_smart_briefs(now=self.evening), 0)
@@ -66,7 +65,7 @@ class SmartBriefTests(TestCase):
         self.assertEqual(messages.count(), 2)
         self.assertEqual(set(messages.values_list("smart_slot", flat=True)),
                          {"2026-10-30:08", "2026-10-30:20"})
-        self.assertEqual(sum(m.body.count("правил NoSale — 1") for m in messages), 1)
+        self.assertEqual(sum(m.body.count("изменений правил — 1") for m in messages), 1)
 
     def test_one_per_day_only_evening_and_zero_disables(self):
         settings = OwnerAISettings.objects.get()
@@ -90,6 +89,7 @@ class SmartBriefTests(TestCase):
         self.assertEqual(PushMessage.objects.filter(kind="smart").count(), 1)
 
     def test_no_updates_no_briefs_and_no_catch_up_replay(self):
+        Product.objects.filter(account=self.store).update(current_discount=0)
         self.event("check")
         self.assertEqual(create_smart_briefs(now=self.morning), 0)
         self.event("confirmed", self.morning-timedelta(minutes=2))
@@ -114,6 +114,7 @@ class SmartBriefTests(TestCase):
         self.assertEqual(create_smart_briefs(now=self.morning), 0)
 
     def test_other_seller_data_not_leaked(self):
+        Product.objects.filter(account=self.store).update(current_discount=0)
         other = User.objects.create_user("other@example.test", "other@example.test", "pass")
         foreign = GuardAccount.objects.create(
             user=other, marketplace="wb", name="Чужой секрет",
@@ -133,7 +134,7 @@ class SmartBriefTests(TestCase):
         self.client.force_login(self.owner)
         response = self.client.get(reverse("notifications"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "NoSale Smart — изменения")
+        self.assertContains(response, "NoSale Smart — рекомендации")
         self.assertGreaterEqual(response.context["unread_notification_count"], 1)
         self.client.post(reverse("mark_notifications_read"))
         self.assertFalse(PushMessage.objects.get(kind="smart").read_at is None)

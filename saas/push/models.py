@@ -10,6 +10,7 @@ class NotificationPreference(models.Model):
     daily_enabled = models.BooleanField(default=True)
     timezone_name = models.CharField(max_length=64, default="Europe/Moscow")
     daily_hour = models.PositiveSmallIntegerField(default=20)
+    smart_ai_consent_at = models.DateTimeField(null=True, blank=True)
 
 
 class PushSubscription(models.Model):

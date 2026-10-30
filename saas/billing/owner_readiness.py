@@ -6,6 +6,9 @@ Never decrypts secrets or reflects provider messages to HTML.
 """
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db.models import Count, Q, Sum
+from django.utils import timezone
+from guard.models import AssistantAIRequest
 
 from billing.models import OwnerAISettings, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerTariffOffer, OwnerOperationsSettings, OwnerMCPAdapter
 from guard.models import GuardAccount
@@ -40,6 +43,29 @@ def integration_readiness():
     wb_stores = stores.filter(marketplace="wb").count()
     ozon_stores = stores.filter(marketplace="ozon").count()
     undelivered = PushDelivery.objects.filter(state__in=("pending", "failed")).count()
+    now = timezone.now()
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    requests = AssistantAIRequest.objects.filter(created_at__gte=start)
+    totals = requests.aggregate(
+        calls=Count("id"),
+        successes=Count("id", filter=Q(status="success")),
+        failures=Count("id", filter=Q(status="failed")),
+        tokens_in=Sum("input_tokens"),
+        tokens_out=Sum("output_tokens"),
+        reserved=Sum("reserved_kopeks"),
+    )
+    per_seller = list(requests.values("user__email", "user__username").annotate(
+        calls=Count("id"),
+        successes=Count("id", filter=Q(status="success")),
+        failures=Count("id", filter=Q(status="failed")),
+        tokens_in=Sum("input_tokens"),
+        tokens_out=Sum("output_tokens"),
+        reserved=Sum("reserved_kopeks"),
+    ).order_by("-reserved", "user__email")[:100])
+    for seller in per_seller:
+        seller["reserved_rub"] = (seller["reserved"] or 0) / 100
+    budget = ai.monthly_budget_kopeks if ai else 0
+    reserved = totals["reserved"] or 0
     return {
         "mcp": {
             "state": "enabled" if mcp and mcp.enabled else "disabled",
@@ -70,7 +96,17 @@ def integration_readiness():
             "last_checked_at": gateway.last_checked_at if gateway else None,
             "selected_model": model or "Не выбрана",
             "model_verified": verified_model,
-            "monthly_budget_kopeks": ai.monthly_budget_kopeks if ai else 0,
+            "monthly_budget_kopeks": budget,
+            "monthly_budget_rub": budget / 100,
+            "reserved_rub": reserved / 100,
+            "budget_remaining_rub": max(0, budget - reserved) / 100,
+            "calls_this_month": totals["calls"] or 0,
+            "successes_this_month": totals["successes"] or 0,
+            "failures_this_month": totals["failures"] or 0,
+            "input_tokens_this_month": totals["tokens_in"] or 0,
+            "output_tokens_this_month": totals["tokens_out"] or 0,
+            "seller_usage": per_seller,
+            "real_provider_spend_verified": False,
             "usable": ai_ready,
             "verified_model_count": len(catalog) if gateway and gateway.last_check_ok else 0,
             "verified_tool_model_count": len(gateway.catalog_tool_models) if gateway and gateway.last_check_ok else 0,

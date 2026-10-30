@@ -156,6 +156,7 @@ class AssistantAIRequest(models.Model):
         ("reserved", "Reserved"), ("success", "Success"), ("failed", "Failed"),
     ])
     model_id = models.CharField(max_length=120)
+    source = models.CharField(max_length=12, default="manual", choices=[("manual", "Legacy manual"), ("scheduled", "Scheduled brief")])
     reserved_kopeks = models.PositiveIntegerField(default=0)
     input_tokens = models.PositiveIntegerField(default=0)
     output_tokens = models.PositiveIntegerField(default=0)

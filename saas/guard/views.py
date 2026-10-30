@@ -478,100 +478,10 @@ def _assistant_message_limit_reached(user_id, now, *, daily_limit):
 
 @login_required
 def assistant_chat(request):
-    """Standard assistant lives in NoSale; no Telegram and no marketplace I/O."""
-    if request.method not in ("GET", "POST"):
-        return HttpResponseNotAllowed(["GET", "POST"])
-    if not has_plan_capability(request.user.pk, "web_assistant_basic"):
-        return render(request, "guard/assistant_access.html", {
-            "access_title": "Помощник пока недоступен",
-            "access_explanation": "Базовый помощник включён в действующий пробный период или подписку NoSale."
-        }, status=403)
-
-    web_enabled, daily_limit = _web_assistant_policy()
-    if not web_enabled:
-        return render(request, "guard/assistant_access.html", {
-            "access_title": "Веб-помощник временно отключён",
-            "access_explanation": "Владелец сервиса приостановил чат. Контроль скидок работает независимо.",
-        }, status=503)
-
-    account = _account(request)  # exclusively selected via current user's stores
-    if request.method == "POST":
-        question = request.POST.get("question", "")
-        mode = request.POST.get("mode", "basic")
-        if not isinstance(question, str) or not question.strip() or len(question) > 400:
-            return HttpResponse("Введите вопрос длиной от 1 до 400 символов.", status=400)
-        # Do not persist pasted JWT-like marketplace tokens in chat history.
-        if contains_credential(question):
-            return HttpResponse("Не отправляйте ключи WB или API-токены в помощник.", status=400)
-        if mode not in ("basic", "smart"):
-            return HttpResponse("Неизвестный режим помощника.", status=400)
-        if mode == "smart" and not has_smart_access(request.user.pk):
-            return render(request, "guard/assistant_access.html", {
-                "access_title": "Smart недоступен в вашем тарифе",
-                "access_explanation": "Для AI-вопросов по магазину нужна действующая подписка Smart."
-            }, status=403)
-        if mode == "smart" and request.POST.get("ai_consent") != "yes":
-            return HttpResponse("Подтвердите отправку вопроса и обезличенных данных в AI.", status=400)
-
-        if mode == "smart":
-            # Check before provider I/O to avoid spending AI budget for a
-            # request already over the shared web-chat message quota.
-            with transaction.atomic():
-                User.objects.select_for_update().get(pk=request.user.pk)
-                if _assistant_message_limit_reached(request.user.pk, timezone.now(), daily_limit=daily_limit):
-                    return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
-            # Provider I/O never runs inside a DB transaction or with a seller
-            # row lock held; AI quotas are reserved separately and atomically.
-            try:
-                answer = smart_store_reply(
-                    request.user.pk, account, question.strip(),
-                    use_mcp=(request.POST.get("mcp_consent") == "yes"),
-                )
-            except AIGatewayUnavailable:
-                mode = "basic"
-                answer = (
-                    "Расширенный AI-ответ сейчас недоступен или достигнут лимит. "
-                    "Базовые сведения из NoSale: "
-                    + basic_assistant_reply(request.user.pk, account, question.strip())
-                )
-            with transaction.atomic():
-                User.objects.select_for_update().get(pk=request.user.pk)
-                # A paid Smart entitlement may expire or be revoked while the
-                # model/tool call is in flight. Do not persist any stale reply.
-                if not has_plan_capability(request.user.pk, "web_assistant_basic"):
-                    return HttpResponse("Доступ к помощнику завершился.", status=403)
-                # Recheck under the row lock: concurrent Standard or Smart
-                # requests must not bypass the limit during a gateway call.
-                if _assistant_message_limit_reached(request.user.pk, timezone.now(), daily_limit=daily_limit):
-                    return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
-                AssistantMessage.objects.create(
-                    user_id=request.user.pk, account=account, question=question.strip(),
-                    answer=answer[:2000], mode=mode,
-                )
-        else:
-            # Serialize seller requests across Gunicorn workers: no store-switch
-            # or concurrent basic question may bypass the limit.
-            with transaction.atomic():
-                User.objects.select_for_update().get(pk=request.user.pk)
-                now = timezone.now()
-                if _assistant_message_limit_reached(request.user.pk, now, daily_limit=daily_limit):
-                    return HttpResponse("Слишком много вопросов. Повторите немного позже.", status=429)
-                answer = basic_assistant_reply(request.user.pk, account, question.strip(), now=now)
-                AssistantMessage.objects.create(
-                    user_id=request.user.pk, account=account, question=question.strip(),
-                    answer=answer, mode="basic", created_at=now,
-                )
-        return redirect("assistant_chat")
-
-    history = list(AssistantMessage.objects.filter(
-        user_id=request.user.pk, account=account
-    ).order_by("-created_at", "-pk")[:20])
-    history.reverse()
-    return render(request, "guard/assistant.html", {
-        "account": account, "history": history,
-        "is_smart": has_smart_access(request.user.pk),
-    })
-
+    """Legacy link redirects to scheduled messages. No seller-triggered calls."""
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    return redirect("notifications")
 
 @login_required
 def store_advisor(request):
@@ -760,7 +670,8 @@ def notifications(request):
     digest_messages = PushMessage.objects.filter(user=request.user, kind__in=("digest", "smart")).order_by("-created_at")[:30]
     return render(request, "guard/notifications.html", {
         "events": events, "digest_messages": digest_messages,
-        "preferences": pref, "push_public_key": settings.PUSH_VAPID_PUBLIC_KEY,
+        "preferences": pref, "smart_access": has_smart_access(request.user.pk),
+        "push_public_key": settings.PUSH_VAPID_PUBLIC_KEY,
         "push_ready": bool(settings.PUSH_VAPID_PUBLIC_KEY and settings.PUSH_VAPID_PRIVATE_KEY),
         "push_devices": PushSubscription.objects.filter(user=request.user, active=True).count(),
         "timezones": sorted(SUPPORTED_TIMEZONES),

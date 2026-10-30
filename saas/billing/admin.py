@@ -19,36 +19,35 @@ class SubscriptionPaymentAdmin(admin.ModelAdmin):
 
 
 class OwnerAISettingsForm(forms.ModelForm):
+    monthly_budget_rub = forms.DecimalField(
+        label="Бюджет Smart за месяц, ₽", min_value=Decimal("0.00"),
+        max_value=Decimal("100000.00"), max_digits=8, decimal_places=2,
+        help_text="Общий месячный лимит для всех пользователей NoSale. Это резерв, не счёт провайдера."
+    )
+    smart_reserve_rub = forms.DecimalField(
+        label="Резерв на одну сводку, ₽", min_value=Decimal("0.01"),
+        max_value=Decimal("1000.00"), max_digits=7, decimal_places=2,
+        help_text="Сколько бюджета резервировать на одно краткое резюме DeepSeek."
+    )
     class Meta:
         model = OwnerAISettings
         # These legacy fields are not consumed by any runtime path. They
         # remain in the DB for compatibility but must not imply working limits.
-        exclude = ("standard_questions_per_day", "prompt_version")
+        exclude = ("standard_questions_per_day", "smart_questions_per_day", "web_assistant_enabled", "web_messages_per_day", "prompt_version", "monthly_budget_kopeks", "smart_reserve_kopeks")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["web_messages_per_day"].help_text = (
-            "Реальный общий предел сообщений Standard/Smart на 24 часа; "
-            "также действует ограничение 8 сообщений в минуту."
-        )
-        self.fields["smart_questions_per_day"].help_text = (
-            "Реальный предел AI-вопросов Smart на пользователя за 24 часа. "
-            "Обычные сводки Push не являются AI-ответами."
-        )
+        self.fields["monthly_budget_rub"].initial = Decimal(self.instance.monthly_budget_kopeks) / 100
+        self.fields["smart_reserve_rub"].initial = Decimal(self.instance.smart_reserve_kopeks) / 100
         self.fields["smart_briefs_per_day"].help_text = (
-            "0–2 отдельные Smart-сводки за день: только при изменениях данных. "
-            "Не требуют вызовов AI Platform или WB. 1 = вечерняя, 2 = утренняя и вечерняя."
+            "0 — не отправлять; 1 — только вечером; 2 — утром и вечером по местному времени продавца."
         )
         gateway = OwnerAIGatewayConnection.objects.filter(
             pk=1, last_check_ok=True,
         ).first()
         if gateway and gateway.catalog_models:
-            choices = [("", "Выберите модель AI Platform")]
-            verified_tools = set(gateway.catalog_tool_models or [])
-            choices.extend(
-                (model, model + (" · MCP tools" if model in verified_tools else " · только чат"))
-                for model in gateway.catalog_models
-            )
+            choices = [("", "Выберите модель DeepSeek")]
+            choices.extend((model, model) for model in gateway.catalog_models if model.startswith("deepseek/"))
             value = self.instance.gateway_model_id
             # Keep historical selection visible, but require new selections
             # to be available in the verified catalog.
@@ -56,9 +55,28 @@ class OwnerAISettingsForm(forms.ModelForm):
                 choices.append((value, f"{value} (больше не доступна)"))
             self.fields["gateway_model_id"] = forms.ChoiceField(
                 choices=choices, required=False, label="Модель AI Platform",
-                help_text="MCP доступен только для моделей с отметкой MCP tools после проверки каталога.",
+                help_text="Модель только редактирует готовую сводку NoSale: один короткий запрос, без выбора инструментов.",
             )
 
+
+    def clean(self):
+        values = super().clean()
+        morning, evening = values.get("smart_morning_hour"), values.get("smart_evening_hour")
+        if morning is not None and evening is not None and morning >= evening:
+            raise forms.ValidationError("Утренняя сводка должна быть раньше вечерней.")
+        if values.get("ai_enabled") and not values.get("ai_platform_cost_cap_confirmed"):
+            raise forms.ValidationError("Подтвердите реальный месячный лимит расходов в AI Platform.")
+        if values.get("gateway_model_id") and not values["gateway_model_id"].startswith("deepseek/"):
+            raise forms.ValidationError("Для плановой аналитики выберите модель DeepSeek.")
+        return values
+
+    def save(self, commit=True):
+        item = super().save(commit=False)
+        item.monthly_budget_kopeks = int(self.cleaned_data["monthly_budget_rub"] * 100)
+        item.smart_reserve_kopeks = int(self.cleaned_data["smart_reserve_rub"] * 100)
+        if commit:
+            item.save()
+        return item
 
     def clean_smart_briefs_per_day(self):
         count = self.cleaned_data["smart_briefs_per_day"]
@@ -71,25 +89,26 @@ class OwnerAISettingsForm(forms.ModelForm):
 class OwnerAISettingsAdmin(admin.ModelAdmin):
     form = OwnerAISettingsForm
     """Operational controls require superuser, not mere staff permission."""
-    list_display = ("__str__", "web_assistant_enabled", "web_messages_per_day", "ai_enabled", "gateway_model_id", "smart_questions_per_day", "monthly_budget_kopeks", "updated_at")
+    list_display = ("__str__", "ai_enabled", "gateway_model_id", "smart_briefs_per_day", "monthly_budget_rub_display", "updated_at")
     readonly_fields = ("updated_at",)
+
+    @admin.display(description="Бюджет Smart, ₽")
+    def monthly_budget_rub_display(self, obj):
+        return f"{Decimal(obj.monthly_budget_kopeks) / 100:.2f}"
+
     fieldsets = (
-        ("Веб-помощник Standard / Smart", {
-            "fields": ("web_assistant_enabled", "web_messages_per_day"),
-            "description": (
-                "Встроенный чат без Telegram: отключение блокирует оба режима, "
-                "но не контроль скидок WB. Общий суточный лимит не отменяет защиту 8/мин."
-            ),
+        ("DeepSeek — только плановые рекомендации", {
+            "fields": ("ai_enabled", "ai_platform_cost_cap_confirmed", "gateway_model_id",
+                       "system_instructions", "timeout_seconds", "max_output_tokens"),
+            "description": "Только обработка проверенных скриптовых фактов. Ручной чат и вызовы WB исключены.",
         }),
-        ("AI Platform", {"fields": ("ai_enabled", "gateway_model_id",
-                                     "system_instructions", "timeout_seconds", "max_output_tokens")}),
-        ("Лимиты и бюджет", {
-            "fields": ("smart_questions_per_day", "smart_briefs_per_day", "monthly_budget_kopeks"),
-            "description": (
-                "Бюджет в копейках ограничивает локальные резервы AI-запросов, "
-                "но не является точным счётом провайдера. Фактические расходы "
-                "и независимый месячный лимит должны быть настроены в AI Platform."
-            ),
+        ("Расписание пользователей", {
+            "fields": ("smart_briefs_per_day", "smart_morning_hour", "smart_evening_hour"),
+            "description": "Время по часовому поясу каждого продавца. 0, 1 или 2 сводки в день.",
+        }),
+        ("Бюджет в рублях", {
+            "fields": ("monthly_budget_rub", "smart_reserve_rub"),
+            "description": "Лимиты NoSale отражают резервы, не подтверждённый расход. Отдельный лимит в AI Platform обязателен.",
         }),
         ("Состояние", {"fields": ("updated_at",)}),
     )

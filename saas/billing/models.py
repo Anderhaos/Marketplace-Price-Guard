@@ -48,7 +48,7 @@ class OwnerAISettings(models.Model):
     id = models.PositiveSmallIntegerField(primary_key=True, editable=False)
     ai_enabled = models.BooleanField(default=False, help_text="Выключает AI, но не контроль скидок.")
     web_assistant_enabled = models.BooleanField(
-        default=True, help_text="Включает встроенный чат Standard и Smart; не влияет на защиту WB."
+        default=False, help_text="Устаревший ручной чат выключен; AI работает только для плановых сводок."
     )
     web_messages_per_day = models.PositiveSmallIntegerField(
         default=80, validators=[MinValueValidator(1), MaxValueValidator(1000)],
@@ -60,6 +60,10 @@ class OwnerAISettings(models.Model):
     standard_questions_per_day = models.PositiveSmallIntegerField(default=1)
     smart_questions_per_day = models.PositiveSmallIntegerField(default=2)
     smart_briefs_per_day = models.PositiveSmallIntegerField(default=2)
+    smart_morning_hour = models.PositiveSmallIntegerField(default=8, validators=[MaxValueValidator(23)], help_text="Утренняя сводка по местному времени пользователя.")
+    smart_evening_hour = models.PositiveSmallIntegerField(default=20, validators=[MaxValueValidator(23)], help_text="Вечерняя сводка по местному времени пользователя.")
+    smart_reserve_kopeks = models.PositiveIntegerField(default=100, validators=[MinValueValidator(1)], help_text="Резерв на один DeepSeek-ответ в копейках; не фактическая стоимость модели.")
+    ai_platform_cost_cap_confirmed = models.BooleanField(default=False, help_text="Реальный отдельный лимит расходов подтверждён в AI Platform.")
     max_output_tokens = models.PositiveSmallIntegerField(default=500)
     timeout_seconds = models.PositiveSmallIntegerField(default=20)
     monthly_budget_kopeks = models.PositiveIntegerField(default=0, help_text="0 = AI вызовы запрещены даже при включённом переключателе.")
