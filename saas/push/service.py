@@ -225,17 +225,8 @@ def create_daily_digests(now=None):
         title = f"NoSale — отчёт за {day:%d.%m}"
         body = f"Товаров под контролем: {active_products}; проверок: {checks}; исправлений: {corrected}; ошибок: {errors}."
         link = URL
-        if has_smart_access(user.pk, at=now):
-            # Smart's first daily advice is deterministic: no WB network call
-            # and no LLM invoice just to populate routine notifications.
-            selected, store_count = _highest_priority_smart_advice(user, now=now)
-            if selected is not None:
-                shop, meaningful = selected
-                title = f"NoSale Smart — отчёт за {day:%d.%m}"
-                body += f" Smart · {shop.name}: {meaningful['title']}."
-                # /advisor/ shows the seller's selected store, which need
-                # not be this store. Route multi-store notices via selector.
-                link = "/stores/" if store_count > 1 else "/advisor/"
+        # The regular daily status is tariff-neutral. Separate Smart briefs
+        # have their own change-triggered, strictly capped 08:00/20:00 windows.
         message, created = PushMessage.objects.get_or_create(
             user=user, digest_date=day,
             defaults={"kind": "digest", "title": title, "body": body[:400], "url": link},
