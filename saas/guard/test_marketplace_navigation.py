@@ -60,7 +60,7 @@ class MarketplaceNavigationTests(TestCase):
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         self.assertContains(dashboard, "seller-dashboard-grid.css?v=20261030a")
-        assistant = self.client.get(reverse("assistant_chat"))
+        assistant = self.client.get(reverse("assistant_chat"), follow=True)
         self.assertNotContains(assistant, "seller-dashboard-page")
         self.assertNotContains(assistant, "seller-dashboard-grid.css")
         self.client.logout()
@@ -89,11 +89,17 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(response, "ничего добавлять не надо")
         self.assertContains(response, "Primary WB")
 
-    def test_assistant_has_working_prompt_buttons_and_shop_scope(self):
-        response = self.client.get(reverse("assistant_chat"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Primary WB")
-        self.assertContains(response, 'class="assistant-workspace"')
-        self.assertContains(response, 'data-assistant-prompt="Сколько товаров выше лимита?"')
-        self.assertContains(response, 'id="assistant-question"')
-        self.assertNotContains(response, 'href="/admin/"')
+    def test_no_seller_chat_visible_in_navigation(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "Сводки")
+        self.assertNotContains(response, 'href="/assistant/"')
+        retired = self.client.get(reverse("assistant_chat"))
+        self.assertEqual(retired.status_code, 302)
+        self.assertEqual(retired.url, reverse("notifications"))
+        self.assertEqual(self.client.post(reverse("assistant_chat"), {
+            "mode": "smart", "question": "AI",
+        }).status_code, 405)
+        feed = self.client.get(reverse("notifications"))
+        self.assertEqual(feed.status_code, 200)
+        self.assertNotContains(feed, 'id="assistant-question"')
+        self.assertNotContains(feed, 'href="/admin/"')

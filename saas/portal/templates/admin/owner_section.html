@@ -44,6 +44,38 @@
       {% else %}<div class="owner-notice owner-notice--warning">Конфигурация отсутствует.</div>{% endif %}
     </div>
   </div>
+  <section class="owner-formcard" style="margin-top:18px">
+    <div class="owner-formcard-head"><div><span class="owner-card-eyebrow">СТАТИСТИКА SMART</span><h2>Бюджет и использование за месяц</h2></div></div>
+    <div class="owner-inline-stats">
+      <span>Лимит: <strong>{{ readiness.ai.monthly_budget_rub|floatformat:2 }} ₽</strong></span>
+      <span>Зарезервировано: <strong>{{ readiness.ai.reserved_rub|floatformat:2 }} ₽</strong></span>
+      <span>Осталось: <strong>{{ readiness.ai.budget_remaining_rub|floatformat:2 }} ₽</strong></span>
+      <span>Вызовов: <strong>{{ readiness.ai.calls_this_month }}</strong></span>
+      <span>Успешно / ошибок: <strong>{{ readiness.ai.successes_this_month }} / {{ readiness.ai.failures_this_month }}</strong></span>
+      <span>Токенов вход / выход: <strong>{{ readiness.ai.input_tokens_this_month }} / {{ readiness.ai.output_tokens_this_month }}</strong></span>
+    </div>
+    <p class="owner-small-note">Суммы показаны в рублях. Резерв NoSale не равен фактическим списаниям AI Platform. Для реальных расходов действует отдельный лимит провайдера.</p>
+    <div class="owner-caption-row"><span>ПО ПОЛЬЗОВАТЕЛЯМ · ТЕКУЩИЙ МЕСЯЦ</span></div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;min-width:620px">
+        <thead><tr><th>Продавец</th><th>Вызовы</th><th>Успешно / ошибок</th><th>Токены вход / выход</th><th>Резерв, ₽</th></tr></thead>
+        <tbody>
+        {% for seller in readiness.ai.seller_usage %}
+          <tr>
+            <td>{{ seller.user__email|default:seller.user__username }}</td>
+            <td>{{ seller.calls }}</td>
+            <td>{{ seller.successes }} / {{ seller.failures }}</td>
+            <td>{{ seller.tokens_in|default:0 }} / {{ seller.tokens_out|default:0 }}</td>
+            <td>{{ seller.reserved_rub|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">Вызовов DeepSeek пока нет.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="owner-small-note"><a href="{% url 'admin:guard_assistantairequest_changelist' %}">Подробный журнал вызовов Smart</a></p>
+  </section>
 {% elif section == "mcp" %}
   <div class="owner-notice"><strong>Безопасные встроенные адаптеры.</strong> Wildberries: только чтение сохранённых сведений. Ozon: пока исключительно статус not_implemented. Произвольные MCP URL и инструменты записи не допускаются.</div>
   <div class="owner-section-grid">

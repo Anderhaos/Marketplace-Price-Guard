@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import NotificationPreference, PushSubscription
@@ -62,7 +63,13 @@ def preferences(request):
     pref.timezone_name = timezone_name
     pref.instant_enabled = request.POST.get("instant_enabled") == "on"
     pref.daily_enabled = request.POST.get("daily_enabled") == "on"
-    pref.save(update_fields=["instant_enabled", "daily_enabled", "timezone_name"])
+    # Explicit user opt-in, revocable independently from ordinary notifications.
+    if request.POST.get("smart_ai_consent") == "on":
+        if pref.smart_ai_consent_at is None:
+            pref.smart_ai_consent_at = timezone.now()
+    else:
+        pref.smart_ai_consent_at = None
+    pref.save(update_fields=["instant_enabled", "daily_enabled", "timezone_name", "smart_ai_consent_at"])
     return redirect("notifications")
 
 

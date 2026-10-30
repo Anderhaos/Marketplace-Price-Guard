@@ -28,6 +28,7 @@ class OwnerAISettingsTests(TestCase):
         obj.save()
         self.assertFalse(obj.ready_for_gateway)
         obj.monthly_budget_kopeks = 10000
+        obj.ai_platform_cost_cap_confirmed = True
         obj.save()
         self.assertTrue(obj.ready_for_gateway)
 
@@ -48,29 +49,35 @@ class OwnerAISettingsTests(TestCase):
         self.assertEqual(self.client.get(add).status_code, 200)
         # Settings without runtime implementation must not be advertised.
         form_page = self.client.get(add)
-        for unused in ("standard_questions_per_day", "prompt_version"):
+        for unused in ("standard_questions_per_day", "smart_questions_per_day", "web_messages_per_day", "prompt_version", "monthly_budget_kopeks"):
             self.assertNotContains(form_page, f'name="{unused}"')
         self.assertContains(form_page, 'name="smart_briefs_per_day"')
+        self.assertContains(form_page, 'name="monthly_budget_rub"')
         self.client.post(add, {
             "web_assistant_enabled": "on",
             "web_messages_per_day": "12",
             "ai_enabled": "on",
-            "gateway_model_id": "published-model-id",
+            "gateway_model_id": "deepseek/published-model-id",
+            "ai_platform_cost_cap_confirmed": "on",
             "prompt_version": "pretend-enabled",
             "system_instructions": "Read-only",
             "standard_questions_per_day": "999",
             "smart_questions_per_day": "2",
             "smart_briefs_per_day": "2",
+            "smart_morning_hour": "8",
+            "smart_evening_hour": "20",
+            "smart_reserve_rub": "1.00",
             "max_output_tokens": "500",
             "timeout_seconds": "20",
-            "monthly_budget_kopeks": "10000",
+            "monthly_budget_rub": "1000.00",
             "_save": "Save",
         })
         item = OwnerAISettings.objects.get()
         self.assertTrue(item.ready_for_gateway)
         self.assertTrue(item.web_assistant_enabled)
         self.assertEqual(item.web_messages_per_day, 12)
-        self.assertEqual(item.gateway_model_id, "published-model-id")
+        self.assertEqual(item.gateway_model_id, "deepseek/published-model-id")
+        self.assertEqual(item.monthly_budget_kopeks, 100000)
         # Forged POST values cannot mutate legacy nonfunctional controls.
         self.assertEqual(item.standard_questions_per_day, 1)
         self.assertEqual(item.smart_briefs_per_day, 2)

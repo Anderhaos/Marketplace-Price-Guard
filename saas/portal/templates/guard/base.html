@@ -322,7 +322,7 @@
             </div>
           </details>
           <a class="nav-primary {% if request.path == '/' %}is-active{% endif %}" href="{% url 'dashboard' %}">Товары</a>
-          <a class="nav-primary {% if request.path == '/assistant/' %}is-active{% endif %}" href="{% url 'assistant_chat' %}">Помощник</a>
+          <a class="nav-primary {% if request.path == '/notifications/' %}is-active{% endif %}" href="{% url 'notifications' %}">Сводки</a>
           <a class="nav-primary {% if request.path == '/promotions/' %}is-active{% endif %}" href="{% url 'promotion_audit' %}" title="Участие в акциях Wildberries, календарь и предупреждения">Акции и риски</a>
           <a class="nav-primary {% if request.path == '/settings/' %}is-active{% endif %}" href="{% url 'settings' %}">Настройки WB</a>
           <details class="seller-more-menu">

@@ -25,7 +25,7 @@
   <form method="post" action="{% url 'push_preferences' %}">
     {% csrf_token %}
     <div class="field"><label><input type="checkbox" name="instant_enabled" {% if preferences.instant_enabled %}checked{% endif %}> Мгновенно: подтверждённые исправления и ошибки</label></div>
-    <div class="field"><label><input type="checkbox" name="daily_enabled" {% if preferences.daily_enabled %}checked{% endif %}> Вечерний отчёт и Smart-сводки по изменениям (до двух в день)</label></div>
+    <div class="field"><label><input type="checkbox" name="daily_enabled" {% if preferences.daily_enabled %}checked{% endif %}> Ежедневный отчёт и рекомендации Smart по расписанию</label></div>
     <div class="field">
       <label for="push-timezone">Часовой пояс</label>
       <select name="timezone_name" id="push-timezone" style="min-height:44px;padding:9px;background:var(--panel-strong);color:var(--text);border:1px solid var(--line);border-radius:12px">
@@ -34,6 +34,12 @@
         {% endfor %}
       </select>
     </div>
+    {% if smart_access %}
+    <div class="notice" style="margin:12px 0">
+      <p><strong>Smart по расписанию.</strong> NoSale рассчитывает рекомендации скриптами. DeepSeek может составить короткое резюме только по подтверждённым данным и с вашим разрешением. Без согласия доступны обычные сводки без AI.</p>
+      <label><input type="checkbox" name="smart_ai_consent" {% if preferences.smart_ai_consent_at %}checked{% endif %}> Согласен(на) передавать через AI Platform краткую подборку данных моего магазина модели DeepSeek для составления рекомендаций. Согласие можно отозвать здесь.</label>
+    </div>
+    {% endif %}
     <button type="submit">Сохранить настройки</button>
   </form>
 </section>
@@ -41,11 +47,11 @@
   {% csrf_token %}<button class="secondary" type="submit">Отметить всё прочитанным</button>
 </form>
 <section class="card">
-  <h2>Отчёты и Smart-сводки</h2>
+  <h2>Сообщения и рекомендации</h2>
   {% for summary in digest_messages %}
     <details style="padding:12px 0;border-bottom:1px solid var(--line)">
       <summary style="cursor:pointer"><strong>{{ summary.title }}</strong> {% if not summary.read_at %}<span class="scope-chip">Новое</span>{% endif %}</summary>
-      <p class="muted" style="margin:12px 0 0">{{ summary.body }}</p>
+      <p class="muted" style="margin:12px 0 0;white-space:pre-wrap">{{ summary.body }}</p>
     </details>
   {% empty %}
     <p class="muted">Отчётов и Smart-сводок пока нет.</p>

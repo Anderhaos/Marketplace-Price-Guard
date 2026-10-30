@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import GuardAccount, GuardEvent, Product, Upload
+from .models import AssistantAIRequest, GuardAccount, GuardEvent, Product, Upload
 
 
 @admin.register(GuardAccount)
@@ -26,3 +26,35 @@ class UploadAdmin(admin.ModelAdmin):
 class GuardEventAdmin(admin.ModelAdmin):
     list_display = ("created_at", "account", "kind", "nm_id", "message")
     readonly_fields = ("account", "created_at", "kind", "nm_id", "message")
+
+
+@admin.register(AssistantAIRequest)
+class SmartAIUsageAdmin(admin.ModelAdmin):
+    """Read-only audit of provider calls: never store prompts or token secrets."""
+    list_display = ("created_at", "user", "account", "source", "status",
+                    "model_id", "reserved_rub", "input_tokens", "output_tokens")
+    list_filter = ("source", "status", "model_id")
+    search_fields = ("user__email", "account__name")
+    ordering = ("-created_at",)
+    readonly_fields = ("user", "account", "created_at", "source", "status",
+                       "model_id", "reserved_rub", "input_tokens", "output_tokens")
+    list_per_page = 40
+
+    @admin.display(description="Зарезервировано, ₽")
+    def reserved_rub(self, obj):
+        return f"{obj.reserved_kopeks / 100:.2f}"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_module_permission(self, request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
