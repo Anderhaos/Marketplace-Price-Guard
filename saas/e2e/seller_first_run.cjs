@@ -70,13 +70,58 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(marketplaceMenu,'Marketplaces need a clear selector in the header');
     await page.click('details.marketplace-picker > summary');
     assert.ok(await page.$('details.marketplace-picker[open]'));
-    assert.equal(await page.$$eval('details.marketplace-picker .is-disabled', nodes=>nodes.length),3,
-      'Ozon, Yandex and MegaMarket must be disabled until implemented');
+    const themes = [
+      {key:'ozon',label:'Ozon',accent:'#005bff'},
+      {key:'yandex',label:'Яндекс Маркет',accent:'#ffcc00'},
+      {key:'mega',label:'Мегамаркет',accent:'#7736e9'},
+      {key:'wb',label:'Wildberries',accent:'#9636dc'}
+    ];
+    for (const theme of themes) {
+      await page.click('[data-theme-preview="'+theme.key+'"]');
+      const state=await page.evaluate(() => ({
+        theme:document.body.dataset.previewMarketplace,
+        accent:getComputedStyle(document.body).getPropertyValue('--accent').trim(),
+        bannerHidden:document.getElementById('theme-preview-banner').hidden,
+        label:document.getElementById('marketplace-current-label').textContent,
+        items:document.querySelectorAll('.product-card').length,
+        source:document.body.innerText.includes('Browser fixture item A'),
+        wbCard:!!document.querySelector('a[href*="wildberries.ru/catalog/79001"]'),
+        persisted:localStorage.getItem('nosale.marketplace-theme-preview.v1'),
+        pageWidth:document.documentElement.scrollWidth,
+        viewportWidth:innerWidth
+      }));
+      assert.equal(state.theme,theme.key);
+      assert.equal(state.accent,theme.accent);
+      assert.equal(state.label,theme.label);
+      assert.equal(state.bannerHidden,theme.key==='wb');
+      assert.equal(state.items,2,'Preview must not swap in invented marketplace goods');
+      assert.ok(state.source && state.wbCard,'Same real WB dataset and links only');
+      assert.equal(state.persisted,theme.key);
+      const iconBg = await page.$eval('#marketplace-current-icon',x=>getComputedStyle(x).backgroundColor);
+      if(theme.key==='ozon') assert.equal(iconBg,'rgb(0, 91, 255)');
+      if(theme.key==='yandex') assert.equal(iconBg,'rgb(255, 214, 0)');
+      if(theme.key==='mega') assert.equal(iconBg,'rgb(124, 54, 225)');
+      assert.ok(state.pageWidth<=state.viewportWidth+2,'Desktop overflow: '+JSON.stringify(state));
+      if(theme.key!=='wb') {
+        const disclaimer=await page.$eval('#theme-preview-banner',e=>e.innerText);
+        assert.ok(disclaimer.includes('взяты из Wildberries') && disclaimer.includes('не подключена'));
+      }
+      await page.screenshot({path:snapshotDir+'/theme-'+theme.key+'-desktop.png',fullPage:true});
+      step('marketplace_'+theme.key+'_visual_preview_only');
+      if(theme.key!=='wb') {
+        await goto('/assistant/');
+        assert.equal(await page.$eval('body',e=>e.dataset.previewMarketplace),theme.key,
+          'Theme must persist across seller navigation');
+        await goto('/');
+      }
+      if(theme.key!=='wb')await page.click('details.marketplace-picker > summary');
+    }
+    await page.click('details.marketplace-picker > summary');
     const external = await page.$$eval('.wb-quick-links a',links=>links.map(a=>a.href));
     assert.ok(external.some(x=>x==='https://www.wildberries.ru/'));
     assert.ok(external.some(x=>x==='https://seller.wildberries.ru/'));
     await page.screenshot({path:snapshotDir+'/05-marketplace-selector.png'});
-    step('marketplace_dropdown_disabled_future_platforms_and_wb_quick_links');
+    step('marketplace_theme_selector_and_wb_quick_links');
     await goto('/assistant/');
     await page.waitForSelector('[data-assistant-prompt]');
     await page.click('[data-assistant-prompt]');
@@ -121,7 +166,22 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     });
     assert.ok(menuVisible,'Marketplace selector must remain usable on small phones');
     step('mobile_marketplace_picker_visible_and_not_clipped');
+    await page.click('[data-theme-preview="ozon"]');
+    const mobileTheme = await page.evaluate(()=>({
+      theme:document.body.dataset.previewMarketplace,
+      width:innerWidth, pageWidth:document.documentElement.scrollWidth,
+      bannerVisible:!document.querySelector('#theme-preview-banner').hidden
+    }));
+    assert.equal(mobileTheme.theme,'ozon');
+    assert.ok(mobileTheme.bannerVisible);
+    assert.ok(mobileTheme.pageWidth<=mobileTheme.width+2);
+    await page.screenshot({path:snapshotDir+'/theme-ozon-mobile.png',fullPage:true});
+    step('mobile_ozon_theme_preview_without_overflow');
     await goto('/assistant/');
+    assert.equal(await page.$eval('body',e=>e.dataset.previewMarketplace),'ozon');
+    await page.click('details.marketplace-picker > summary');
+    await page.click('[data-theme-preview="wb"]');
+    assert.equal(await page.$eval('body',e=>e.dataset.previewMarketplace),'wb');
     const mobileAssistant=await page.evaluate(()=>({
       width:window.innerWidth,pageWidth:document.documentElement.scrollWidth,
     }));

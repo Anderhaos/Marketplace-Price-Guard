@@ -298,6 +298,7 @@
     @media(max-width:800px){.assistant-workspace{grid-template-columns:minmax(0,1fr)}.assistant-sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}.assistant-sidebar .card{padding:18px}}
     @media(max-width:560px){.assistant-dialog{padding:17px}.assistant-sidebar{grid-template-columns:1fr}.assistant-intro{padding:19px}.assistant-composer-actions button{margin-left:0;width:100%}.wb-dashboard-header{align-items:flex-start}.wb-quick-links{width:100%}}
   </style>
+  {% if user.is_authenticated %}<link rel="stylesheet" href="/static/marketplace-previews.css?v=20261030a">{% endif %}
 </head>
 <body class="{% if user.is_authenticated and not onboarding_required %}marketplace-wb{% endif %}">
   <header class="site-header">
@@ -310,13 +311,13 @@
         {% if user.is_authenticated %}
           {% if not onboarding_required %}
           <details class="marketplace-picker" aria-label="Выбор маркетплейса">
-            <summary class="marketplace-current" aria-label="Маркетплейс: Wildberries, выбрать площадку"><span class="marketplace-dot" aria-hidden="true">W</span> Wildberries <span aria-hidden="true">⌄</span></summary>
+            <summary class="marketplace-current" aria-label="Выбор маркетплейса"><span class="marketplace-dot" id="marketplace-current-icon" aria-hidden="true">W</span><span id="marketplace-current-label">Wildberries</span><span aria-hidden="true">⌄</span></summary>
             <div class="marketplace-options">
               <span class="picker-heading">Маркетплейсы</span>
-              <a href="{% url 'dashboard' %}" class="marketplace-choice is-selected" aria-current="page"><span class="marketplace-choice-symbol wb-symbol">W</span><span>Wildberries<small>Подключено · рабочая площадка</small></span><span aria-hidden="true">✓</span></a>
-              <span class="marketplace-choice is-disabled" aria-disabled="true"><span class="marketplace-choice-symbol ozon-symbol">O</span><span>Ozon<small>Интеграция в разработке</small></span><small>Скоро</small></span>
-              <span class="marketplace-choice is-disabled" aria-disabled="true"><span class="marketplace-choice-symbol ym-symbol">М</span><span>Яндекс Маркет<small>Пока недоступен</small></span><small>Скоро</small></span>
-              <span class="marketplace-choice is-disabled" aria-disabled="true"><span class="marketplace-choice-symbol mm-symbol">М</span><span>Мегамаркет<small>Пока недоступен</small></span><small>Скоро</small></span>
+              <button type="button" class="marketplace-choice is-selected" data-theme-preview="wb" aria-pressed="true"><span class="marketplace-choice-symbol wb-symbol">W</span><span>Wildberries<small>Подключено · реальные данные</small></span><span class="marketplace-choice-check" aria-hidden="true">✓</span></button>
+              <button type="button" class="marketplace-choice" data-theme-preview="ozon" aria-pressed="false"><span class="marketplace-choice-symbol ozon-symbol">O</span><span>Ozon<small>Предпросмотр оформления · данные WB</small></span><span class="marketplace-choice-check" aria-hidden="true"></span></button>
+              <button type="button" class="marketplace-choice" data-theme-preview="yandex" aria-pressed="false"><span class="marketplace-choice-symbol ym-symbol">М</span><span>Яндекс Маркет<small>Предпросмотр оформления · данные WB</small></span><span class="marketplace-choice-check" aria-hidden="true"></span></button>
+              <button type="button" class="marketplace-choice" data-theme-preview="mega" aria-pressed="false"><span class="marketplace-choice-symbol mm-symbol">М</span><span>Мегамаркет<small>Предпросмотр оформления · данные WB</small></span><span class="marketplace-choice-check" aria-hidden="true"></span></button>
             </div>
           </details>
           <a class="nav-primary {% if request.path == '/' %}is-active{% endif %}" href="{% url 'dashboard' %}">Товары</a>
@@ -347,10 +348,19 @@
     </div>
   </header>
   <main class="shell">
+    {% if user.is_authenticated and not onboarding_required %}
+    <div class="theme-preview-banner" id="theme-preview-banner" role="status" hidden>
+      <span class="theme-preview-icon" aria-hidden="true">◈</span>
+      <span><strong id="theme-preview-title">Предпросмотр оформления</strong>
+      <span class="theme-preview-copy">Товары, фото, цены и скидки взяты из Wildberries. Другая площадка не подключена; действия по-прежнему относятся к WB.</span></span>
+      <button type="button" id="theme-preview-back" class="theme-preview-back">Вернуть WB</button>
+    </div>
+    {% endif %}
     {% if messages and not onboarding_required %}<ul class="messages" aria-live="polite">{% for message in messages %}<li class="{% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</li>{% endfor %}</ul>{% endif %}
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer"><div class="shell">NoSale · <a href="https://svdev.pro/">SVDEV</a></div></footer>
+  {% if user.is_authenticated and not onboarding_required %}<script src="/static/marketplace-previews.js?v=20261030a" defer></script>{% endif %}
   <script>
     if ("serviceWorker" in navigator && window.isSecureContext) {
       window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
