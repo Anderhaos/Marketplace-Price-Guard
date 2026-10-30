@@ -78,6 +78,16 @@ class SmartBriefTests(TestCase):
         settings.save()
         self.assertEqual(create_smart_briefs(now=self.evening), 0)
 
+    def test_owner_reducing_limit_after_morning_blocks_evening(self):
+        self.event("discount_changed")
+        self.assertEqual(create_smart_briefs(now=self.morning), 1)
+        settings = OwnerAISettings.objects.get()
+        settings.smart_briefs_per_day = 1
+        settings.save()
+        self.event("rule", self.evening-timedelta(minutes=3))
+        self.assertEqual(create_smart_briefs(now=self.evening), 0)
+        self.assertEqual(PushMessage.objects.filter(kind="smart").count(), 1)
+
     def test_no_updates_no_briefs_and_no_catch_up_replay(self):
         self.event("check")
         self.assertEqual(create_smart_briefs(now=self.morning), 0)
