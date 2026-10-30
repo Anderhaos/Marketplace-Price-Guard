@@ -7,7 +7,7 @@ import asyncio
 import json
 
 import httpx2
-from django.db import close_old_connections, connections
+from django.db import connections
 from billing.models import OwnerMCPSettings
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
@@ -137,4 +137,11 @@ def call_owned_tool(user, account, name, arguments):
         # Do not leak internal endpoint, secret token or provider error to UI.
         raise MCPToolUnavailable("Internal MCP tool is unavailable") from exc
     finally:
-        close_old_connections()
+        # Never close a connection owned by an ambient transaction (for
+        # example, Django TestCase or a caller's atomic block). With a short
+        # CONN_MAX_AGE, close_old_connections() would otherwise close the
+        # PostgreSQL connection *inside* that transaction and corrupt its
+        # subsequent queries. Preserve the same cleanup for idle connections.
+        for connection in connections.all(initialized_only=True):
+            if not connection.in_atomic_block:
+                connection.close_if_unusable_or_obsolete()

@@ -1,14 +1,14 @@
 """R2 Smart tool orchestration: explicit opt-in, budgets, tenant context and wire checks."""
 import json
 from datetime import timedelta
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, Mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase, SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from billing.models import AccessGrant, OwnerAISettings
+from billing.models import AccessGrant, OwnerAISettings, OwnerMCPSettings
 from guard.ai_gateway import AIGatewayUnavailable, gateway_choose_tool, gateway_chat
 from guard.models import AssistantAIRequest, AssistantMessage, GuardAccount, Product
 from nosale_mcp.client import MCPToolUnavailable, call_owned_tool, definitions, validated_request
@@ -290,6 +290,149 @@ class SmartMCPIntegrationTests(TestCase):
             self.assertEqual(self.ask().status_code, 302)
         self.assertEqual(AssistantAIRequest.objects.get().status, "failed")
         self.assertEqual(AssistantMessage.objects.get().mode, "basic")
+
+    def test_disabled_mcp_never_reserves_budget_or_contacts_ai(self):
+        policy = OwnerMCPSettings.runtime()
+        self.assertIsNotNone(policy)
+        policy.enabled = False
+        policy.save(update_fields=["enabled"])
+        with patch("guard.ai_gateway.build_opener") as net, \
+             patch("nosale_mcp.client._call_tool", new_callable=AsyncMock) as tool:
+            self.assertEqual(self.ask().status_code, 302)
+            net.assert_not_called()
+            tool.assert_not_called()
+        self.assertFalse(AssistantAIRequest.objects.exists())
+        self.assertEqual(AssistantMessage.objects.get().mode, "basic")
+
+    def test_mcp_disabled_does_not_block_explicit_non_mcp_smart_question(self):
+        policy = OwnerMCPSettings.runtime()
+        policy.enabled = False
+        policy.save(update_fields=["enabled"])
+        with patch("guard.smart_assistant.gateway_chat", return_value=(
+            "Проверьте скидку 18% при пределе 10%.",
+            {"input_tokens": 20, "output_tokens": 10},
+        )) as chat, patch("guard.smart_assistant.gateway_choose_tool") as select:
+            self.assertEqual(self.ask(mcp_consent="").status_code, 302)
+            chat.assert_called_once()
+            select.assert_not_called()
+        self.assertEqual(AssistantAIRequest.objects.get().reserved_kopeks, 100)
+        self.assertEqual(AssistantMessage.objects.get().mode, "smart")
+
+    def test_disabled_marketplace_adapter_does_not_reserve_ai(self):
+        from billing.models import OwnerMCPAdapter
+        self.assertEqual(
+            OwnerMCPAdapter.objects.filter(slug="wb", enabled=True).update(enabled=False), 1,
+        )
+        with patch("guard.ai_gateway.build_opener") as net:
+            self.assertEqual(self.ask().status_code, 302)
+            net.assert_not_called()
+        self.assertFalse(AssistantAIRequest.objects.exists())
+        self.assertEqual(AssistantMessage.objects.get().mode, "basic")
+
+    def test_mcp_connection_cleanup_does_not_close_an_atomic_transaction(self):
+        # A direct MCP transport call is allowed inside another service's
+        # transaction. PostgreSQL must not lose its connection at the end.
+        for ambient_transaction in (True, False):
+            with self.subTest(ambient_transaction=ambient_transaction):
+                db_connection = Mock(in_atomic_block=ambient_transaction)
+                with patch("nosale_mcp.client._call_tool", new_callable=AsyncMock,
+                           return_value={"read_only": True}), \
+                     patch("nosale_mcp.client.connections.all",
+                           return_value=[db_connection]):
+                    answer = call_owned_tool(self.seller, self.store, "wb_overview", {})
+                self.assertEqual(answer, {"read_only": True})
+                if ambient_transaction:
+                    db_connection.close_if_unusable_or_obsolete.assert_not_called()
+                else:
+                    db_connection.close_if_unusable_or_obsolete.assert_called_once_with()
+
+    def test_two_round_ai_platform_and_signed_owned_mcp_flow_no_network(self):
+        """Real view, real AI HTTP serialization, signed MCP identity, no live I/O.
+
+        Only the AI Platform opener and internal MCP network transport are
+        replaced with deterministic fixtures; no WB or LLM connections occur.
+        """
+        from nosale_mcp.auth import verify_store_token
+
+        class FakeResponse:
+            status = 200
+            def __init__(self, payload):
+                self.payload = payload
+            def __enter__(self):
+                return self
+            def __exit__(self, *_):
+                return False
+            def read(self, _max):
+                return json.dumps(self.payload, ensure_ascii=False).encode()
+
+        class FakeAIPlatform:
+            def __init__(self):
+                self.requests = []
+            def open(self, request, timeout):
+                self.requests.append(request)
+                payload = json.loads(request.data)
+                self_owner = "Чужой секретный магазин"
+                self.assert_no_secrets(payload, self_owner)
+                if len(self.requests) == 1:
+                    assert payload["tool_choice"] == "auto"
+                    assert payload["parallel_tool_calls"] is False
+                    assert "wb_products" in [item["function"]["name"] for item in payload["tools"]]
+                    return FakeResponse({
+                        "choices": [{"message": {"content": None, "tool_calls": [{
+                            "id": "call_exact_model_123", "type": "function",
+                            "function": {"name": "wb_products", "arguments": '{"limit":1}'}
+                        }]}}],
+                        "usage": {"prompt_tokens": 31, "completion_tokens": 8},
+                    })
+                assert len(self.requests) == 2
+                assert payload["tool_choice"] == "none"
+                assert payload["parallel_tool_calls"] is False
+                assert payload["messages"][-2]["tool_calls"][0]["id"] == "call_exact_model_123"
+                assert payload["messages"][-1]["tool_call_id"] == "call_exact_model_123"
+                data = json.loads(payload["messages"][-1]["content"])
+                assert data["items"][0]["nm_id"] == 100
+                return FakeResponse({
+                    "choices": [{"message": {"content": "Проверьте товар 100: скидка 18%, предел 10%."}}],
+                    "usage": {"prompt_tokens": 46, "completion_tokens": 12},
+                })
+            @staticmethod
+            def assert_no_secrets(payload, foreign):
+                serialized = json.dumps(payload, ensure_ascii=False)
+                assert foreign not in serialized
+                assert "987654321" not in serialized
+                assert "synthetic-not-a-real-token" not in serialized
+                assert "Bearer" not in serialized
+                assert "mcp:8099" not in serialized
+
+        platform = FakeAIPlatform()
+        tool_tokens = []
+        async def local_mcp_transport(token, name, arguments):
+            principal = verify_store_token(token)
+            assert principal == {"user_id": self.seller.pk, "store_id": self.store.pk}
+            assert name == "wb_products" and arguments == {"limit": 1}
+            tool_tokens.append(token)
+            return {
+                "marketplace": "wb", "items": [
+                    {"nm_id": 100, "current_discount_pct": 18, "allowed_discount_pct": 10},
+                ], "source": "NoSale cached WB observations",
+            }
+
+        with patch("guard.ai_gateway.build_opener", return_value=platform), \
+             patch("nosale_mcp.client._call_tool", new_callable=AsyncMock,
+                   side_effect=local_mcp_transport) as transport, \
+             patch("guard.views.WBClient") as wb:
+            response = self.ask()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(platform.requests), 2)
+        self.assertEqual(transport.await_count, 1)
+        self.assertEqual(len(tool_tokens), 1)
+        self.assertTrue(platform.requests[0].full_url.startswith("https://platform.svdev.pro/"))
+        self.assertEqual(platform.requests[0].get_header("X-ai-project-key"), "nosale")
+        self.assertEqual(AssistantMessage.objects.get().mode, "smart")
+        row = AssistantAIRequest.objects.get()
+        self.assertEqual((row.status, row.reserved_kopeks, row.input_tokens, row.output_tokens),
+                         ("success", 200, 77, 20))
+        wb.assert_not_called()
 
     def test_billing_cap_prevents_two_call_session_before_model(self):
         self.ai.monthly_budget_kopeks = 100  # below 2x per-call reserve
