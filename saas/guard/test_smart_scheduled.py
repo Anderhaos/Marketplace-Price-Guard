@@ -55,6 +55,8 @@ class ScheduledSmartTests(TestCase):
         self.assertEqual(model.call_count, 1)
         self.assertEqual(model.call_args.kwargs["model_id"], "deepseek/deepseek-flash")
         self.assertNotIn("tools", model.call_args.kwargs)
+        self.assertEqual(model.call_args.kwargs["thinking_mode"], "disabled")
+        self.assertLessEqual(model.call_args.kwargs["max_output_tokens"], 160)
         import json
         payload = json.dumps(model.call_args.kwargs["messages"], ensure_ascii=False)
         self.assertNotIn("foreign-secret", payload)
