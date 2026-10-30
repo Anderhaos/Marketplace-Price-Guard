@@ -66,6 +66,21 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const text=await page.evaluate(()=>document.body.innerText);
     assert.ok(text.includes('Browser fixture item A')&&text.includes('Browser fixture item B'));
     step('initial_inventory_synced_and_dashboard_ready','2 synthetic WB items');
+    // Read-only permits local policy editing without any WB discount upload.
+    assert.ok(await page.$('.compact-limit-form button:not([disabled])'));
+    await page.$eval('input[name="default_allowed_discount"]',field => { field.value='25'; });
+    await submit('.compact-limit-form button[type="submit"]');
+    await waitText('Предел 25% сохранён только в NoSale');
+    assert.equal(await page.$eval('input[name="default_allowed_discount"]',n=>n.value),'25');
+    step('readonly_local_limit_saved_without_wb_write');
+    await Promise.all([
+      page.waitForNavigation({waitUntil:'domcontentloaded',timeout:16000}),
+      page.click('.product-rule input[name="no_discount"]'),
+    ]);
+    await waitText('Правило сохранено в NoSale');
+    const localRule=await page.evaluate(()=>document.body.innerText);
+    assert.ok(localRule.includes('Локальное правило'));
+    step('readonly_local_product_override_saved_without_wb_write');
     const marketplaceMenu = await page.$('details.marketplace-picker');
     assert.ok(marketplaceMenu,'Marketplaces need a clear selector in the header');
     await page.click('details.marketplace-picker > summary');

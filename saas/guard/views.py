@@ -358,6 +358,24 @@ def dashboard(request):
         if settings.SAAS_WB_READ_ONLY and action in ("toggle_autocontrol", "apply_all"):
             messages.error(request, "В тестовом режиме изменения цен и скидок Wildberries отключены.")
             return _dashboard_redirect(request)
+        if action == "save_limit":
+            # Local policy editing never queues WB writes.
+            if settings.SAAS_PIN_AUTH_ENABLED and not guard_is_permitted(account):
+                messages.error(request, "Для изменения правил требуется действующий доступ.")
+                return _dashboard_redirect(request)
+            form = DefaultDiscountForm(request.POST)
+            if not form.is_valid():
+                messages.error(request, "Введите скидку от 0 до 99%.")
+                return _dashboard_redirect(request)
+            discount = form.cleaned_data["default_allowed_discount"]
+            if discount == 0 and request.POST.get("confirm_zero_discount") != "1":
+                messages.error(request, "Подтвердите нулевой предел скидки.")
+                return _dashboard_redirect(request)
+            GuardAccount.objects.filter(pk=account.pk, user_id=request.user.pk).update(
+                default_allowed_discount=discount, rules_version=F("rules_version") + 1,
+            )
+            messages.success(request, f"Предел {discount}% сохранён только в NoSale. Wildberries не изменялся.")
+            return _dashboard_redirect(request)
         if action == "toggle_autocontrol":
             if not guard_is_permitted(account):
                 messages.error(request, "Для запуска защиты нужна активная подписка и подключённый сервис.")
@@ -640,7 +658,30 @@ def product_rule(request, nm_id):
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
     if settings.SAAS_WB_READ_ONLY:
-        messages.error(request, "В тестовом режиме изменение скидок Wildberries отключено.")
+        # Save a local product policy. Never enqueue, submit or unlock WB writes.
+        if settings.SAAS_PIN_AUTH_ENABLED and not guard_is_permitted(account):
+            messages.error(request, "Для изменения правил требуется действующий доступ.")
+            return _dashboard_redirect(request)
+        if request.POST.get("no_discount") == "on":
+            allowed = 0
+        else:
+            form = ProductRuleForm(request.POST)
+            if not form.is_valid():
+                messages.error(request, "Скидка должна быть от 0 до 99%.")
+                return _dashboard_redirect(request)
+            allowed = form.cleaned_data["allowed_discount"]
+        with transaction.atomic():
+            Product.objects.filter(pk=product.pk, account_id=account.pk).update(
+                allowed_discount_override=allowed,
+            )
+            GuardAccount.objects.filter(pk=account.pk, user_id=request.user.pk).update(
+                rules_version=F("rules_version") + 1,
+            )
+        GuardEvent.objects.create(
+            account=account, kind="rule", nm_id=nm_id,
+            message="Локальный предел скидки сохранён. Запросов на изменение WB нет.",
+        )
+        messages.success(request, "Правило сохранено в NoSale. Wildberries не изменялся.")
         return _dashboard_redirect(request)
     if not _account_can_write(account):
         messages.error(request, "Для изменения скидки необходим токен с правами «Чтение и запись».")

@@ -210,7 +210,8 @@ class InitialSyncGateTests(TestCase):
         account.initial_sync_completed_at = timezone.now()
         account.save(update_fields=["initial_sync_completed_at"])
         response = self.client.get("/")
-        self.assertContains(response, "Изменение цен, скидок и автоматическая защита здесь отключены")
+        self.assertContains(response, "Предельные скидки можно настроить")
+        self.assertContains(response, 'name="action" value="save_limit"')
         self.assertContains(response, "disabled")
         for action in ("apply_all", "toggle_autocontrol"):
             response = self.client.post("/", {"action": action,
