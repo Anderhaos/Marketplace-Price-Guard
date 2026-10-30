@@ -1,0 +1,180 @@
+/*
+ * NoSale marketplace DESIGN PREVIEWS only; all inventory is still Wildberries.
+ * Based on brand color families, not clones/official skins of partner websites.
+ * Existing WB seller theme is unchanged.
+ */
+.marketplace-choice[data-theme-preview]{
+  display:flex;gap:10px;align-items:center;width:100%;min-height:50px;
+  padding:10px 9px;border:0;border-radius:10px;background:transparent;text-align:left;
+  color:var(--text);font-size:12px;font-weight:650;white-space:normal;
+  cursor:pointer;transition:background .15s ease;
+}
+.marketplace-choice[data-theme-preview]:hover{background:rgba(255,255,255,.075);transform:none}
+.marketplace-choice[data-theme-preview]:focus-visible{
+  outline:2px solid var(--accent-strong);outline-offset:-2px
+}
+.marketplace-choice-check{min-width:12px;text-align:right;color:var(--accent-strong)}
+.marketplace-picker .marketplace-options{z-index:150}
+.marketplace-picker .picker-heading{padding-bottom:3px}
+.theme-preview-banner[hidden]{display:none!important}
+.theme-preview-banner{
+  display:flex;align-items:center;flex-wrap:wrap;gap:12px;
+  padding:13px 16px;margin:0 0 16px;border-radius:13px;
+  border:1px solid var(--preview-banner-border,rgba(255,255,255,.15));
+  background:var(--preview-banner-bg,rgba(255,255,255,.06));
+  color:var(--text);font-size:12px;line-height:1.5
+}
+.theme-preview-banner>span:nth-child(2){flex:1 1 350px;min-width:0}
+.theme-preview-banner strong{display:block;font-size:13px;margin-bottom:2px}
+.theme-preview-copy{color:var(--muted)}
+.theme-preview-icon{flex:0 0 28px;width:28px;height:28px;display:grid;place-items:center;
+  background:var(--accent);border-radius:9px;color:var(--preview-icon-color,#fff);font-weight:800}
+.theme-preview-back{min-height:32px;border-radius:9px;padding:6px 12px;white-space:nowrap}
+.marketplace-ozon,
+.marketplace-yandex,
+.marketplace-mega{
+  --bg:#f5f8fd;
+  --panel:#fff;--panel-strong:#f6f8fc;--text:#15253b;
+  --muted:#68778a;--line:rgba(15,34,64,.13);
+  --shadow:0 9px 32px rgba(26,46,80,.075);
+  --good:#117c55;--bad:#c34447;
+  color-scheme:light;
+  color:var(--text);
+  background:var(--theme-background,#f5f8fd);
+}
+.marketplace-ozon{
+  --accent:#005bff;--accent-strong:#0046d4;
+  --theme-background:linear-gradient(155deg,#ecf4ff 0%,#f6f9ff 38%,#f8faff 100%);
+  --theme-headline:#002857;--preview-banner-bg:#e8f2ff;--preview-banner-border:#bed8ff;
+}
+.marketplace-yandex{
+  --accent:#ffcc00;--accent-strong:#9c7100;
+  --theme-background:linear-gradient(145deg,#fff9e4 0%,#fafafa 47%,#fff9ec 100%);
+  --theme-headline:#191919;--preview-banner-bg:#fff1b6;--preview-banner-border:#e6d168;
+  --preview-icon-color:#252000;
+}
+.marketplace-mega{
+  --accent:#7736e9;--accent-strong:#6324c5;
+  --theme-background:radial-gradient(ellipse at 85% 3%,#f1e6ff 0%,transparent 36%),linear-gradient(160deg,#f5f0ff,#faf8ff 62%,#f4f0fc);
+  --theme-headline:#32215a;--preview-banner-bg:#f0e6ff;--preview-banner-border:#dac2ff;
+}
+/* Seller UI only: never touch un-authenticated onboarding or operator admin. */
+.marketplace-ozon .site-header,.marketplace-yandex .site-header,.marketplace-mega .site-header{
+  background:rgba(255,255,255,.93);border-bottom:1px solid var(--line);
+  box-shadow:0 2px 18px rgba(32,41,66,.05)
+}
+.marketplace-ozon .brand,.marketplace-yandex .brand,.marketplace-mega .brand{color:var(--theme-headline)}
+.marketplace-ozon .brand-mark,.marketplace-ozon .site-nav .nav-primary.is-active{color:#005bff}
+.marketplace-yandex .brand-mark,.marketplace-yandex .site-nav .nav-primary.is-active{color:#141414}
+.marketplace-mega .brand-mark,.marketplace-mega .site-nav .nav-primary.is-active{color:#7736e9}
+.marketplace-ozon .site-nav>a,.marketplace-yandex .site-nav>a,.marketplace-mega .site-nav>a{color:var(--muted)}
+.marketplace-ozon .site-nav>a:hover,.marketplace-yandex .site-nav>a:hover,.marketplace-mega .site-nav>a:hover{color:var(--text);background:rgba(0,0,0,.045)}
+.marketplace-ozon .site-nav .nav-primary.is-active{background:#e7f1ff}
+.marketplace-yandex .site-nav .nav-primary.is-active{background:#ffeb82}
+.marketplace-mega .site-nav .nav-primary.is-active{background:#eee2ff}
+.marketplace-ozon .marketplace-picker>summary,
+.marketplace-yandex .marketplace-picker>summary,
+.marketplace-mega .marketplace-picker>summary,
+.marketplace-ozon .seller-more-menu>summary,
+.marketplace-yandex .seller-more-menu>summary,
+.marketplace-mega .seller-more-menu>summary{
+  color:var(--text);background:#fff;border-color:var(--line)
+}
+.marketplace-ozon .marketplace-options,.marketplace-yandex .marketplace-options,.marketplace-mega .marketplace-options,
+.marketplace-ozon .seller-more-options,.marketplace-yandex .seller-more-options,.marketplace-mega .seller-more-options{
+  background:#fff;color:var(--text);border-color:var(--line);box-shadow:0 18px 46px rgba(30,40,60,.17)
+}
+.marketplace-ozon .marketplace-choice[data-theme-preview],
+.marketplace-yandex .marketplace-choice[data-theme-preview],
+.marketplace-mega .marketplace-choice[data-theme-preview]{color:var(--text)}
+.marketplace-ozon .marketplace-choice[data-theme-preview]:hover,
+.marketplace-yandex .marketplace-choice[data-theme-preview]:hover,
+.marketplace-mega .marketplace-choice[data-theme-preview]:hover,
+.marketplace-ozon .seller-more-options a:hover,
+.marketplace-yandex .seller-more-options a:hover,
+.marketplace-mega .seller-more-options a:hover{background:#edf1f7}
+.marketplace-ozon .marketplace-choice.is-selected{background:#e8f0ff}
+.marketplace-yandex .marketplace-choice.is-selected{background:#fff1ac}
+.marketplace-mega .marketplace-choice.is-selected{background:#f0e5ff}
+.marketplace-ozon .seller-more-options a,.marketplace-yandex .seller-more-options a,.marketplace-mega .seller-more-options a{color:var(--text)}
+.marketplace-ozon .page-hero,.marketplace-yandex .page-hero,.marketplace-mega .page-hero,
+.marketplace-ozon .card,.marketplace-yandex .card,.marketplace-mega .card{
+  background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:none;
+}
+.marketplace-ozon .page-hero:after{background:#bed9ff}
+.marketplace-yandex .page-hero:after{background:#ffe67b}
+.marketplace-mega .page-hero:after{background:#e4c8ff}
+.marketplace-ozon .page-hero h1,.marketplace-yandex .page-hero h1,.marketplace-mega .page-hero h1{color:var(--theme-headline)}
+.marketplace-ozon .compact-summary,.marketplace-yandex .compact-summary,.marketplace-mega .compact-summary{gap:10px}
+.marketplace-ozon .summary-cell,.marketplace-yandex .summary-cell,.marketplace-mega .summary-cell{
+  background:white;border:1px solid var(--line);color:var(--text);box-shadow:var(--shadow)
+}
+.marketplace-ozon .summary-cell:hover,.marketplace-yandex .summary-cell:hover,.marketplace-mega .summary-cell:hover{border-color:var(--accent)}
+.marketplace-ozon .summary-cell.summary-selected{background:#eaf2ff;border-color:#76abff}
+.marketplace-yandex .summary-cell.summary-selected{background:#fff0aa;border-color:#dab100}
+.marketplace-mega .summary-cell.summary-selected{background:#f0e6ff;border-color:#b289ef}
+.marketplace-ozon .summary-cell strong,.marketplace-yandex .summary-cell strong,.marketplace-mega .summary-cell strong{color:var(--text)}
+.marketplace-ozon .product-card,.marketplace-yandex .product-card,.marketplace-mega .product-card{
+  background:#fff;border:1px solid var(--line);box-shadow:0 6px 20px rgba(30,44,70,.055);gap:9px
+}
+.marketplace-ozon .product-card{border-radius:20px}
+.marketplace-yandex .product-card{border-radius:11px}
+.marketplace-mega .product-card{border-radius:20px}
+.marketplace-ozon .product-image,.marketplace-yandex .product-image,.marketplace-mega .product-image{background:#f5f7fa;border-color:var(--line)}
+.marketplace-ozon .product-card h3,.marketplace-yandex .product-card h3,.marketplace-mega .product-card h3{color:#172033}
+.marketplace-ozon .product-card .price-main,.marketplace-yandex .product-card .price-main,.marketplace-mega .product-card .price-main{color:var(--theme-headline)}
+.marketplace-ozon .product-card .price-secondary,.marketplace-yandex .product-card .price-secondary,.marketplace-mega .product-card .price-secondary{color:#8290a1}
+.marketplace-ozon .product-card .wb-discount-pill{color:#005bff}
+.marketplace-yandex .product-card .wb-discount-pill{color:#141414}
+.marketplace-mega .product-card .wb-discount-pill{color:#7832d8}
+.marketplace-ozon .product-card .card-warning,.marketplace-yandex .product-card .card-warning,.marketplace-mega .product-card .card-warning{color:#ba3941}
+.marketplace-ozon .wb-quick-links a{color:#005bff;border-color:#bfd7ff;background:#e8f1ff}
+.marketplace-yandex .wb-quick-links a{color:#554600;border-color:#f2d961;background:#fff2b1}
+.marketplace-mega .wb-quick-links a{color:#6d2acc;border-color:#d5bdf9;background:#efe4ff}
+.marketplace-ozon .notice,.marketplace-yandex .notice,.marketplace-mega .notice{background:#fff;border-color:var(--line);color:var(--text)}
+.marketplace-ozon .notice{border-left:4px solid #005bff}
+.marketplace-yandex .notice{border-left:4px solid #ffcc00}
+.marketplace-mega .notice{border-left:4px solid #7736e9}
+.marketplace-ozon .trial-strip,.marketplace-yandex .trial-strip,.marketplace-mega .trial-strip{background:#fff;color:#14704b;border-color:#b6dbc4}
+.marketplace-ozon button:not(.marketplace-choice):not(.info-button):not(.theme-preview-back):not(.modal-close),
+.marketplace-mega button:not(.marketplace-choice):not(.info-button):not(.theme-preview-back):not(.modal-close){
+  background:var(--accent);color:#fff
+}
+.marketplace-yandex button:not(.marketplace-choice):not(.info-button):not(.theme-preview-back):not(.modal-close){
+  background:#ffcc00;color:#161616
+}
+.marketplace-ozon button.secondary,.marketplace-yandex button.secondary,.marketplace-mega button.secondary{
+  background:#fff!important;color:var(--accent-strong)!important;border:1px solid var(--line)!important
+}
+.marketplace-ozon .site-nav form button,.marketplace-yandex .site-nav form button,.marketplace-mega .site-nav form button{
+  background:#fff!important;color:var(--text)!important;border:1px solid var(--line)!important
+}
+.marketplace-ozon button:disabled,.marketplace-yandex button:disabled,.marketplace-mega button:disabled{opacity:.5}
+.marketplace-ozon input,.marketplace-yandex input,.marketplace-mega input,
+.marketplace-ozon textarea,.marketplace-yandex textarea,.marketplace-mega textarea{
+  background:#fff;color:#192437;border-color:var(--line)
+}
+.marketplace-ozon .assistant-prompt-list button,.marketplace-yandex .assistant-prompt-list button,.marketplace-mega .assistant-prompt-list button{
+  background:#f7f8fb!important;color:var(--text)!important;border-color:var(--line)
+}
+.marketplace-ozon .assistant-messages>div,.marketplace-yandex .assistant-messages>div,.marketplace-mega .assistant-messages>div{border-color:var(--line)}
+.marketplace-ozon .assistant-messages>div>div:last-child,.marketplace-yandex .assistant-messages>div>div:last-child,.marketplace-mega .assistant-messages>div>div:last-child{background:#f2f5fa!important}
+.marketplace-ozon .assistant-textarea,.marketplace-yandex .assistant-textarea,.marketplace-mega .assistant-textarea{background:#fff;color:var(--text)}
+.marketplace-ozon .site-footer,.marketplace-yandex .site-footer,.marketplace-mega .site-footer{border-color:var(--line)}
+.marketplace-ozon .history-modal,.marketplace-yandex .history-modal,.marketplace-mega .history-modal{background:white;color:var(--text)}
+/* Recognizably different product layouts, not recolors of the same WB cards. */
+.marketplace-ozon .products-grid{gap:13px}
+.marketplace-ozon .product-image{aspect-ratio:1/1;border-radius:15px}
+.marketplace-ozon .product-metrics--prices .price-main{font-size:17px}
+.marketplace-yandex .product-image{aspect-ratio:1/1.08;border-radius:7px}
+.marketplace-yandex .product-card{padding:13px}
+.marketplace-yandex .product-metrics--prices{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+.marketplace-yandex .product-metrics--prices .price-main{font-size:15px;white-space:nowrap;letter-spacing:-.025em}
+.marketplace-yandex .product-metrics--prices .price-secondary{font-size:11px;white-space:nowrap}
+.marketplace-mega .product-image{aspect-ratio:1/1;border-radius:16px}
+.marketplace-mega .product-card{border-top:3px solid #b284ef}
+.marketplace-mega .product-metrics--prices .price-main{font-size:17px}
+@media(max-width:600px){
+  .theme-preview-banner{align-items:flex-start}
+  .theme-preview-back{margin-left:38px}
+}
