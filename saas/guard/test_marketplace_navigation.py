@@ -56,6 +56,17 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(response, 'href="/stores/"')
         self.assertContains(response, "Подключения")
 
+    def test_wide_inventory_grid_only_on_authenticated_dashboard(self):
+        dashboard = self.client.get(reverse("dashboard"))
+        self.assertContains(dashboard, "seller-dashboard-page")
+        self.assertContains(dashboard, "seller-dashboard-grid.css?v=20261030a")
+        assistant = self.client.get(reverse("assistant_chat"))
+        self.assertNotContains(assistant, "seller-dashboard-page")
+        self.assertNotContains(assistant, "seller-dashboard-grid.css")
+        self.client.logout()
+        public = self.client.get(reverse("login"))
+        self.assertNotContains(public, "seller-dashboard-grid.css")
+
     def test_owner_has_no_operator_admin_link_in_seller_workspace(self):
         self.client.force_login(self.operator)
         response = self.client.get(reverse("dashboard"))

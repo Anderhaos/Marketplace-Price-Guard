@@ -299,8 +299,9 @@
     @media(max-width:560px){.assistant-dialog{padding:17px}.assistant-sidebar{grid-template-columns:1fr}.assistant-intro{padding:19px}.assistant-composer-actions button{margin-left:0;width:100%}.wb-dashboard-header{align-items:flex-start}.wb-quick-links{width:100%}}
   </style>
   {% if user.is_authenticated %}<link rel="stylesheet" href="/static/marketplace-previews.css?v=20261030a">{% endif %}
+  {% if user.is_authenticated and not onboarding_required and request.path == '/' %}<link rel="stylesheet" href="/static/seller-dashboard-grid.css?v=20261030a">{% endif %}
 </head>
-<body class="{% if user.is_authenticated and not onboarding_required %}marketplace-wb{% endif %}">
+<body class="{% if user.is_authenticated and not onboarding_required %}marketplace-wb{% endif %}{% if user.is_authenticated and not onboarding_required and request.path == '/' %} seller-dashboard-page{% endif %}">
   <header class="site-header">
     <div class="shell header-inner">
       <a class="brand" href="{% url 'dashboard' %}">

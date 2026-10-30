@@ -66,6 +66,53 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const text=await page.evaluate(()=>document.body.innerText);
     assert.ok(text.includes('Browser fixture item A')&&text.includes('Browser fixture item B'));
     step('initial_inventory_synced_and_dashboard_ready','2 synthetic WB items');
+    assert.ok(await page.$('body.seller-dashboard-page'));
+    await page.evaluate(() => {
+      const grid=document.querySelector('.products-grid');
+      const first=grid.querySelector('.product-card');
+      for(let i=0;i<5;i++) {
+        const clone=first.cloneNode(true);
+        clone.dataset.layoutClone='true';
+        grid.appendChild(clone);
+      }
+    });
+    const sizes=[
+      [2560,5],[1920,5],[1700,5],[1699,4],[1536,4],[1366,4],
+      [1300,4],[1299,3],[1024,3],[980,3],[979,2],[768,2],
+      [640,2],[639,1],[390,1],[320,1]
+    ];
+    for(const [width,expected] of sizes) {
+      await page.setViewport({width,height:900,deviceScaleFactor:1,isMobile:width<640,hasTouch:width<640});
+      const state=await page.evaluate(()=>{
+        const grid=document.querySelector('.products-grid');
+        const cards=[...grid.querySelectorAll('.product-card')];
+        const content=document.querySelector('main.shell').getBoundingClientRect();
+        const header=document.querySelector('.header-inner').getBoundingClientRect();
+        const rects=cards.map(card=>card.getBoundingClientRect());
+        const sizes=getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length;
+        return {
+          width:innerWidth,pageWidth:document.documentElement.scrollWidth,
+          cols:sizes,contentWidth:content.width,headerWidth:header.width,
+          firstRow:rects.slice(0,sizes).every(r=>Math.abs(r.top-rects[0].top)<2),
+          nextRow:rects.length<=sizes||rects[sizes].top>rects[0].top+8,
+          minCardWidth:Math.min(...rects.map(r=>r.width)),
+          maxCardOverflow:Math.max(...cards.map(el=>el.scrollWidth-el.clientWidth)),
+        };
+      });
+      assert.equal(state.cols,expected,'Unexpected columns '+JSON.stringify(state));
+      assert.ok(state.contentWidth<=1801 && state.contentWidth<=width-20,'Too wide '+JSON.stringify(state));
+      assert.ok(Math.abs(state.contentWidth-state.headerWidth)<=2,'Header and inventory misaligned '+JSON.stringify(state));
+      assert.ok(state.pageWidth<=width+2,'Horizontal overflow '+JSON.stringify(state));
+      assert.ok(state.firstRow && state.nextRow,'Product placement invalid '+JSON.stringify(state));
+      assert.ok(state.minCardWidth>230,'Cramped product cards '+JSON.stringify(state));
+      assert.ok(state.maxCardOverflow<=2,'Card content overflows '+JSON.stringify(state));
+      if([1920,1536,980,768,390].includes(width)){
+        await page.screenshot({path:snapshotDir+'/responsive-'+width+'.png',fullPage:true});
+      }
+    }
+    await page.evaluate(()=>document.querySelectorAll('.products-grid [data-layout-clone]').forEach(n=>n.remove()));
+    await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
+    step('product_grid_breakpoints_320_to_2560_including_five_across');
     // Read-only permits local policy editing without any WB discount upload.
     assert.ok(await page.$('.compact-limit-form button:not([disabled])'));
     await page.$eval('input[name="default_allowed_discount"]',field => { field.value='25'; });
@@ -122,6 +169,18 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         assert.ok(disclaimer.includes('взяты из Wildberries') && disclaimer.includes('не подключена'));
       }
       await page.screenshot({path:snapshotDir+'/theme-'+theme.key+'-desktop.png',fullPage:true});
+      await page.setViewport({width:1920,height:900,deviceScaleFactor:1});
+      const wideLayout=await page.evaluate(()=>{
+        const computed=getComputedStyle(document.querySelector('.products-grid'));
+        return {
+          cols:computed.gridTemplateColumns.split(' ').filter(Boolean).length,
+          shell:document.querySelector('main.shell').getBoundingClientRect().width,
+          pageWidth:document.documentElement.scrollWidth,
+        };
+      });
+      assert.equal(wideLayout.cols,5,'All marketplace preview themes need 5 columns on wide screens');
+      assert.ok(wideLayout.shell<=1801 && wideLayout.pageWidth<=1922);
+      await page.setViewport({width:1365,height:860,deviceScaleFactor:1});
       step('marketplace_'+theme.key+'_visual_preview_only');
       if(theme.key!=='wb') {
         await goto('/assistant/');
