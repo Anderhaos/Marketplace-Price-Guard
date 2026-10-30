@@ -12,13 +12,13 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Count, F, Q
 from django.utils import timezone
 
 from guard.models import GuardAccount, GuardEvent, Product
 from guard.advisor import store_recommendations
 from billing.access import has_smart_access
-from billing.models import OwnerOperationsSettings
+from billing.models import OwnerAISettings, OwnerOperationsSettings
 from .models import NotificationPreference, PushDelivery, PushMessage, PushSubscription
 
 IMPORTANT_KINDS = ("confirmed", "error", "upload_error")
@@ -246,6 +246,100 @@ def create_daily_digests(now=None):
     return count
 
 
+SMART_CHANGE_KINDS = (
+    "price_changed", "discount_changed", "rule",
+    "confirmed", "error", "upload_error",
+)
+
+
+def create_smart_briefs(now=None):
+    """At most two change-triggered Smart briefs per local day.
+
+    No WB requests or AI costs. Each 08:00/20:00 local window is unique in
+    PostgreSQL; late workers do not replay stale windows. Ordinary check
+    heartbeat entries cannot trigger a brief.
+    """
+    now = now or timezone.now()
+    policy = OwnerOperationsSettings.runtime()
+    ai = OwnerAISettings.objects.filter(pk=1).first()
+    if policy is None or not policy.daily_digests_enabled or ai is None:
+        return 0
+    limit = min(2, max(0, ai.smart_briefs_per_day))
+    if not limit:
+        return 0
+
+    sellers = get_user_model().objects.filter(
+        is_active=True, saas_access_grants__plan="smart",
+        saas_access_grants__starts_at__lte=now,
+        saas_access_grants__ends_at__gt=now,
+        saas_access_grants__revoked_at__isnull=True,
+    ).distinct()
+    queued = 0
+    for user in sellers.iterator(chunk_size=100):
+        live_policy = OwnerOperationsSettings.runtime()
+        live_ai = OwnerAISettings.objects.filter(pk=1).first()
+        if live_policy is None or not live_policy.daily_digests_enabled or live_ai is None:
+            break
+        current_limit = min(2, max(0, live_ai.smart_briefs_per_day))
+        if current_limit == 0:
+            break
+        pref, _ = NotificationPreference.objects.get_or_create(user=user)
+        if not pref.daily_enabled or not has_smart_access(user.pk, at=now):
+            continue
+        tzname = pref.timezone_name if pref.timezone_name in SUPPORTED_TIMEZONES else "Europe/Moscow"
+        tz = ZoneInfo(tzname)
+        local_now = timezone.localtime(now, tz)
+        hour = 20 if local_now.hour >= 20 else (8 if local_now.hour >= 8 and current_limit >= 2 else None)
+        if hour is None:
+            continue
+        slot_end = datetime.combine(local_now.date(), time(hour=hour), tzinfo=tz).astimezone(dt_timezone.utc)
+        if now >= slot_end + timedelta(hours=2):
+            continue
+        slot_start = (datetime.combine(local_now.date(), time(hour=8 if hour == 20 else 20), tzinfo=tz)
+                      - (timedelta(days=1) if hour == 8 else timedelta())).astimezone(dt_timezone.utc)
+        slot = f"{local_now.date().isoformat()}:{hour:02d}"
+        if PushMessage.objects.filter(user=user, smart_slot=slot).exists():
+            continue
+        events = GuardEvent.objects.filter(
+            account__user=user, kind__in=SMART_CHANGE_KINDS,
+            created_at__gte=slot_start, created_at__lt=slot_end,
+        )
+        counts = {row["kind"]: row["n"] for row in events.values("kind").annotate(n=Count("id"))}
+        if not counts:
+            continue
+        changes = counts.get("price_changed", 0) + counts.get("discount_changed", 0)
+        rules = counts.get("rule", 0)
+        confirmed = counts.get("confirmed", 0)
+        errors = counts.get("error", 0) + counts.get("upload_error", 0)
+        parts = []
+        if changes:
+            parts.append(f"изменений цен/скидок — {changes}")
+        if rules:
+            parts.append(f"правил NoSale — {rules}")
+        if confirmed:
+            parts.append(f"подтверждений исправлений WB — {confirmed}")
+        if errors:
+            parts.append(f"ошибок — {errors}")
+        body = "За 12 часов: " + "; ".join(parts) + "."
+        selected, store_count = _highest_priority_smart_advice(user, now=now)
+        link = URL
+        if selected is not None:
+            store, advice = selected
+            body += f" Проверьте: {store.name[:60]} — {advice['title']}."
+            link = "/stores/" if store_count > 1 else "/advisor/"
+        message, created = PushMessage.objects.get_or_create(
+            user=user, smart_slot=slot,
+            defaults={
+                "kind": "smart", "title": f"NoSale Smart — изменения {local_now:%d.%m}, {hour:02d}:00",
+                "body": body[:400], "url": link,
+            },
+        )
+        if created:
+            _enqueue_for_devices(message)
+            queued += 1
+    return queued
+
+
 def deliver_due_pushes(now=None, send=None):
     """Deliver independently; owner pause retains pending items for later."""
     policy = OwnerOperationsSettings.runtime()
@@ -316,5 +410,6 @@ def process_notification_cycle(now=None, send=None):
     now = now or timezone.now()
     queued = queue_new_events(now=now)
     digests = create_daily_digests(now=now)
+    briefs = create_smart_briefs(now=now)
     sent = deliver_due_pushes(now=now, send=send)
-    return {"events": queued, "digests": digests, "attempts": sent}
+    return {"events": queued, "digests": digests, "smart_briefs": briefs, "attempts": sent}

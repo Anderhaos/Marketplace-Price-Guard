@@ -13,5 +13,5 @@ def notification_count(request):
         kind__in=IMPORTANT_EVENT_KINDS,
         read_at__isnull=True,
     ).count()
-    digests = PushMessage.objects.filter(user=request.user, kind="digest", read_at__isnull=True).count()
+    digests = PushMessage.objects.filter(user=request.user, kind__in=("digest", "smart"), read_at__isnull=True).count()
     return {"unread_notification_count": count + digests}

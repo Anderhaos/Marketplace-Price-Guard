@@ -757,7 +757,7 @@ def notifications(request):
         kind__in=IMPORTANT_EVENT_KINDS,
     ).select_related("account").order_by("-created_at", "-id")[:100]
     pref, _ = NotificationPreference.objects.get_or_create(user=request.user)
-    digest_messages = PushMessage.objects.filter(user=request.user, kind="digest").order_by("-created_at")[:30]
+    digest_messages = PushMessage.objects.filter(user=request.user, kind__in=("digest", "smart")).order_by("-created_at")[:30]
     return render(request, "guard/notifications.html", {
         "events": events, "digest_messages": digest_messages,
         "preferences": pref, "push_public_key": settings.PUSH_VAPID_PUBLIC_KEY,
@@ -777,7 +777,7 @@ def mark_notifications_read(request):
         read_at__isnull=True,
     ).update(read_at=timezone.now())
     PushMessage.objects.filter(
-        user=request.user, kind="digest", read_at__isnull=True,
+        user=request.user, kind__in=("digest", "smart"), read_at__isnull=True,
     ).update(read_at=timezone.now())
     return redirect("notifications")
 

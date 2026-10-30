@@ -24,9 +24,10 @@ class PushSubscription(models.Model):
 
 class PushMessage(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="push_messages")
-    kind = models.CharField(max_length=12, choices=[("event", "Event"), ("digest", "Digest")])
+    kind = models.CharField(max_length=12, choices=[("event", "Event"), ("digest", "Digest"), ("smart", "Smart brief")])
     event = models.ForeignKey("guard.GuardEvent", on_delete=models.CASCADE, null=True, blank=True, related_name="push_messages")
     digest_date = models.DateField(null=True, blank=True)
+    smart_slot = models.CharField(max_length=24, null=True, blank=True)
     title = models.CharField(max_length=180)
     body = models.CharField(max_length=400)
     url = models.CharField(max_length=150, default="/notifications/")
@@ -37,6 +38,7 @@ class PushMessage(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["event"], condition=Q(event__isnull=False), name="push_event_once"),
             models.UniqueConstraint(fields=["user", "digest_date"], condition=Q(digest_date__isnull=False), name="push_digest_once_per_day"),
+            models.UniqueConstraint(fields=["user", "smart_slot"], condition=Q(smart_slot__isnull=False), name="push_smart_slot_once"),
         ]
         ordering = ["-created_at", "-id"]
 
