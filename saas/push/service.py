@@ -289,6 +289,13 @@ def create_smart_briefs(now=None):
         slot_start = (datetime.combine(local_now.date(), time(hour=8 if hour == 20 else 20), tzinfo=tz)
                       - (timedelta(days=1) if hour == 8 else timedelta())).astimezone(dt_timezone.utc)
         slot = f"{local_now.date().isoformat()}:{hour:02d}"
+        # A mid-day owner quota reduction must take effect immediately:
+        # existing morning briefs already count against the new daily cap.
+        if PushMessage.objects.filter(
+            user=user, kind="smart",
+            smart_slot__startswith=local_now.date().isoformat() + ":",
+        ).count() >= current_limit:
+            continue
         if PushMessage.objects.filter(user=user, smart_slot=slot).exists():
             continue
         events = GuardEvent.objects.filter(
