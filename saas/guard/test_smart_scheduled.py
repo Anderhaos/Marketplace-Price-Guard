@@ -16,7 +16,7 @@ from push.models import NotificationPreference
 @override_settings(SAAS_PIN_AUTH_ENABLED=False, SAAS_ACCESS_ENFORCED=True)
 class ScheduledSmartTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user("smart-owner@example.test", password="test")
+        self.user = User.objects.create_user("smart-owner@example.test", "smart-owner@example.test", "test")
         self.other = User.objects.create_user("other-tenant@example.test", password="test")
         self.store = GuardAccount.objects.create(
             user=self.user, marketplace="wb", name="Мой WB", token_ciphertext="fake-test-token",
