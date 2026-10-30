@@ -48,8 +48,9 @@ class OwnerAISettingsTests(TestCase):
         self.assertEqual(self.client.get(add).status_code, 200)
         # Settings without runtime implementation must not be advertised.
         form_page = self.client.get(add)
-        for unused in ("standard_questions_per_day", "smart_briefs_per_day", "prompt_version"):
+        for unused in ("standard_questions_per_day", "prompt_version"):
             self.assertNotContains(form_page, f'name="{unused}"')
+        self.assertContains(form_page, 'name="smart_briefs_per_day"')
         self.client.post(add, {
             "web_assistant_enabled": "on",
             "web_messages_per_day": "12",
@@ -59,7 +60,7 @@ class OwnerAISettingsTests(TestCase):
             "system_instructions": "Read-only",
             "standard_questions_per_day": "999",
             "smart_questions_per_day": "2",
-            "smart_briefs_per_day": "999",
+            "smart_briefs_per_day": "2",
             "max_output_tokens": "500",
             "timeout_seconds": "20",
             "monthly_budget_kopeks": "10000",

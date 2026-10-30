@@ -23,7 +23,7 @@ class OwnerAISettingsForm(forms.ModelForm):
         model = OwnerAISettings
         # These legacy fields are not consumed by any runtime path. They
         # remain in the DB for compatibility but must not imply working limits.
-        exclude = ("standard_questions_per_day", "smart_briefs_per_day", "prompt_version")
+        exclude = ("standard_questions_per_day", "prompt_version")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -34,6 +34,10 @@ class OwnerAISettingsForm(forms.ModelForm):
         self.fields["smart_questions_per_day"].help_text = (
             "Реальный предел AI-вопросов Smart на пользователя за 24 часа. "
             "Обычные сводки Push не являются AI-ответами."
+        )
+        self.fields["smart_briefs_per_day"].help_text = (
+            "0–2 отдельные Smart-сводки за день: только при изменениях данных. "
+            "Не требуют вызовов AI Platform или WB. 1 = вечерняя, 2 = утренняя и вечерняя."
         )
         gateway = OwnerAIGatewayConnection.objects.filter(
             pk=1, last_check_ok=True,
@@ -56,6 +60,13 @@ class OwnerAISettingsForm(forms.ModelForm):
             )
 
 
+    def clean_smart_briefs_per_day(self):
+        count = self.cleaned_data["smart_briefs_per_day"]
+        if count not in (0, 1, 2):
+            raise forms.ValidationError("Допустимо 0, 1 или 2 сводки в день.")
+        return count
+
+
 @admin.register(OwnerAISettings)
 class OwnerAISettingsAdmin(admin.ModelAdmin):
     form = OwnerAISettingsForm
@@ -73,7 +84,7 @@ class OwnerAISettingsAdmin(admin.ModelAdmin):
         ("AI Platform", {"fields": ("ai_enabled", "gateway_model_id",
                                      "system_instructions", "timeout_seconds", "max_output_tokens")}),
         ("Лимиты и бюджет", {
-            "fields": ("smart_questions_per_day", "monthly_budget_kopeks"),
+            "fields": ("smart_questions_per_day", "smart_briefs_per_day", "monthly_budget_kopeks"),
             "description": (
                 "Бюджет в копейках ограничивает локальные резервы AI-запросов, "
                 "но не является точным счётом провайдера. Фактические расходы "
