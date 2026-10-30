@@ -88,6 +88,15 @@ def smart_store_reply(user_id, account, question, *, use_mcp=False):
             raise AIGatewayUnavailable("Selected AI model is not verified for NoSale")
         if use_mcp and not is_verified_tool_model(ai.gateway_model_id):
             raise AIGatewayUnavailable("Selected AI model is not verified for MCP tools")
+        # Fail before allocating daily quota or budget when the owner disabled
+        # every compatible read-only MCP tool or its marketplace adapter.
+        # The tool execution itself rechecks owner policy after model selection.
+        allowed_tools = (
+            definitions(account.marketplace, policy=OwnerMCPSettings.runtime())
+            if use_mcp else None
+        )
+        if use_mcp and not allowed_tools:
+            raise AIGatewayUnavailable("No approved MCP tools are enabled for this store")
         now = timezone.now()
         recent = AssistantAIRequest.objects.filter(
             user_id=user_id, created_at__gte=now - timedelta(hours=24),
@@ -143,7 +152,6 @@ def smart_store_reply(user_id, account, question, *, use_mcp=False):
             )
             messages[0] = {"role": "system", "content": sys_prompt}
             try:
-                allowed_tools = definitions(account.marketplace, policy=OwnerMCPSettings.runtime())
                 selection, plain, selection_usage = gateway_choose_tool(
                     model_id=model_id, messages=messages,
                     tools=allowed_tools,
