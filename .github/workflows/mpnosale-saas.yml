@@ -92,3 +92,68 @@ jobs:
         run: python manage.py makemigrations --check --dry-run
       - name: Full PostgreSQL regression
         run: python manage.py test portal.test_security_headers guard billing push nosale_mcp --noinput --verbosity 0
+
+
+  browser-e2e:
+    # Real headless Chrome + a disposable SQLite-backed synthetic seller.
+    # All WB calls are patched to fixtures and outbound sockets are blocked.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: saas
+    env:
+      DJANGO_DEBUG: "1"
+      SAAS_TEST_SQLITE: "1"
+      SAAS_PIN_AUTH_ENABLED: "1"
+      REQUIRE_EMAIL_VERIFICATION: "1"
+      SAAS_ACCESS_ENFORCED: "1"
+      SAAS_WB_NETWORK_ENABLED: "1"
+      SAAS_WB_TOKEN_VALIDATION_ENABLED: "1"
+      SAAS_WB_READ_ONLY: "1"
+      NOSALE_WB_FINANCE_ENABLED: "0"
+      NOSALE_TOCHKA_ENABLED: "0"
+      DJANGO_EMAIL_BACKEND: "django.core.mail.backends.locmem.EmailBackend"
+      NOSALE_SYNTHETIC_BROWSER_E2E: "1"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install isolated Django and browser driver
+        run: |
+          python -m pip install -r requirements-mcp.txt
+          npm install --prefix "$RUNNER_TEMP/nosale-browser-driver" --no-save --ignore-scripts puppeteer-core@25.12.0
+      - name: Test-only Fernet key
+        run: echo "TOKEN_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
+      - name: End-to-end Chrome seller onboarding and WB fixtures
+        env:
+          NOSALE_E2E_URL: "http://127.0.0.1:8941"
+        run: |
+          set -Eeuo pipefail
+          export NOSALE_E2E_CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium)"
+          test -x "$NOSALE_E2E_CHROME"
+          export NOSALE_PUPPETEER_PACKAGE=puppeteer-core
+          export NODE_PATH="$RUNNER_TEMP/nosale-browser-driver/node_modules"
+          export NOSALE_E2E_SHOTS="$RUNNER_TEMP/nosale-e2e-screenshots"
+          python -u e2e/fixture_server.py > "$RUNNER_TEMP/nosale-browser-fixture.log" 2>&1 &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 45); do
+            if curl --fail --silent --show-error --max-time 2 -o /dev/null "$NOSALE_E2E_URL/login/" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --show-error --max-time 5 -o /dev/null "$NOSALE_E2E_URL/login/"
+          node e2e/seller_first_run.cjs
+      - name: Upload synthetic browser screenshots and fixture diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nosale-seller-browser-e2e
+          path: |
+            ${{ runner.temp }}/nosale-e2e-screenshots/
+            ${{ runner.temp }}/nosale-browser-fixture.log
+          retention-days: 7
