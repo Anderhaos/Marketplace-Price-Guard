@@ -1,13 +1,13 @@
 {% extends 'guard/base.html' %}
-{% block title %}Магазины — MPNO Sale{% endblock %}
+{% block title %}Подключения — NoSale{% endblock %}
 {% block content %}
 <section class="page-hero">
-  <span class="eyebrow">MPNO Sale / кабинеты</span>
-  <h1>Мои магазины</h1>
-  <p class="lead">Каждый магазин имеет отдельный API-токен, список товаров, правила и историю. Ozon появится после подключения адаптера.</p>
+  <span class="eyebrow">NoSale / Wildberries</span>
+  <h1>Подключения магазинов</h1>
+  <p class="lead">Здесь отображаются ваши уже подключённые кабинеты продавца WB. Для каждого кабинета — свой API-токен, товары и правила контроля скидок. Ничего повторно добавлять не нужно.</p>
 </section>
 <section class="card">
-  <h2>Подключённые магазины</h2>
+  <h2>Ваши кабинеты Wildberries</h2>
   {% for shop in stores %}
     <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
       <div><strong>{{ shop.name }}</strong><p class="muted">{{ shop.get_marketplace_display }} · {% if shop.token_ciphertext %}API подключён{% else %}Не подключён{% endif %} · {% if shop.enabled %}Защита включена{% else %}Защита выключена{% endif %}</p></div>
@@ -18,12 +18,15 @@
   {% empty %}<p class="muted">Магазины пока не созданы.</p>{% endfor %}
 </section>
 <section class="card">
-  <h2>Добавить магазин Wildberries</h2>
-  <form method="post">{% csrf_token %}{{ form.non_field_errors }}
-    <div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
-    <button type="submit">Создать магазин</button>
-  </form>
-  <p class="field-help">Создание магазина не выполняет запросов к Wildberries. Вы сможете настроить подключение отдельно.</p>
-  <p class="muted">Ozon и другие площадки — скоро.</p>
+  <details class="connection-add">
+    <summary>Подключить ещё один кабинет Wildberries</summary>
+    <p class="muted">Этот шаг нужен только если у вас <strong>другой кабинет продавца WB</strong>. Если товары уже отображаются — ничего добавлять не надо. Новому подключению потребуется собственный разрешённый API-токен.</p>
+    <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+      <div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
+      <button type="submit">Добавить отдельный кабинет WB</button>
+    </form>
+    <p class="field-help">Создание подключения не обращается к WB и не копирует токены существующих магазинов.</p>
+  </details>
 </section>
+<p class="muted">Другие маркетплейсы видны в переключателе площадки в верхнем меню. Они станут доступны после реализации соответствующих интеграций.</p>
 {% endblock %}

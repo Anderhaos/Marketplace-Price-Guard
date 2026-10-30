@@ -6,7 +6,13 @@
 {% else %}
 {% if wb_read_only %}<p class="notice" role="status">Предпросмотр NoSale: товары и скидки считываются из WB. Изменение цен, скидок и автоматическая защита здесь отключены.</p>{% endif %}
 <div class="compact-context">
-  <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span> <a class="compact-link" href="{% url 'stores' %}">Сменить</a></div>
+  <div class="wb-dashboard-header">
+    <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span> <a class="compact-link" href="{% url 'stores' %}">Сменить подключение</a></div>
+    <div class="wb-quick-links" aria-label="Быстрый переход в Wildberries">
+      <a href="https://www.wildberries.ru/" target="_blank" rel="noopener noreferrer" title="Открыть сайт Wildberries">Открыть Wildberries ↗</a>
+      <a href="https://seller.wildberries.ru/" target="_blank" rel="noopener noreferrer" title="Открыть кабинет WB Партнёры">WB Партнёры ↗</a>
+    </div>
+  </div>
   {% if trial_status.active %}<span class="trial-strip">{% if trial_status.access_source == "trial" %}Пробный доступ{% else %}Доступ активен{% endif %} · {{ trial_status.days_left }} дн. до {{ trial_status.expires_at|date:"d.m.Y" }}</span>
   {% elif trial_status.trial_expired %}<span class="trial-strip trial-strip--expired">Пробный период завершён · мониторинг приостановлен</span>
   {% endif %}
@@ -53,7 +59,7 @@
   <div class="products-grid">{% for product in products %}
     <article class="product-card">
       <div class="product-image">{% if product.photo_url %}<img src="{{ product.photo_url }}" alt="{{ product.title|default:product.vendor_code }}">{% else %}<span>WB</span>{% endif %}</div>
-      <div class="product-card-head"><div><h3>{{ product.title|default:product.vendor_code|default:'Товар Wildberries' }}</h3><p>Арт. {{ product.vendor_code|default:'—' }} · WB {{ product.nm_id }}</p></div><button class="info-button" type="button" title="История товара" data-history-url="{% url 'product_history_data' product.nm_id %}">i</button></div>
+      <div class="product-card-head"><div><h3>{{ product.title|default:product.vendor_code|default:'Товар Wildberries' }}</h3><p>Арт. {{ product.vendor_code|default:'—' }} · <a href="https://www.wildberries.ru/catalog/{{ product.nm_id }}/detail.aspx" target="_blank" rel="noopener noreferrer" title="Открыть карточку товара на Wildberries">WB {{ product.nm_id }} ↗</a></p></div><button class="info-button" type="button" title="История товара" data-history-url="{% url 'product_history_data' product.nm_id %}">i</button></div>
       <div class="product-metrics product-metrics--prices">
         <div><span>Цена со скидкой</span><strong class="price-main">{% if product.discounted_price %}{{ product.discounted_price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
         <div><span>Цена до скидки</span><strong class="price-secondary">{% if product.price %}{{ product.price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>

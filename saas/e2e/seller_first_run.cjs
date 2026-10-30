@@ -66,6 +66,28 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const text=await page.evaluate(()=>document.body.innerText);
     assert.ok(text.includes('Browser fixture item A')&&text.includes('Browser fixture item B'));
     step('initial_inventory_synced_and_dashboard_ready','2 synthetic WB items');
+    const marketplaceMenu = await page.$('details.marketplace-picker');
+    assert.ok(marketplaceMenu,'Marketplaces need a clear selector in the header');
+    await page.click('details.marketplace-picker > summary');
+    assert.ok(await page.$('details.marketplace-picker[open]'));
+    assert.equal(await page.$$eval('details.marketplace-picker .is-disabled', nodes=>nodes.length),3,
+      'Ozon, Yandex and MegaMarket must be disabled until implemented');
+    const external = await page.$$eval('.wb-quick-links a',links=>links.map(a=>a.href));
+    assert.ok(external.some(x=>x==='https://www.wildberries.ru/'));
+    assert.ok(external.some(x=>x==='https://seller.wildberries.ru/'));
+    await page.screenshot({path:snapshotDir+'/05-marketplace-selector.png'});
+    step('marketplace_dropdown_disabled_future_platforms_and_wb_quick_links');
+    await goto('/assistant/');
+    await page.waitForSelector('[data-assistant-prompt]');
+    await page.click('[data-assistant-prompt]');
+    const promptValue=await page.$eval('#assistant-question',node=>node.value);
+    assert.equal(promptValue,'Сколько товаров выше лимита?');
+    const assistantWidth=await page.evaluate(()=>({
+      width:window.innerWidth,pageWidth:document.documentElement.scrollWidth
+    }));
+    assert.ok(assistantWidth.pageWidth<=assistantWidth.width+2);
+    await page.screenshot({path:snapshotDir+'/06-assistant-desktop.png',fullPage:true});
+    step('assistant_responsive_layout_and_live_prompt_buttons');
     await goto('/billing/');
     await waitText('пробный период');
     const subscriptionText = await page.evaluate(()=>document.body.innerText);
@@ -91,6 +113,22 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(mobileDimensions.pageWidth <= mobileDimensions.width+2,
       'Unexpected horizontal overflow: '+JSON.stringify(mobileDimensions));
     step('mobile_dashboard_without_horizontal_overflow',JSON.stringify(mobileDimensions));
+    await page.click('details.marketplace-picker > summary');
+    const menuVisible=await page.$eval('details.marketplace-picker .marketplace-options',x=>{
+      const r=x.getBoundingClientRect();
+      const e=document.elementFromPoint(r.left+20,r.top+20);
+      return r.width>200 && r.left>=0 && r.right<=window.innerWidth+2 && !!(e && x.contains(e));
+    });
+    assert.ok(menuVisible,'Marketplace selector must remain usable on small phones');
+    step('mobile_marketplace_picker_visible_and_not_clipped');
+    await goto('/assistant/');
+    const mobileAssistant=await page.evaluate(()=>({
+      width:window.innerWidth,pageWidth:document.documentElement.scrollWidth,
+    }));
+    assert.ok(mobileAssistant.pageWidth<=mobileAssistant.width+2,
+      'Mobile assistant has horizontal overflow: '+JSON.stringify(mobileAssistant));
+    await page.screenshot({path:snapshotDir+'/07-assistant-mobile.png',fullPage:true});
+    step('assistant_mobile_no_horizontal_overflow');
     await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
     await goto('/');
     // CSRF-protected POST logout through actual page form (do not handcraft cookie).

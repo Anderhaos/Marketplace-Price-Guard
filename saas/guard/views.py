@@ -233,7 +233,7 @@ def stores(request):
                 user=request.user, marketplace="wb", name=form.cleaned_data["name"]
             )
             request.session[SESSION_KEY] = account.pk
-            messages.success(request, "Магазин создан. Подключение API пока выключено.")
+            messages.success(request, "Добавлен отдельный кабинет WB. Для загрузки товаров потребуется его собственный API-токен.")
             return redirect("stores")
     else:
         form = StoreCreateForm()
