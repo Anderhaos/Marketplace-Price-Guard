@@ -1,7 +1,7 @@
 """R2 Smart tool orchestration: explicit opt-in, budgets, tenant context and wire checks."""
 import json
 from datetime import timedelta
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, Mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase, SimpleTestCase, override_settings
@@ -328,6 +328,23 @@ class SmartMCPIntegrationTests(TestCase):
             net.assert_not_called()
         self.assertFalse(AssistantAIRequest.objects.exists())
         self.assertEqual(AssistantMessage.objects.get().mode, "basic")
+
+    def test_mcp_connection_cleanup_does_not_close_an_atomic_transaction(self):
+        # A direct MCP transport call is allowed inside another service's
+        # transaction. PostgreSQL must not lose its connection at the end.
+        for ambient_transaction in (True, False):
+            with self.subTest(ambient_transaction=ambient_transaction):
+                db_connection = Mock(in_atomic_block=ambient_transaction)
+                with patch("nosale_mcp.client._call_tool", new_callable=AsyncMock,
+                           return_value={"read_only": True}), \
+                     patch("nosale_mcp.client.connections.all",
+                           return_value=[db_connection]):
+                    answer = call_owned_tool(self.seller, self.store, "wb_overview", {})
+                self.assertEqual(answer, {"read_only": True})
+                if ambient_transaction:
+                    db_connection.close_if_unusable_or_obsolete.assert_not_called()
+                else:
+                    db_connection.close_if_unusable_or_obsolete.assert_called_once_with()
 
     def test_two_round_ai_platform_and_signed_owned_mcp_flow_no_network(self):
         """Real view, real AI HTTP serialization, signed MCP identity, no live I/O.
