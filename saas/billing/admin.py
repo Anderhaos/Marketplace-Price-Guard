@@ -89,8 +89,13 @@ class OwnerAISettingsForm(forms.ModelForm):
 class OwnerAISettingsAdmin(admin.ModelAdmin):
     form = OwnerAISettingsForm
     """Operational controls require superuser, not mere staff permission."""
-    list_display = ("__str__", "ai_enabled", "gateway_model_id", "smart_briefs_per_day", "monthly_budget_kopeks", "updated_at")
+    list_display = ("__str__", "ai_enabled", "gateway_model_id", "smart_briefs_per_day", "monthly_budget_rub_display", "updated_at")
     readonly_fields = ("updated_at",)
+
+    @admin.display(description="Бюджет Smart, ₽")
+    def monthly_budget_rub_display(self, obj):
+        return f"{Decimal(obj.monthly_budget_kopeks) / 100:.2f}"
+
     fieldsets = (
         ("DeepSeek — только плановые рекомендации", {
             "fields": ("ai_enabled", "ai_platform_cost_cap_confirmed", "gateway_model_id",
