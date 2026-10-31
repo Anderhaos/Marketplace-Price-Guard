@@ -362,7 +362,7 @@
     {% if messages and not onboarding_required %}<ul class="messages" aria-live="polite">{% for message in messages %}<li class="{% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</li>{% endfor %}</ul>{% endif %}
     {% block content %}{% endblock %}
   </main>
-  <footer class="site-footer"><div class="shell">NoSale · <a href="https://svdev.pro/">SVDEV</a></div></footer>
+  <footer class="site-footer"><div class="shell">NoSale · <a href="{% url 'public_offer' %}">Оферта</a> · <a href="{% url 'public_privacy' %}">Персональные данные</a> · <a href="{% url 'public_contacts' %}">Контакты</a></div></footer>
   {% if user.is_authenticated and not onboarding_required %}<script src="/static/marketplace-previews.js?v=20261030a" defer></script>{% endif %}
   <script>
     if ("serviceWorker" in navigator && window.isSecureContext) {

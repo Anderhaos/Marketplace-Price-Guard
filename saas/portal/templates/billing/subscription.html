@@ -12,7 +12,7 @@
   {% elif subscription_state.trial_expired %}
     <p class="lead">Пробный период закончился. Данные магазина сохранены. Защита будет доступна после активации оплаченного тарифа.</p>
   {% else %}
-    <p class="lead">После подключения магазина — 5 бесплатных дней Standard. Платить за пробный период не нужно.</p>
+    <p class="lead">После подключения магазина — 3 бесплатных дня Standard. Платить за пробный период не нужно.</p>
   {% endif %}
   {% if subscription_state.upcoming_plan %}
     <p class="notice">Оплаченный тариф <b>{{ subscription_state.upcoming_plan|capfirst }}</b> начнёт действовать {{ subscription_state.upcoming_starts_at|date:"d.m.Y H:i" }}. До этой даты функции Smart, если они ещё не активны, остаются недоступными.</p>

@@ -303,7 +303,7 @@ def run_due_checks():
                     pk=account.pk, lock_until=lease_until, rules_version=current_version,
                 ).update(**changes)
                 if updated and "initial_sync_completed_at" in changes:
-                    # Readiness and the idempotent five-day grant must commit
+                    # Readiness and the idempotent three-day grant must commit
                     # together; stale in-flight token updates cannot earn a trial.
                     grant_trial_once(account.user_id, at=finished_at)
                 if not updated:

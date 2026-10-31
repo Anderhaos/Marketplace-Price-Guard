@@ -1,4 +1,4 @@
-"""Five-day, once-per-account trial using the canonical AccessGrant ledger.
+"""Three-day, once-per-account trial using the canonical AccessGrant ledger.
 
 Same access-grant pattern as MiniBook. Trial starts after the first fully successful inventory import, not after
 email confirmation or token verification. Failures and WB 429 do not consume it.
@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from .models import AccessGrant
 
-TRIAL_DAYS = 5
+TRIAL_DAYS = 3
 
 
 def trial_source_ref(user_id):
