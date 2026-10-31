@@ -15,6 +15,7 @@ class SecureSmtpSettingsTests(SimpleTestCase):
         env.update({
             "DJANGO_SECRET_KEY": "smtp-setting-tests-only-not-a-production-secret",
             "TOKEN_ENCRYPTION_KEY": Fernet.generate_key().decode("ascii"),
+            "SAAS_DB_PASSWORD": "synthetic-ci-db-password-only-not-for-use",
             "DJANGO_DEBUG": "0",
             "SAAS_PIN_AUTH_ENABLED": "1",
             "REQUIRE_EMAIL_VERIFICATION": "1",
