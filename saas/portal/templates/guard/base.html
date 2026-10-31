@@ -380,8 +380,6 @@
     </div>
   </header>
   <main class="shell">
-    {% if user.is_authenticated and not onboarding_required %}
-    {% endif %}
     {% if messages and not onboarding_required %}<ul class="messages" aria-live="polite">{% for message in messages %}<li class="{% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</li>{% endfor %}</ul>{% endif %}
     {% block content %}{% endblock %}
   </main>
