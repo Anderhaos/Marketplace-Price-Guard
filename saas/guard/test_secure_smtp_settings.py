@@ -58,6 +58,14 @@ class SecureSmtpSettingsTests(SimpleTestCase):
             result = self._check(SMTP_PASSWORD_FILE=str(secret), SMTP_PASSWORD="")
             self.assertEqual(result.returncode, 0, result.stderr[-750:])
 
+    def test_readonly_mail_service_group_is_accepted(self):
+        with TemporaryDirectory() as temp:
+            secret = Path(temp) / "mail-secret"
+            secret.write_text("synthetic-test-password-only")
+            secret.chmod(0o640)
+            result = self._check(SMTP_PASSWORD_FILE=str(secret), SMTP_PASSWORD="")
+            self.assertEqual(result.returncode, 0, result.stderr[-750:])
+
     def test_missing_secret_file_is_rejected(self):
         result = self._check(SMTP_PASSWORD_FILE="/nonexistent/no-smtp-credential", SMTP_PASSWORD="")
         self.assertNotEqual(result.returncode, 0)
@@ -70,7 +78,7 @@ class SecureSmtpSettingsTests(SimpleTestCase):
             secret.chmod(0o644)
             result = self._check(SMTP_PASSWORD_FILE=str(secret), SMTP_PASSWORD="")
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("not be group/world readable", result.stderr)
+            self.assertIn("permissions are too broad", result.stderr)
 
     def test_plaintext_smtp_is_rejected(self):
         result = self._check(SMTP_USE_TLS="0", SMTP_USE_SSL="0")
