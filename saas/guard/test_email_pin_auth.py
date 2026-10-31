@@ -114,9 +114,16 @@ class EmailPinAuthTests(TestCase):
         self.assertRedirects(self.client.post("/auth/code/", {"code": code}), "/auth/pin/")
         self.assertRedirects(self.client.post(
             "/auth/pin/", {"pin": "8956", "confirm_pin": "8956"},
-        ), "/login/")
-        self.assertTrue(User.objects.get(email="seller@example.test").check_password("8956"))
-        self.assertFalse(User.objects.get(email="seller@example.test").check_password("6184"))
+        ), "/")
+        recovered = User.objects.get(email="seller@example.test")
+        self.assertEqual(self.client.session.get("_auth_user_id"), str(recovered.pk))
+        self.assertTrue(recovered.check_password("8956"))
+        self.assertFalse(recovered.check_password("6184"))
+        self.assertFalse(EmailPinChallenge.objects.filter(
+            email=recovered.email, purpose=EmailPinChallenge.PURPOSE_RECOVER,
+        ).exists())
+        # A subsequent ordinary login still works, but is not needed after reset.
+        self.client.post("/logout/")
         self.assertRedirects(self.client.post("/login/", {
             "email": "seller@example.test", "pin": "8956",
         }), "/")
