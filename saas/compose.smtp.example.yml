@@ -1,0 +1,23 @@
+# Copy this as saas/compose.override.yml ONLY on a host configured for
+# authenticated NoSale mail. No secret values are stored in this file.
+x-mail-config: &nosale_mail_config
+  DJANGO_EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+  SMTP_HOST: mail.hosting.reg.ru
+  SMTP_PORT: "465"
+  SMTP_USE_TLS: "0"
+  SMTP_USE_SSL: "1"
+  SMTP_TIMEOUT: "12"
+  SMTP_USER: noreply@nosale.pro
+  SMTP_PASSWORD_FILE: /run/secrets/nosale_smtp_password
+  SMTP_FROM: "NoSale <noreply@nosale.pro>"
+
+x-mail-secrets: &nosale_mail_secrets
+  - ${NOSALE_SMTP_SECRET_HOST_FILE:?Set protected password file}:/run/secrets/nosale_smtp_password:ro
+
+services:
+  web:
+    environment: *nosale_mail_config
+    volumes: *nosale_mail_secrets
+  notifications:
+    environment: *nosale_mail_config
+    volumes: *nosale_mail_secrets
