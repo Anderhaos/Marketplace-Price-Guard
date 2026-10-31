@@ -30,7 +30,8 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const publicMeta = await page.evaluate(() => ({
       canonical: document.querySelector('link[rel="canonical"]')?.href,
       description: document.querySelector('meta[name="description"]')?.content,
-      gutter: getComputedStyle(document.documentElement).scrollbarGutter
+      gutter: getComputedStyle(document.documentElement).scrollbarGutter,
+      mainLeft: document.querySelector('main.shell').getBoundingClientRect().left
     }));
     assert.equal(publicMeta.canonical, 'https://nosale.pro/');
     assert.ok(publicMeta.description.includes('Wildberries'));
@@ -54,6 +55,9 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     }
     await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
     await goto('/login/');
+    const loginMainLeft = await page.$eval('main.shell',el=>el.getBoundingClientRect().left);
+    assert.ok(Math.abs(publicMeta.mainLeft-loginMainLeft)<=1,
+      'Public site and login must have the same left content boundary');
     const noScrollbarShift = await page.evaluate(() => {
       const header = document.querySelector('.header-inner');
       const main = document.querySelector('main.shell');
