@@ -4,6 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#08080a">
+  {% if request.path == '/' and not user.is_authenticated %}
+  <meta name="description" content="NoSale — автоматический контроль скидок Wildberries: лимиты для магазина и товаров, мониторинг изменений и история проверок. {{ trial_days }} дня пробного доступа.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="{{ site_url }}/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NoSale">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:url" content="{{ site_url }}/">
+  <meta property="og:title" content="NoSale — контроль скидок Wildberries">
+  <meta property="og:description" content="Вы задаёте лимиты скидок, NoSale проверяет товары и показывает изменения. Начните с пробного периода.">
+  <meta property="og:image" content="{{ site_url }}/static/icons/mpno-512.png">
+  <meta name="twitter:card" content="summary">
+  {% if yandex_verification %}<meta name="yandex-verification" content="{{ yandex_verification }}">{% endif %}
+  {% if google_verification %}<meta name="google-site-verification" content="{{ google_verification }}">{% endif %}
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"NoSale","url":"{{ site_url }}/","inLanguage":"ru-RU"},{"@type":"SoftwareApplication","name":"NoSale","url":"{{ site_url }}/","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"Контроль скидок товаров Wildberries, лимиты и мониторинг изменений"}]}</script>
+  {% elif request.path == '/offer/' or request.path == '/privacy/' or request.path == '/contacts/' %}
+  <meta name="description" content="NoSale — {% if request.path == '/offer/' %}условия использования и тарифы{% elif request.path == '/privacy/' %}политика обработки персональных данных{% else %}контакты и реквизиты оператора{% endif %} сервиса контроля скидок Wildberries.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="{{ site_url }}{{ request.path }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NoSale">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:url" content="{{ site_url }}{{ request.path }}">
+  <meta property="og:title" content="NoSale — {% if request.path == '/offer/' %}оферта{% elif request.path == '/privacy/' %}политика персональных данных{% else %}контакты{% endif %}">
+  <meta property="og:description" content="Официальная информация об использовании NoSale и операторе сервиса.">
+  <meta property="og:image" content="{{ site_url }}/static/icons/mpno-512.png">
+  {% else %}
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  {% endif %}
+  {% block extra_head %}{% endblock %}
   <title>{% block title %}MP No Sale — SVDEV{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -339,7 +369,14 @@
           {% endif %}
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondary">Выйти</button></form>
         {% else %}
-          {% if request.path == '/login/' %}
+          {% if request.path == '/' %}
+            <a href="#features">Возможности</a>
+            <a href="#how">Как работает</a>
+            <a href="#pricing">Тарифы</a>
+            <a href="#faq">Вопросы</a>
+            <a href="{% url 'login' %}">Войти</a>
+            <a class="nav-accent" href="{% url 'login' %}">Начать бесплатно</a>
+          {% elif request.path == '/login/' %}
             {% if stage == 'pin' %}<a href="{% url 'login' %}">Другой email</a>{% else %}<a href="#welcome-headline">Как это работает</a>{% endif %}
           {% elif request.path == '/auth/code/' or request.path == '/auth/pin/' or request.path == '/register/' or request.path == '/password-reset/' %}
             <a href="{% url 'login' %}">Вернуться к входу</a>
