@@ -2,6 +2,8 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from django.test import SimpleTestCase
 
@@ -47,6 +49,36 @@ class SecureSmtpSettingsTests(SimpleTestCase):
     def test_authenticated_starttls_on_587_is_accepted(self):
         result = self._check(SMTP_PORT="587", SMTP_USE_SSL="0", SMTP_USE_TLS="1")
         self.assertEqual(result.returncode, 0, result.stderr[-750:])
+
+    def test_authenticated_smtp_secret_file_is_accepted(self):
+        with TemporaryDirectory() as temp:
+            secret = Path(temp) / "mail-secret"
+            secret.write_text("synthetic-test-password-only")
+            secret.chmod(0o600)
+            result = self._check(SMTP_PASSWORD_FILE=str(secret), SMTP_PASSWORD="")
+            self.assertEqual(result.returncode, 0, result.stderr[-750:])
+
+    def test_readonly_mail_service_group_is_accepted(self):
+        with TemporaryDirectory() as temp:
+            secret = Path(temp) / "mail-secret"
+            secret.write_text("synthetic-test-password-only")
+            secret.chmod(0o640)
+            result = self._check(SMTP_PASSWORD_FILE=str(secret), SMTP_PASSWORD="")
+            self.assertEqual(result.returncode, 0, result.stderr[-750:])
+
+    def test_missing_secret_file_is_rejected(self):
+        result = self._check(SMTP_PASSWORD_FILE="/nonexistent/no-smtp-credential", SMTP_PASSWORD="")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SMTP password file cannot be read", result.stderr)
+
+    def test_insecure_secret_file_permissions_are_rejected(self):
+        with TemporaryDirectory() as temp:
+            secret = Path(temp) / "mail-secret"
+            secret.write_text("synthetic-test-password-only")
+            secret.chmod(0o644)
+            result = self._check(SMTP_PASSWORD_FILE=str(secret), SMTP_PASSWORD="")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("permissions are too broad", result.stderr)
 
     def test_plaintext_smtp_is_rejected(self):
         result = self._check(SMTP_USE_TLS="0", SMTP_USE_SSL="0")
