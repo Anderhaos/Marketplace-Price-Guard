@@ -319,6 +319,29 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
             return {top:r.top,height:r.height};
           }));
           assert.equal(stats.length,5,'Five summary controls must remain');
+          const controls=await page.evaluate(()=>{
+            const rect=selector=>document.querySelector(selector)?.getBoundingClientRect();
+            const label=rect('.summary-cell--limit label.summary-label');
+            const input=rect('.summary-cell--limit input[type=number]');
+            const button=rect('.summary-cell--limit button');
+            const cell=rect('.summary-cell--limit');
+            const toggle=document.querySelector('.summary-cell--control .compact-switch');
+            return {
+              gap:input.left-label.right,
+              buttonGap:button.left-input.right,
+              rightGap:cell.right-button.right,
+              sameLine:Math.abs((label.top+label.bottom)/2-(input.top+input.bottom)/2),
+              toggleHasText:!!toggle?.querySelector('b'),
+              labelFor:document.querySelector('.summary-cell--limit label.summary-label')?.htmlFor,
+              inputId:document.querySelector('.summary-cell--limit input[type=number]')?.id
+            };
+          });
+          assert.ok(controls.gap>=0 && controls.gap<=14,'Discount input must sit beside label: '+JSON.stringify(controls));
+          assert.ok(controls.buttonGap>=8,'Submit action must stay to the right: '+JSON.stringify(controls));
+          assert.ok(controls.rightGap<=28,'Submit action should align to the right: '+JSON.stringify(controls));
+          assert.ok(controls.sameLine<5,'Discount label and input must share a row: '+JSON.stringify(controls));
+          assert.ok(!controls.toggleHasText,'Redundant switch text must be removed');
+          assert.equal(controls.labelFor,controls.inputId,'Discount label must target its input');
           if(width===1920){
             assert.ok(stats.every(s=>Math.abs(s.top-stats[0].top)<2),'Summary must occupy a single row');
             assert.ok(stats.every(s=>s.height<80),'Summary must not contain tall tiles');

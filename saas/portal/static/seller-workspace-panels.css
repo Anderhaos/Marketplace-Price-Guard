@@ -352,3 +352,18 @@
   .seller-dashboard-page .compact-summary .summary-label{font-size:11px}
   .seller-dashboard-page .compact-summary .summary-cell>strong{font-size:18px}
 }
+
+
+/* Discount limit: label + numeric field on the left, action on the right. */
+.seller-dashboard-page .summary-cell--limit .compact-limit-form{
+  display:flex;align-items:center;gap:8px;flex:1 1 auto;width:100%;min-width:0;
+}
+.seller-dashboard-page .summary-cell--limit .compact-limit-form label{
+  white-space:nowrap;flex:0 0 auto;cursor:text;
+}
+.seller-dashboard-page .summary-cell--limit .compact-limit-form input[type=number]{
+  width:54px;flex:0 0 54px;
+}
+.seller-dashboard-page .summary-cell--limit .compact-limit-form button{
+  margin-left:auto;white-space:nowrap;flex:0 0 auto;
+}

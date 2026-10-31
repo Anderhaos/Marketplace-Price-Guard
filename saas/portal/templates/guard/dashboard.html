@@ -24,18 +24,18 @@
     <form method="post" action="{% url 'dashboard' %}" class="compact-toggle-form">{% csrf_token %}
       <input type="hidden" name="action" value="toggle_autocontrol">
       <input type="hidden" name="confirm_zero_discount" value="0">
-      <label class="toggle compact-switch"><input type="checkbox" name="enabled" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or token_readonly or wb_read_only %}disabled{% endif %} onchange="if(this.checked && {{ account.default_allowed_discount }}===0){if(!confirm('Внимание: лимит 0%. NoSale будет убирать скидки в Wildberries. Продолжить?')){this.checked=false;return;}this.form.elements.confirm_zero_discount.value='1';}this.form.submit()"><span class="toggle-track"></span><b>{% if account.enabled %}Вкл{% else %}Выкл{% endif %}</b></label>
+      <label class="toggle compact-switch"><input type="checkbox" name="enabled" aria-label="Защита скидок" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or token_readonly or wb_read_only %}disabled{% endif %} onchange="if(this.checked && {{ account.default_allowed_discount }}===0){if(!confirm('Внимание: лимит 0%. NoSale будет убирать скидки в Wildberries. Продолжить?')){this.checked=false;return;}this.form.elements.confirm_zero_discount.value='1';}this.form.submit()"><span class="toggle-track"></span></label>
     </form>
   </div>
   <a class="summary-cell {% if filter_name == 'all' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=all"><span class="summary-label">Товаров</span><strong>{{ count }}</strong></a>
   <a class="summary-cell {% if filter_name == 'corrected' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=corrected"><span class="summary-label">Исправлено</span><strong>{{ corrected_count }}</strong></a>
   <a class="summary-cell {% if filter_name == 'over_limit' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=over_limit"><span class="summary-label">Выше лимита</span><strong>{{ over_limit_count }}</strong></a>
   <div class="summary-cell summary-cell--limit">
-    <span class="summary-label">Предел скидки, %</span>
     <form method="post" class="compact-limit-form" action="{% url 'dashboard' %}" onsubmit="if(Number(this.elements.default_allowed_discount.value)===0){if(!confirm('{% if wb_read_only %}Сохранить в NoSale предел 0%? В Wildberries ничего не изменится.{% else %}Лимит 0%: будут убраны все превышающие его скидки WB. Подтвердить?{% endif %}'))return false;this.elements.confirm_zero_discount.value='1';}">{% csrf_token %}
       <input type="hidden" name="action" value="{% if wb_read_only or token_readonly %}save_limit{% else %}apply_all{% endif %}">
       <input type="hidden" name="confirm_zero_discount" value="0">
-      <input type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active %}disabled{% endif %}>
+      <label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>
+      <input id="dashboard-discount-limit" type="number" name="default_allowed_discount" min="0" max="99" value="{{ account.default_allowed_discount }}" aria-label="Максимальная скидка в процентах" required {% if not trial_status.active %}disabled{% endif %}>
       <button type="submit" aria-label="{% if wb_read_only or token_readonly %}Сохранить предел только в NoSale{% else %}Сохранить и применить предел скидки в WB{% endif %}" title="{% if wb_read_only or token_readonly %}Без изменения Wildberries{% else %}Отправляет изменения в Wildberries{% endif %}" {% if not trial_status.active %}disabled{% endif %}>{% if wb_read_only or token_readonly %}Сохранить{% else %}Применить{% endif %}</button>
     </form>
   </div>
