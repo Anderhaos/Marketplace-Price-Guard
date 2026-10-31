@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlencode
 from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -188,7 +189,10 @@ def _check_now(account):
     return outcome if outcome in ("waiting_upload", "remaining") else True
 
 
-_DASHBOARD_FILTERS = frozenset({"all", "over_limit", "corrected"})
+_DASHBOARD_FILTERS = frozenset({
+    "all", "over_limit", "corrected", "no_discount", "custom_limit", "pending",
+})
+_DASHBOARD_SORTS = frozenset({"default", "discount", "price", "name"})
 
 
 def _dashboard_filter_name(request):
@@ -196,12 +200,21 @@ def _dashboard_filter_name(request):
     return value if value in _DASHBOARD_FILTERS else "all"
 
 
+def _dashboard_sort_name(request):
+    value = request.POST.get("dashboard_sort") or request.GET.get("sort", "default")
+    return value if value in _DASHBOARD_SORTS else "default"
+
+
 def _dashboard_redirect(request):
+    params = {}
     filter_name = _dashboard_filter_name(request)
-    url = reverse("dashboard")
+    sort_name = _dashboard_sort_name(request)
     if filter_name != "all":
-        url = f"{url}?filter={filter_name}"
-    return redirect(url)
+        params["filter"] = filter_name
+    if sort_name != "default":
+        params["sort"] = sort_name
+    base = reverse("dashboard")
+    return redirect(base + ("?" + urlencode(params) if params else ""))
 
 
 def _corrected_nm_ids(account):
@@ -215,12 +228,38 @@ def _corrected_nm_ids(account):
     return ids
 
 
-def _filter_active_products(active_products, filter_name, corrected_ids):
+def _filter_active_products(active_products, filter_name, corrected_ids, pending_ids=None):
+    pending_ids = pending_ids if pending_ids is not None else set()
     if filter_name == "over_limit":
-        return [product for product in active_products if product.current_discount > product.allowed_discount]
+        return [p for p in active_products if p.current_discount > p.allowed_discount]
     if filter_name == "corrected":
-        return [product for product in active_products if product.nm_id in corrected_ids]
+        return [p for p in active_products if p.nm_id in corrected_ids]
+    if filter_name == "no_discount":
+        return [p for p in active_products if p.allowed_discount_override == 0]
+    if filter_name == "custom_limit":
+        return [p for p in active_products
+                if p.allowed_discount_override is not None and p.allowed_discount_override > 0]
+    if filter_name == "pending":
+        return [p for p in active_products if p.nm_id in pending_ids]
     return active_products
+
+
+def _sort_dashboard_products(products, sort_name):
+    # Sorting happens AFTER filtering, BEFORE the existing 500-card rendering cap.
+    if sort_name == "discount":
+        return sorted(products, key=lambda p: (-p.current_discount, p.nm_id))
+    if sort_name == "price":
+        return sorted(products, key=lambda p: (
+            p.discounted_price is None and p.price is None,
+            p.discounted_price if p.discounted_price is not None
+            else p.price if p.price is not None else 0,
+            p.nm_id,
+        ))
+    if sort_name == "name":
+        return sorted(products, key=lambda p: (
+            (p.title or p.vendor_code or str(p.nm_id)).casefold(), p.nm_id,
+        ))
+    return products
 
 
 @login_required
@@ -430,25 +469,47 @@ def dashboard(request):
     active_products = list(Product.objects.filter(account=account, active=True).select_related("account"))
     data_checked_at = max((product.checked_at for product in active_products if product.checked_at), default=None)
     corrected_ids = _corrected_nm_ids(account)
-    filter_name = _dashboard_filter_name(request)
-    filtered_products = _filter_active_products(active_products, filter_name, corrected_ids)
-    products = filtered_products[:500]
-    corrected_count = Upload.objects.filter(account=account, status="success").aggregate(total=Sum("corrected_count"))["total"] or 0
     pending_product_ids = {int(value) for value in account.apply_requested_ids}
     for upload in Upload.objects.filter(account=account, status="pending"):
         pending_product_ids.update(int(value) for value in upload.product_ids)
-    over_limit_count = sum(1 for product in active_products if product.current_discount > product.allowed_discount)
+
+    filter_name = _dashboard_filter_name(request)
+    sort_name = _dashboard_sort_name(request)
+    filter_counts = {
+        key: len(_filter_active_products(active_products, key, corrected_ids, pending_product_ids))
+        for key in _DASHBOARD_FILTERS
+    }
+    filtered_products = _filter_active_products(
+        active_products, filter_name, corrected_ids, pending_product_ids,
+    )
+    products = _sort_dashboard_products(filtered_products, sort_name)[:500]
+    corrected_count = Upload.objects.filter(account=account, status="success").aggregate(total=Sum("corrected_count"))["total"] or 0
+    over_limit_count = filter_counts["over_limit"]
     filter_labels = {
         "all": "Все товары под контролем",
         "over_limit": "Выше установленного предела",
-        "corrected": "Отменённые скидки (подтверждено Wildberries)",
+        "corrected": "Товары с подтверждёнными исправлениями WB",
+        "no_discount": "Товары с запретом скидок (0%)",
+        "custom_limit": "Товары с индивидуальным пределом",
+        "pending": "Правила в очереди или ожидающие ответа WB",
     }
+    filter_chips = [
+        {"key": key, "label": label, "count": filter_counts[key]}
+        for key, label in (
+            ("all", "Все"), ("over_limit", "Выше лимита"),
+            ("corrected", "Исправлено"), ("no_discount", "Без скидки"),
+            ("custom_limit", "Свой лимит"), ("pending", "Ожидают WB"),
+        )
+        if key in ("all", "over_limit") or filter_counts[key] or filter_name == key
+    ]
     return render(request, "guard/dashboard.html", {
         "account": account, "products": products, "count": len(active_products),
         "has_other_stores": GuardAccount.objects.filter(user=request.user).exclude(pk=account.pk).exists(),
         "data_checked_at": data_checked_at, "token_readonly": token_readonly,
         "shown_count": len(filtered_products), "filter_name": filter_name, "filter_label": filter_labels[filter_name],
-        "corrected_count": corrected_count, "corrected_card_count": len(corrected_ids), "over_limit_count": over_limit_count,
+        "sort_name": sort_name, "filter_chips": filter_chips,
+        "corrected_count": corrected_count, "corrected_card_count": filter_counts["corrected"],
+        "over_limit_count": over_limit_count,
         "pending_product_ids": pending_product_ids,
         "product_cards_missing": bool(active_products) and not any(product.title or product.photo_url for product in active_products),
         "refresh_error": "",

@@ -69,7 +69,7 @@ class MarketplaceNavigationTests(TestCase):
             '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
         )
         self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
-        self.assertContains(page, "seller-workspace-panels.css?v=20261101b")
+        self.assertContains(page, "seller-workspace-panels.css?v=20261101c")
 
     def test_switch_store_link_only_when_a_second_shop_exists(self):
         self.assertNotContains(self.client.get(reverse("dashboard")), "Сменить магазин")
@@ -138,7 +138,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101b")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101c")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))
