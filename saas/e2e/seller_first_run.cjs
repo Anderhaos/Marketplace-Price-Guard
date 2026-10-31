@@ -193,6 +193,29 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const localRule=await page.evaluate(()=>document.body.innerText);
     assert.ok(localRule.includes('Локальное правило'));
     step('readonly_local_product_override_saved_without_wb_write');
+    // All chips refer to the real current store's products, never mock categories.
+    await goto('/?filter=no_discount&sort=default');
+    assert.equal(await page.$$eval('.products-grid .product-card',els=>els.length),1,
+      'No-discount chip must select only products with a 0% override');
+    assert.ok(await page.$('.wb-filter-chip.is-active[aria-current="page"][href*="filter=no_discount"]'));
+    await Promise.all([
+      page.waitForNavigation({waitUntil:'domcontentloaded',timeout:16000}),
+      page.select('#inventory-sort','name')
+    ]);
+    assert.equal(new URL(page.url()).searchParams.get('sort'),'name',
+      'Sorting dropdown must submit a real query');
+    assert.equal(new URL(page.url()).searchParams.get('filter'),'no_discount',
+      'Sorting must preserve selected filter');
+    await goto('/?filter=all&sort=name');
+    const titlesSorted=await page.$$eval('.products-grid .product-card h3',
+      els=>els.map(el=>el.textContent.trim()));
+    assert.deepEqual(titlesSorted,[...titlesSorted].sort((a,b)=>a.localeCompare(b,'ru')),
+      'Products must be sorted alphabetically');
+    assert.equal(titlesSorted.length,2);
+    assert.equal(await page.$$eval('.wb-filter-chip',els=>els.length),3,
+      'Fixture has 2 products: All, Above Limit and No discount');
+    await goto('/');
+    step('real_inventory_chip_filters_and_sorting');
     // Only real WB functionality must be visible: no fake marketplace themes
     // or duplicate links to the same notifications screen.
     assert.equal(await page.$('details.marketplace-picker'),null,
@@ -314,6 +337,26 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           assert.equal(await page.$('.page-hero'),null,'No empty campaign landing hero');
         }
         if(route==='/') {
+          const filterToolbar=await page.evaluate(()=>{
+            const chipBar=document.querySelector('.wb-filter-chips');
+            const links=document.querySelector('.wb-quick-links');
+            const chipsRect=chipBar.getBoundingClientRect();
+            const linksRect=links.getBoundingClientRect();
+            return {
+              chipsLeft:chipsRect.left,chipsRight:chipsRect.right,
+              linksLeft:linksRect.left,
+              chipsTop:chipsRect.top,linksTop:linksRect.top,
+              chipCount:chipBar.querySelectorAll('a.wb-filter-chip').length,
+              selected:chipBar.querySelectorAll('a[aria-current="page"]').length,
+              scrollWidth:chipBar.scrollWidth,clientWidth:chipBar.clientWidth,
+            };
+          });
+          assert.ok(filterToolbar.chipCount>=2,'At least All and Above Limit must be visible');
+          assert.equal(filterToolbar.selected,1,'One and only one chip must be selected');
+          assert.ok(filterToolbar.chipsRight<=filterToolbar.linksLeft+2,
+            'Chips must sit left of external WB buttons: '+JSON.stringify(filterToolbar));
+          assert.ok(Math.abs(filterToolbar.chipsTop-filterToolbar.linksTop)<=6,
+            'Chips and WB buttons must share one row: '+JSON.stringify(filterToolbar));
           const stats=await page.$$eval('.compact-summary .summary-cell',cells=>cells.map(el=>{
             const r=el.getBoundingClientRect();
             return {top:r.top,height:r.height};
