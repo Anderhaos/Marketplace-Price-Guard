@@ -1,46 +1,102 @@
 {% extends 'guard/base.html' %}
-{% block title %}Уведомления — MPNO Sale{% endblock %}
+{% block title %}Уведомления — NoSale{% endblock %}
 {% block content %}
-<section class="page-hero">
-  <span class="eyebrow">MPNO Sale / центр событий</span>
-  <h1>Уведомления</h1>
-  <p class="lead">Исправления после подтверждения WB, критические ошибки, вечерние отчёты и Smart-сводки по изменениям. События сохраняются, даже если приложение закрыто.</p>
-</section>
-<form method="post" action="{% url 'mark_notifications_read' %}" style="margin-bottom:14px">
-  {% csrf_token %}<button class="secondary" type="submit">Отметить всё прочитанным</button>
-</form>
-<section class="card">
-  <h2>Сообщения и рекомендации</h2>
-  {% for summary in digest_messages %}
-    <details style="padding:12px 0;border-bottom:1px solid var(--line)">
-      <summary style="cursor:pointer"><strong>{{ summary.title }}</strong> {% if not summary.read_at %}<span class="scope-chip">Новое</span>{% endif %}</summary>
-      <p class="muted" style="margin:12px 0 0;white-space:pre-wrap">{{ summary.body }}</p>
-    </details>
-  {% empty %}
-    <p class="muted">Отчётов и Smart-сводок пока нет.</p>
-  {% endfor %}
-</section>
-<section class="card">
-  <h2>Важные события</h2>
-  {% for event in events %}
-  <article style="padding:16px 0;border-bottom:1px solid var(--line)">
-    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <strong>{% if event.kind == "confirmed" %}Исправление подтверждено
-        {% elif event.kind == "error" %}Ошибка проверки
-        {% elif event.kind == "upload_error" %}Ошибка исправления
-        {% else %}Событие{% endif %}
-        {% if not event.read_at %}<span class="scope-chip">Новое</span>{% endif %}</strong>
-      <span class="muted">{{ event.created_at|date:"d.m.Y H:i" }}</span>
-    </div>
-    <p class="muted">{{ event.account.name }} · {{ event.message }}</p>
-    {% if event.details.changes %}
-    <details><summary style="cursor:pointer">Список товаров ({{ event.details.changes|length }})</summary>
-      <ul>{% for item in event.details.changes %}
-        <li>WB {{ item.nm_id }} · {{ item.before }}% → {{ item.after }}%</li>
-      {% endfor %}</ul>
-    </details>
+<section class="page-hero workspace-hero workspace-hero--split">
+  <div>
+    <span class="eyebrow">NoSale / центр событий</span>
+    <h1>Уведомления</h1>
+    <p class="lead">Отчёты, рекомендации и события ваших магазинов. История сохраняется, даже когда приложение закрыто.</p>
+  </div>
+  <div class="workspace-hero-actions">
+    {% if unread_notification_count %}
+    <form method="post" action="{% url 'mark_notifications_read' %}">
+      {% csrf_token %}
+      <button class="secondary" type="submit">Отметить всё прочитанным</button>
+    </form>
+    {% else %}
+    <span class="workspace-quiet-state">Всё прочитано</span>
     {% endif %}
-  </article>
-  {% empty %}<p class="muted">Важных событий пока нет.</p>{% endfor %}
+  </div>
 </section>
+
+<div class="workspace-columns workspace-columns--inbox">
+  <section class="card workspace-section" aria-labelledby="digest-heading">
+    <header class="workspace-section-head">
+      <div>
+        <span class="workspace-kicker">Лента</span>
+        <h2 id="digest-heading">Сообщения и рекомендации</h2>
+        <p class="muted">Отчёты и Smart-сводки. Откройте карточку, чтобы прочитать.</p>
+      </div>
+      <span class="workspace-counter">{{ digest_messages|length }}</span>
+    </header>
+    {% if digest_messages %}
+      <div class="workspace-message-grid">
+      {% for summary in digest_messages %}
+        <details class="workspace-message">
+          <summary>
+            <span class="workspace-message-title">{{ summary.title }}</span>
+            {% if not summary.read_at %}<span class="scope-chip">Новое</span>{% endif %}
+          </summary>
+          <div class="workspace-message-body">{{ summary.body }}</div>
+        </details>
+      {% endfor %}
+      </div>
+    {% else %}
+      <div class="workspace-empty">
+        <strong>Сообщений пока нет</strong>
+        <p>Когда появятся отчёты или рекомендации, они будут здесь.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <div class="workspace-side-stack">
+    <section class="card workspace-section" aria-labelledby="events-heading">
+      <header class="workspace-section-head">
+        <div>
+          <span class="workspace-kicker">Мониторинг</span>
+          <h2 id="events-heading">Важные события</h2>
+          <p class="muted">Подтверждения WB и ошибки проверок.</p>
+        </div>
+        <span class="workspace-counter">{{ events|length }}</span>
+      </header>
+      {% if events %}
+        <div class="workspace-events-list">
+        {% for event in events %}
+          <article class="workspace-event">
+            <div class="workspace-event-top">
+              <strong>
+                {% if event.kind == "confirmed" %}Исправление подтверждено
+                {% elif event.kind == "error" %}Ошибка проверки
+                {% elif event.kind == "upload_error" %}Ошибка исправления
+                {% else %}Событие{% endif %}
+              </strong>
+              {% if not event.read_at %}<span class="scope-chip">Новое</span>{% endif %}
+            </div>
+            <time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time>
+            <p>{{ event.account.name }} · {{ event.message }}</p>
+            {% if event.details.changes %}
+              <details class="workspace-event-products">
+                <summary>Список товаров ({{ event.details.changes|length }})</summary>
+                <ul>{% for item in event.details.changes %}
+                  <li>WB {{ item.nm_id }} · {{ item.before }}% → {{ item.after }}%</li>
+                {% endfor %}</ul>
+              </details>
+            {% endif %}
+          </article>
+        {% endfor %}
+        </div>
+      {% else %}
+        <div class="workspace-empty">
+          <strong>Критических событий нет</strong>
+          <p>Ошибки и подтверждённые исправления появятся здесь.</p>
+        </div>
+      {% endif %}
+    </section>
+    <section class="card workspace-quick-panel">
+      <h2>Доставка уведомлений</h2>
+      <p class="muted">Push, ежедневные отчёты и часовой пояс настраиваются отдельно от ленты.</p>
+      <a class="button secondary" href="{% url 'settings' %}#notification-settings">Настроить уведомления</a>
+    </section>
+  </div>
+</div>
 {% endblock %}

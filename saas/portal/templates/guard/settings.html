@@ -1,12 +1,12 @@
 {% extends 'guard/base.html' %}
 {% block title %}Настройки — MP No Sale{% endblock %}
 {% block content %}
-<section class="page-hero">
+<section class="page-hero workspace-hero">
   <span class="eyebrow">MP No Sale / настройки</span>
   <h1>Настройки магазина: {{ account.name }}</h1>
   <p class="lead">Подключение Wildberries и технические параметры проверок.</p>
 </section>
-<div class="settings-grid">
+<div class="settings-grid workspace-settings-grid">
   <section class="card">
     <div class="section-head"><div><h2>Подключение Wildberries</h2><p>Один токен для доступа к данным магазина и управления скидками.</p></div></div>
     {% if account.token_hint %}
@@ -17,7 +17,13 @@
             <span class="token-permissions-title">Тип: {{ token_permissions.token_type_label }} · Права: {{ token_permissions.access }}</span>
             {% for category in token_permissions.categories %}<span class="scope-chip">{{ category }}</span>{% endfor %}
           </div>
-          {% if token_permissions.token_type == 'base' %}<p class="field-help bad">Базовый токен допускает «Чтение и запись», но WB устанавливает для него значительно более низкие лимиты: коррекция может выполняться с задержкой. Для облачного NoSale предпочтителен сервисный токен из Каталога WB с доступом «Чтение и запись» и категориями «Цены и скидки», «Контент». Персональный токен предназначен для собственных программ и локальных установок, а не стороннего облачного SaaS.</p>{% endif %}
+          {% if token_permissions.token_type == 'base' %}
+            <p class="field-help bad">Базовый токен ограничивает частоту исправлений — работа защиты может задерживаться.</p>
+            <details class="workspace-settings-token-note">
+              <summary>Какие права нужны для облачного NoSale?</summary>
+              <p>Базовый токен допускает «Чтение и запись», но WB устанавливает для него значительно более низкие лимиты. Для облачного NoSale предпочтителен сервисный токен из Каталога WB с доступом «Чтение и запись» и категориями «Цены и скидки», «Контент». Персональный токен предназначен для собственных программ и локальных установок, а не стороннего облачного SaaS.</p>
+            </details>
+          {% endif %}
         {% else %}
           <p class="field-help">Права этого токена определить не удалось. Вставьте новый токен Wildberries, если хотите обновить данные.</p>
         {% endif %}
@@ -44,7 +50,7 @@
   </section>
 </div>
 {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}
-<section id="notification-settings" class="settings-notifications">
+<section id="notification-settings" class="workspace-settings-group">
   <div class="section-head"><div><h2>Уведомления</h2><p class="muted">Доставка на устройства, отчёты и расписание.</p></div></div>
   {% include 'guard/notification_preferences.html' %}
 </section>

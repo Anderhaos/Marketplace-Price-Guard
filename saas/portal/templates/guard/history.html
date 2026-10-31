@@ -7,16 +7,17 @@
   <p class="lead">Проверки сгруппированы по дням. Исправления отделены от отправленных задач и ошибок.</p>
 </section>
 {% if product %}<p><a class="button secondary" href="{% url 'history' %}">Вся история</a></p>{% endif %}
+<div class="workspace-panel-grid workspace-panel-grid--auto">
 {% for day in days %}
-<section class="card">
+<section class="card workspace-day">
   <details {% if forloop.first %}open{% endif %}>
-    <summary style="cursor:pointer;font-weight:700;font-size:19px">{{ day.date|date:"d E Y" }}
+    <summary class="workspace-day-summary"><strong>{{ day.date|date:"d E Y" }}</strong>
       <span class="muted" style="font-size:13px;font-weight:400;margin-left:8px">
         Проверок: {{ day.checks }} · Подтверждено товаров: {{ day.confirmed }} · Ошибок: {{ day.errors }}
       </span>
     </summary>
     {% for event in day.events %}
-    <details style="margin:12px 0;border:1px solid var(--line);border-radius:12px;padding:14px">
+    <details class="workspace-history-event">
       <summary style="cursor:pointer">
         <strong>{% if event.kind == "confirmed" %}Исправление подтверждено WB
           {% elif event.kind == "submitted" %}Исправление отправлено в WB
@@ -49,4 +50,5 @@
 {% empty %}
 <section class="card"><p class="muted">Журнал пока пуст.</p></section>
 {% endfor %}
+</div>
 {% endblock %}

@@ -253,7 +253,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     step('seller_settings_access');
     await goto('/notifications/');
     assert.equal(await page.$('#notification-settings'),null);
-    await waitText('Важных событий пока нет.');
+    await waitText('Критических событий нет');
     step('routine_sync_does_not_spam_important_notifications');
     await page.screenshot({path:snapshotDir+'/03-notifications.png'});
     await goto('/history/');
@@ -285,8 +285,35 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         assert.ok(Math.abs(geometry.mainLeft-geometry.footerLeft)<=1,'Footer/main alignment differs '+route);
         if(expected===null)expected=geometry.mainWidth;
         assert.ok(Math.abs(expected-geometry.mainWidth)<=1,'Inconsistent page width '+route+' at '+width);
+        const target={
+          '/notifications/':'.workspace-columns--inbox',
+          '/settings/':'.workspace-settings-grid',
+          '/promotions/':'.workspace-columns',
+          '/history/':'.workspace-panel-grid',
+          '/stores/':'.workspace-columns',
+          '/billing/':'.workspace-tariff-cards'
+        }[route];
+        if(target){
+          const panels=await page.$eval(target,el=>{
+            const styles=getComputedStyle(el);
+            const r=el.getBoundingClientRect();
+            return {display:styles.display,width:r.width,columns:styles.gridTemplateColumns};
+          });
+          assert.equal(panels.display,'grid','Page must use structured cards: '+route);
+          assert.ok(panels.width<=geometry.mainWidth+1,'Grid exceeds shell: '+route);
+          if(route==='/notifications/' || route==='/settings/'){
+            const tracks=panels.columns.split(' ').filter(Boolean).length;
+            assert.equal(tracks,width>=980?2:1,'Panels must adapt to viewport '+width+' '+route);
+          }
+        }
+        if(route!=='/'){
+          await page.screenshot({
+            path:snapshotDir+'/workspace-'+route.replaceAll('/','-').replace(/^-|-$/g,'')+'-'+width+'.png',
+            fullPage:width>=768
+          });
+        }
       }
-      step('seller_workspace_shared_geometry_'+width,'7 routes, no horizontal overflow');
+      step('seller_workspace_shared_geometry_'+width,'7 routes, responsive cards and no overflow');
     }
     await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
     await goto('/');
