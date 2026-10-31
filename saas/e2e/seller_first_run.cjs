@@ -40,7 +40,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await submit('button[type=submit]');
     assert.ok(page.url().endsWith('/'));
     await page.waitForSelector('#wb-setup');
-    assert.ok((await page.content()).includes('5 дней бесплатно'));
+    assert.ok((await page.content()).includes('3 дня бесплатно'));
     step('new_account_and_wb_onboarding');
     await page.type('#onboarding-token','not-a-jwt');
     await submit('.setup-submit');

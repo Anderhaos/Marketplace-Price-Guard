@@ -1,0 +1,37 @@
+{% extends "guard/base.html" %}
+{% block title %}{% block legal_title %}Документы NoSale{% endblock %} — NoSale{% endblock %}
+{% block content %}
+<style>
+.legal-sheet{width:min(100%,950px);margin:8px auto 38px;padding:clamp(22px,4vw,44px)}
+.legal-sheet h1{font-size:clamp(27px,3.5vw,38px);line-height:1.15;margin:10px 0 14px}
+.legal-sheet h2{font-size:20px;margin:30px 0 12px}
+.legal-sheet h3{font-size:16px;margin:20px 0 10px}
+.legal-sheet p,.legal-sheet li{font-size:14px;line-height:1.75}
+.legal-sheet li{margin:5px 0}
+.legal-sheet a{text-underline-offset:3px}
+.legal-sheet .legal-meta{color:var(--muted);font-size:12px;margin-bottom:18px}
+.legal-sheet .legal-nav{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 28px}
+.legal-sheet .legal-nav a{border:1px solid var(--line);border-radius:9px;padding:8px 12px;text-decoration:none;font-size:12px}
+.legal-sheet .legal-nav a:hover{border-color:var(--accent-strong)}
+.legal-sheet .legal-operator{border-top:1px solid var(--line);padding-top:18px;margin-top:32px}
+.legal-sheet .legal-status{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:20px 0}
+.legal-sheet .legal-status p{margin:3px 0}
+.legal-sheet ul{padding-left:22px}
+@media(max-width:600px){.legal-sheet{padding:20px 16px}.legal-sheet .legal-nav{gap:7px}}
+</style>
+<section class="card legal-sheet" aria-labelledby="legal-main-title">
+  <span class="eyebrow">NoSale / юридические документы</span>
+  <h1 id="legal-main-title">{% block legal_heading %}{% endblock %}</h1>
+  <p class="legal-meta">Редакция {{ edition }} от {{ edition_date }} · Сервис https://nosale.svdev.pro</p>
+  <nav class="legal-nav" aria-label="Юридические страницы">
+    <a href="{% url 'public_offer' %}">Публичная оферта</a>
+    <a href="{% url 'public_privacy' %}">Персональные данные</a>
+    <a href="{% url 'public_contacts' %}">Контакты и реквизиты</a>
+  </nav>
+  {% block legal_content %}{% endblock %}
+  <div class="legal-operator">
+    <strong>Оператор и исполнитель:</strong> {{ legal.entity_type }} {{ legal.full_name }} · ИНН {{ legal.inn }} · ОГРНИП {{ legal.ogrnip }}.
+    По вопросам сервиса и персональных данных: <a href="mailto:{{ legal.email }}">{{ legal.email }}</a>.
+  </div>
+</section>
+{% endblock %}

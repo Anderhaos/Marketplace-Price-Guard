@@ -288,7 +288,7 @@ def connect_wb(request):
     if trial["trial_expired"]:
         messages.info(request, "Токен сохранён, но пробный период уже завершён. Для мониторинга нужен активный доступ.")
     elif not trial["trial_started"] and not trial["active"]:
-        messages.success(request, "API проверен. Загружаем товары; 5 бесплатных дней начнутся после успешной первой загрузки.")
+        messages.success(request, "API проверен. Загружаем товары; 3 бесплатных дня начнутся после успешной первой загрузки.")
     else:
         messages.success(request, "Токен проверен и сохранён. Повторное подключение не продлевает пробный период.")
     if permissions["token_type"] == "base":
@@ -513,7 +513,7 @@ def settings_view(request):
                     permissions, grant, created = connect_wb_token(account, token_form.cleaned_data["token"])
                     messages.success(request, "Токен проверен и сохранён.")
                     if not access_snapshot(request.user.pk)["trial_started"]:
-                        messages.info(request, "5 бесплатных дней начнутся после успешной первой загрузки товаров.")
+                        messages.info(request, "3 бесплатных дня начнутся после успешной первой загрузки товаров.")
                     return redirect("settings")
                 except ConnectError as error:
                     token_form.add_error("token", str(error))

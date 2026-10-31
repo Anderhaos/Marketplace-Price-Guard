@@ -33,8 +33,8 @@ The legacy hostname is not cut over. HTTPS SaaS staging is exposed on nosale.svd
 
 Isolated multi-store seller guard uses PostgreSQL, WB adapter with network OFF by default, access grants, PWA, notifications and Web Push. Payment webhook, OAuth, Ozon and paid access activation still need separate acceptance. They are not implicitly complete because email auth works.
 
-## Onboarding and five-day trial
+## Onboarding and three-day trial
 
 First login opens a required Wildberries API setup modal. Preferred cloud token: WB service token. Personal on-premises tokens are rejected. Basic token is accepted for limited initial access but not auto-correction. Categories: Content and Prices & Discounts. Permission: Read & Write.
 
-After the first valid token, a five-day user-scoped trial AccessGrant starts. Reconnection or another store never extends it. Renewal payment provider is not yet integrated; no functioning checkout is claimed. WB token verification has its own SAAS_WB_TOKEN_VALIDATION_ENABLED flag; monitoring remains separately gated.
+After the first valid token, a three-day user-scoped trial AccessGrant starts. Reconnection or another store never extends it. Renewal payment provider is not yet integrated; no functioning checkout is claimed. WB token verification has its own SAAS_WB_TOKEN_VALIDATION_ENABLED flag; monitoring remains separately gated.

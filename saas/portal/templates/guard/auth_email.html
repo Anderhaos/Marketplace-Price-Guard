@@ -32,6 +32,9 @@
       {% if form.email.errors %}<div class="welcome-form-errors">{{ form.email.errors }}</div>{% endif %}
       <button class="welcome-submit" type="submit">Продолжить →</button>
     </form>
+    {% if purpose != 'recover' %}
+    <p class="field-help" style="font-size:12px;line-height:1.6;margin-top:14px">Перед созданием аккаунта ознакомьтесь с <a href="{% url 'public_offer' %}">офертой NoSale</a> и <a href="{% url 'public_privacy' %}">политикой обработки персональных данных</a>.</p>
+    {% endif %}
     <div class="auth-flow-help"><a href="{% url 'login' %}">Вернуться к входу</a></div>
   </section>
 </div>

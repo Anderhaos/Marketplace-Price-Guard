@@ -41,7 +41,7 @@ jobs:
       - name: Schema drift
         run: python manage.py makemigrations --check --dry-run
       - name: Unit and isolation tests
-        run: python manage.py test portal.test_security_headers guard billing push nosale_mcp
+        run: python manage.py test portal.test_security_headers portal.test_legal_pages guard billing push nosale_mcp
       - name: Docker build and import smoke
         run: |
           docker build -t mpnosale-saas-ci .
@@ -91,7 +91,7 @@ jobs:
       - name: PostgreSQL schema validation
         run: python manage.py makemigrations --check --dry-run
       - name: Full PostgreSQL regression
-        run: python manage.py test portal.test_security_headers guard billing push nosale_mcp --noinput --verbosity 0
+        run: python manage.py test portal.test_security_headers portal.test_legal_pages guard billing push nosale_mcp --noinput --verbosity 0
 
 
   browser-e2e:

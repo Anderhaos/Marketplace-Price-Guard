@@ -7,6 +7,7 @@ from django.shortcuts import redirect
 from django.views.generic import RedirectView
 
 from guard import views, email_pin, promotions_views, finance_views
+from . import legal_views
 from guard.forms import EmailLoginForm
 from push import views as push_views
 from billing import views as billing_views
@@ -49,6 +50,9 @@ def admin_login_gateway(request):
 
 
 urlpatterns = [
+    path("offer/", legal_views.offer, name="public_offer"),
+    path("privacy/", legal_views.privacy, name="public_privacy"),
+    path("contacts/", legal_views.contacts, name="public_contacts"),
     path("admin/login/", admin_login_gateway, name="nosale_admin_pin_login"),
     path("admin/code/", email_pin.owner_admin_code, name="nosale_owner_admin_code"),
     path("admin/devices/", admin.site.admin_view(email_pin.owner_devices), name="nosale_owner_devices"),
