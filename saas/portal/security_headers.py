@@ -13,11 +13,11 @@ CSP = "; ".join((
     "frame-ancestors 'none'",
     "frame-src 'none'",
     "form-action 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://mc.yandex.com",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    "img-src 'self' data: https: https://mc.yandex.ru",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    "connect-src 'self' https://mc.yandex.ru https://mc.yandex.com",
     "worker-src 'self'",
     "manifest-src 'self'",
 ))
@@ -32,4 +32,7 @@ class NoSaleSecurityHeadersMiddleware:
         # Avoid interfering with API responses, service workers and downloads.
         if response.get("Content-Type", "").lower().startswith("text/html"):
             response["Content-Security-Policy"] = CSP
+            public_path = request.path in ("/", "/offer/", "/privacy/", "/contacts/")
+            if not public_path or (request.path == "/" and request.user.is_authenticated):
+                response["X-Robots-Tag"] = "noindex, nofollow, noarchive"
         return response
