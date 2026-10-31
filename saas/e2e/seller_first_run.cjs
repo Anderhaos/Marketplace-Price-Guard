@@ -302,10 +302,14 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const menuVisible=await page.$eval('details.seller-more-menu .seller-more-options',x=>{
       const r=x.getBoundingClientRect();
       const test=document.elementFromPoint(r.left+20,r.top+20);
-      return r.width>190 && r.left>=0 && r.right<=window.innerWidth+2
-        && !!(test && x.contains(test));
+      return {
+        visible:r.width>190 && r.left>=0 && r.right<=window.innerWidth+2
+          && !!(test && x.contains(test)),
+        left:r.left,right:r.right,viewport:window.innerWidth,
+        hit:test?.tagName || null,
+      };
     });
-    assert.ok(menuVisible,'Compact extra menu must remain usable at 390px');
+    assert.ok(menuVisible.visible,'Compact extra menu must remain usable at 390px: '+JSON.stringify(menuVisible));
     assert.ok(await page.$('details.seller-more-menu[open] a[href="/stores/"]'));
     await page.screenshot({path:snapshotDir+'/05-simplified-navigation-mobile.png'});
     step('compact_more_menu_usable_on_mobile');
