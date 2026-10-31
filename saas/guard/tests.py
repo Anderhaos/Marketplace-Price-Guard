@@ -121,7 +121,7 @@ class PortalTests(TestCase):
         Upload.objects.create(account=account, upload_id=1, status="success", product_ids=[2], corrected_count=1)
         self.client.force_login(user)
         over = self.client.get(reverse("dashboard"), {"filter": "over_limit"})
-        self.assertContains(over, "Показан фильтр")
+        self.assertContains(over, "Выше установленного предела")
         self.assertNotContains(over, "WB 2")
         corrected = self.client.get(reverse("dashboard"), {"filter": "corrected"})
         self.assertContains(corrected, "WB 2")
