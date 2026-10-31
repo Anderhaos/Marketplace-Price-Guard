@@ -17,7 +17,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.conf import settings
 
-from billing.access import guard_is_permitted, has_smart_access, has_plan_capability
+from billing.access import guard_is_permitted, has_smart_access, has_plan_capability, feature_disabled_for_active_plan
 from .advisor import store_recommendations
 from .assistant import basic_assistant_reply
 from .ai_gateway import AIGatewayUnavailable
@@ -643,7 +643,7 @@ def product_rule(request, nm_id):
 
 @login_required
 def product_history_data(request, nm_id):
-    if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(request.user.pk, "activity_history"):
+    if feature_disabled_for_active_plan(request.user.pk, "activity_history"):
         return JsonResponse({"error": "История не включена в тариф."}, status=403)
     account = _account(request)
     product = get_object_or_404(Product, account=account, nm_id=nm_id)
@@ -664,9 +664,8 @@ IMPORTANT_EVENT_KINDS = ("confirmed", "upload_error", "error")
 
 @login_required
 def notifications(request):
-    if (settings.SAAS_ACCESS_ENFORCED
-            and not (has_plan_capability(request.user.pk, "notifications")
-                     or has_plan_capability(request.user.pk, "store_advice"))):
+    if (feature_disabled_for_active_plan(request.user.pk, "notifications")
+            and feature_disabled_for_active_plan(request.user.pk, "store_advice")):
         return HttpResponseForbidden("Сводки и уведомления не включены в тариф.")
     events = GuardEvent.objects.filter(
         account__user=request.user,

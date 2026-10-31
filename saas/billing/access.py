@@ -33,9 +33,9 @@ FEATURE_DESCRIPTIONS = {
 PLAN_CAPABILITIES = {
     "standard": frozenset({
         "discount_guard", "notifications", "activity_history",
-        "promotion_audit", "finance_audit",
+        "promotion_audit", "finance_audit", "web_assistant_basic",
     }),
-    "smart": FEATURE_KEYS,
+    "smart": FEATURE_KEYS | frozenset({"web_assistant_basic", "ai_questions"}),
 }
 
 
@@ -58,8 +58,9 @@ def capabilities_for_user(user_id, at=None):
     return capabilities_for_plan(plan)
 
 
-def feature_choices_with_hints():
-    return FEATURE_CHOICES
+def feature_disabled_for_active_plan(user_id, capability, at=None):
+    plan = effective_plan(user_id, at=at)
+    return plan is not None and capability not in capabilities_for_plan(plan)
 
 
 
