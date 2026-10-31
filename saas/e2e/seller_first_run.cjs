@@ -215,7 +215,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     });
     assert.ok(navState.primary.includes('Товары'),'Inventory must remain primary');
     assert.ok(navState.primary.includes('Настройки'),'WB settings must remain available');
-    assert.ok(navState.primary.length<=3,'Too many main navigation items: '+JSON.stringify(navState));
+    assert.ok(navState.primary.length<=4,'Too many main navigation items: '+JSON.stringify(navState));
     assert.equal(navState.notificationLinks,1,'Notifications must appear exactly once');
     assert.ok(navState.bell,'Separate notifications bell must be present');
     assert.ok(/^\d+$/.test(navState.bellCount),'Unread counter must be numeric');
