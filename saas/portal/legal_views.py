@@ -45,6 +45,7 @@ def _legal_context():
         "legal": LEGAL_OPERATOR,
         "edition": LEGAL_EDITION,
         "edition_date": LEGAL_EDITION_DATE,
+        "site_url": settings.NOSALE_PUBLIC_BASE_URL,
         "trial_days": TRIAL_DAYS,
         "offers": offers,
         # Owner toggles alone do not make a payable offer; acquiring/fiscal
