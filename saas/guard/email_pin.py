@@ -597,8 +597,16 @@ def pin_login(request):
                             request.session.pop(SESSION_OWNER_VERIFIED, None)
                             return redirect("/admin/code/")
                         return redirect("dashboard")
+    # SEO values are needed on the anonymous homepage, but never change
+    # the original login template, email-first flow, or owner PIN logic.
+    from billing.trial import TRIAL_DAYS
     return render(request, "guard/login_pin.html", {
         "form": form, "stage": stage, "email": email,
+        "site_url": settings.NOSALE_PUBLIC_BASE_URL,
+        "trial_days": TRIAL_DAYS,
+        "analytics_counter": settings.NOSALE_YM_COUNTER_ID,
+        "yandex_verification": settings.NOSALE_YANDEX_VERIFICATION,
+        "google_verification": settings.NOSALE_GOOGLE_VERIFICATION,
     })
 
 
