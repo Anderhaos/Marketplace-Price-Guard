@@ -445,6 +445,7 @@ def dashboard(request):
     }
     return render(request, "guard/dashboard.html", {
         "account": account, "products": products, "count": len(active_products),
+        "has_other_stores": GuardAccount.objects.filter(user=request.user).exclude(pk=account.pk).exists(),
         "data_checked_at": data_checked_at, "token_readonly": token_readonly,
         "shown_count": len(filtered_products), "filter_name": filter_name, "filter_label": filter_labels[filter_name],
         "corrected_count": corrected_count, "corrected_card_count": len(corrected_ids), "over_limit_count": over_limit_count,

@@ -193,74 +193,37 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const localRule=await page.evaluate(()=>document.body.innerText);
     assert.ok(localRule.includes('Локальное правило'));
     step('readonly_local_product_override_saved_without_wb_write');
-    const marketplaceMenu = await page.$('details.marketplace-picker');
-    assert.ok(marketplaceMenu,'Marketplaces need a clear selector in the header');
-    await page.click('details.marketplace-picker > summary');
-    assert.ok(await page.$('details.marketplace-picker[open]'));
-    const themes = [
-      {key:'ozon',label:'Ozon',accent:'#005bff'},
-      {key:'yandex',label:'Яндекс Маркет',accent:'#ffcc00'},
-      {key:'mega',label:'Мегамаркет',accent:'#7736e9'},
-      {key:'wb',label:'Wildberries',accent:'#9636dc'}
-    ];
-    for (const theme of themes) {
-      await page.click('[data-theme-preview="'+theme.key+'"]');
-      const state=await page.evaluate(() => ({
-        theme:document.body.dataset.previewMarketplace,
-        accent:getComputedStyle(document.body).getPropertyValue('--accent').trim(),
-        bannerHidden:document.getElementById('theme-preview-banner').hidden,
-        label:document.getElementById('marketplace-current-label').textContent,
-        items:document.querySelectorAll('.product-card').length,
-        source:document.body.innerText.includes('Browser fixture item A'),
-        wbCard:!!document.querySelector('a[href*="wildberries.ru/catalog/79001"]'),
-        persisted:localStorage.getItem('nosale.marketplace-theme-preview.v1'),
-        pageWidth:document.documentElement.scrollWidth,
-        viewportWidth:innerWidth
-      }));
-      assert.equal(state.theme,theme.key);
-      assert.equal(state.accent,theme.accent);
-      assert.equal(state.label,theme.label);
-      assert.equal(state.bannerHidden,theme.key==='wb');
-      assert.equal(state.items,2,'Preview must not swap in invented marketplace goods');
-      assert.ok(state.source && state.wbCard,'Same real WB dataset and links only');
-      assert.equal(state.persisted,theme.key);
-      const iconBg = await page.$eval('#marketplace-current-icon',x=>getComputedStyle(x).backgroundColor);
-      if(theme.key==='ozon') assert.equal(iconBg,'rgb(0, 91, 255)');
-      if(theme.key==='yandex') assert.equal(iconBg,'rgb(255, 214, 0)');
-      if(theme.key==='mega') assert.equal(iconBg,'rgb(124, 54, 225)');
-      assert.ok(state.pageWidth<=state.viewportWidth+2,'Desktop overflow: '+JSON.stringify(state));
-      if(theme.key!=='wb') {
-        const disclaimer=await page.$eval('#theme-preview-banner',e=>e.innerText);
-        assert.ok(disclaimer.includes('взяты из Wildberries') && disclaimer.includes('не подключена'));
-      }
-      await page.screenshot({path:snapshotDir+'/theme-'+theme.key+'-desktop.png',fullPage:true});
-      await page.setViewport({width:1920,height:900,deviceScaleFactor:1});
-      const wideLayout=await page.evaluate(()=>{
-        const computed=getComputedStyle(document.querySelector('.products-grid'));
-        return {
-          cols:computed.gridTemplateColumns.split(' ').filter(Boolean).length,
-          shell:document.querySelector('main.shell').getBoundingClientRect().width,
-          pageWidth:document.documentElement.scrollWidth,
-        };
-      });
-      assert.equal(wideLayout.cols,5,'All marketplace preview themes need 5 columns on wide screens');
-      assert.ok(wideLayout.shell<=1801 && wideLayout.pageWidth<=1922);
-      await page.setViewport({width:1365,height:860,deviceScaleFactor:1});
-      step('marketplace_'+theme.key+'_visual_preview_only');
-      if(theme.key!=='wb') {
-        await goto('/assistant/');
-        assert.equal(await page.$eval('body',e=>e.dataset.previewMarketplace),theme.key,
-          'Theme must persist across seller navigation');
-        await goto('/');
-      }
-      if(theme.key!=='wb')await page.click('details.marketplace-picker > summary');
+    // Only real WB functionality must be visible: no fake marketplace themes
+    // or duplicate links to the same notifications screen.
+    assert.equal(await page.$('details.marketplace-picker'),null,
+      'Unconnected marketplaces must not appear in the seller navigation');
+    assert.equal(await page.$('#theme-preview-banner'),null,
+      'Decorative marketplace preview banner must be removed');
+    assert.equal(await page.$('script[src*="marketplace-previews.js"]'),null);
+    const navState=await page.evaluate(()=>{
+      const nav=document.querySelector('.site-nav');
+      return {
+        primary:[...nav.querySelectorAll('a.nav-primary')].map(a=>a.textContent.trim()),
+        notificationLinks:nav.querySelectorAll('a[href="/notifications/"]').length,
+        more:!!nav.querySelector('details.seller-more-menu'),
+        links:[...nav.querySelectorAll('.seller-more-options a')].map(a=>new URL(a.href).pathname),
+        hasWBLinks:[...document.querySelectorAll('.wb-quick-links a')].map(a=>a.href),
+      };
+    });
+    assert.ok(navState.primary.includes('Товары'),'Inventory must remain primary');
+    assert.ok(navState.primary.includes('Настройки'),'WB settings must remain available');
+    assert.ok(navState.primary.length<=3,'Too many main navigation items: '+JSON.stringify(navState));
+    assert.equal(navState.notificationLinks,1,'Notifications must appear exactly once');
+    assert.ok(navState.more,'Secondary navigation must be grouped');
+    for(const url of ['/stores/','/billing/','/notifications/','/history/']){
+      assert.ok(navState.links.includes(url),'Secondary section lost '+url);
     }
-    await page.click('details.marketplace-picker > summary');
-    const external = await page.$$eval('.wb-quick-links a',links=>links.map(a=>a.href));
-    assert.ok(external.some(x=>x==='https://www.wildberries.ru/'));
-    assert.ok(external.some(x=>x==='https://seller.wildberries.ru/'));
-    await page.screenshot({path:snapshotDir+'/05-marketplace-selector.png'});
-    step('marketplace_theme_selector_and_wb_quick_links');
+    assert.ok(navState.hasWBLinks.includes('https://www.wildberries.ru/'));
+    assert.ok(navState.hasWBLinks.includes('https://seller.wildberries.ru/'));
+    await page.click('details.seller-more-menu > summary');
+    assert.ok(await page.$('details.seller-more-menu[open]'));
+    await page.screenshot({path:snapshotDir+'/05-simplified-navigation.png'});
+    step('minimal_real_marketplace_navigation_with_no_duplicates');
     await goto('/assistant/');
     assert.ok(page.url().endsWith('/notifications/'), 'Retired assistant URL must redirect to scheduled messages');
     await page.waitForSelector('form[action="/push/preferences/"]');
@@ -296,30 +259,18 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(mobileDimensions.pageWidth <= mobileDimensions.width+2,
       'Unexpected horizontal overflow: '+JSON.stringify(mobileDimensions));
     step('mobile_dashboard_without_horizontal_overflow',JSON.stringify(mobileDimensions));
-    await page.click('details.marketplace-picker > summary');
-    const menuVisible=await page.$eval('details.marketplace-picker .marketplace-options',x=>{
+    await page.click('details.seller-more-menu > summary');
+    const menuVisible=await page.$eval('details.seller-more-menu .seller-more-options',x=>{
       const r=x.getBoundingClientRect();
-      const e=document.elementFromPoint(r.left+20,r.top+20);
-      return r.width>200 && r.left>=0 && r.right<=window.innerWidth+2 && !!(e && x.contains(e));
+      const test=document.elementFromPoint(r.left+20,r.top+20);
+      return r.width>190 && r.left>=0 && r.right<=window.innerWidth+2
+        && !!(test && x.contains(test));
     });
-    assert.ok(menuVisible,'Marketplace selector must remain usable on small phones');
-    step('mobile_marketplace_picker_visible_and_not_clipped');
-    await page.click('[data-theme-preview="ozon"]');
-    const mobileTheme = await page.evaluate(()=>({
-      theme:document.body.dataset.previewMarketplace,
-      width:innerWidth, pageWidth:document.documentElement.scrollWidth,
-      bannerVisible:!document.querySelector('#theme-preview-banner').hidden
-    }));
-    assert.equal(mobileTheme.theme,'ozon');
-    assert.ok(mobileTheme.bannerVisible);
-    assert.ok(mobileTheme.pageWidth<=mobileTheme.width+2);
-    await page.screenshot({path:snapshotDir+'/theme-ozon-mobile.png',fullPage:true});
-    step('mobile_ozon_theme_preview_without_overflow');
+    assert.ok(menuVisible,'Compact extra menu must remain usable at 390px');
+    assert.ok(await page.$('details.seller-more-menu[open] a[href="/stores/"]'));
+    await page.screenshot({path:snapshotDir+'/05-simplified-navigation-mobile.png'});
+    step('compact_more_menu_usable_on_mobile');
     await goto('/assistant/');
-    assert.equal(await page.$eval('body',e=>e.dataset.previewMarketplace),'ozon');
-    await page.click('details.marketplace-picker > summary');
-    await page.click('[data-theme-preview="wb"]');
-    assert.equal(await page.$eval('body',e=>e.dataset.previewMarketplace),'wb');
     const mobileAssistant=await page.evaluate(()=>({
       width:window.innerWidth,pageWidth:document.documentElement.scrollWidth,
     }));

@@ -338,7 +338,6 @@
       .public-visitor .site-nav{width:auto;flex-wrap:nowrap;padding:0;overflow:visible}
     }
   </style>
-  {% if user.is_authenticated %}<link rel="stylesheet" href="/static/marketplace-previews.css?v=20261030a">{% endif %}
   {% if user.is_authenticated and not onboarding_required and request.path == '/' %}<link rel="stylesheet" href="/static/seller-dashboard-grid.css?v=20261030a">{% endif %}
 </head>
 <body class="{% if not user.is_authenticated %}public-visitor{% endif %}{% if user.is_authenticated and not onboarding_required %} marketplace-wb{% endif %}{% if user.is_authenticated and not onboarding_required and request.path == '/' %} seller-dashboard-page{% endif %}">
@@ -351,26 +350,15 @@
       <nav class="site-nav" aria-label="Основная навигация">
         {% if user.is_authenticated %}
           {% if not onboarding_required %}
-          <details class="marketplace-picker" aria-label="Выбор маркетплейса">
-            <summary class="marketplace-current" aria-label="Выбор маркетплейса"><span class="marketplace-dot" id="marketplace-current-icon" aria-hidden="true">W</span><span id="marketplace-current-label">Wildberries</span><span aria-hidden="true">⌄</span></summary>
-            <div class="marketplace-options">
-              <span class="picker-heading">Маркетплейсы</span>
-              <button type="button" class="marketplace-choice is-selected" data-theme-preview="wb" aria-pressed="true"><span class="marketplace-choice-symbol wb-symbol">W</span><span>Wildberries<small>Подключено · реальные данные</small></span><span class="marketplace-choice-check" aria-hidden="true">✓</span></button>
-              <button type="button" class="marketplace-choice" data-theme-preview="ozon" aria-pressed="false"><span class="marketplace-choice-symbol ozon-symbol">O</span><span>Ozon<small>Предпросмотр оформления · данные WB</small></span><span class="marketplace-choice-check" aria-hidden="true"></span></button>
-              <button type="button" class="marketplace-choice" data-theme-preview="yandex" aria-pressed="false"><span class="marketplace-choice-symbol ym-symbol">М</span><span>Яндекс Маркет<small>Предпросмотр оформления · данные WB</small></span><span class="marketplace-choice-check" aria-hidden="true"></span></button>
-              <button type="button" class="marketplace-choice" data-theme-preview="mega" aria-pressed="false"><span class="marketplace-choice-symbol mm-symbol">М</span><span>Мегамаркет<small>Предпросмотр оформления · данные WB</small></span><span class="marketplace-choice-check" aria-hidden="true"></span></button>
-            </div>
-          </details>
           <a class="nav-primary {% if request.path == '/' %}is-active{% endif %}" href="{% url 'dashboard' %}">Товары</a>
-          {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}<a class="nav-primary {% if request.path == '/notifications/' %}is-active{% endif %}" href="{% url 'notifications' %}">Сводки</a>{% endif %}
           {% if 'promotion_audit' in seller_capabilities %}<a class="nav-primary {% if request.path == '/promotions/' %}is-active{% endif %}" href="{% url 'promotion_audit' %}" title="Участие в акциях Wildberries, календарь и предупреждения">Акции и риски</a>{% endif %}
-          <a class="nav-primary {% if request.path == '/settings/' %}is-active{% endif %}" href="{% url 'settings' %}">Настройки WB</a>
+          <a class="nav-primary {% if request.path == '/settings/' %}is-active{% endif %}" href="{% url 'settings' %}">Настройки</a>
           <details class="seller-more-menu">
             <summary aria-label="Открыть дополнительные разделы">Ещё <span aria-hidden="true">⌄</span>{% if unread_notification_count %}<span class="nav-notification-count">{{ unread_notification_count }}</span>{% endif %}</summary>
             <div class="seller-more-options">
               <a href="{% url 'stores' %}"><strong>Подключения</strong><small>Несколько магазинов одной площадки</small></a>
               <a href="{% url 'subscription' %}"><strong>Тариф и подписка</strong><small>Standard / Smart и срок доступа</small></a>
-              {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}<a href="{% url 'notifications' %}"><strong>События{% if unread_notification_count %} · {{ unread_notification_count }}{% endif %}</strong><small>Ошибки, уведомления и отчёты</small></a>{% endif %}
+              {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}<a href="{% url 'notifications' %}"><strong>Уведомления{% if unread_notification_count %} · {{ unread_notification_count }}{% endif %}</strong><small>События, сообщения и сводки</small></a>{% endif %}
               {% if 'activity_history' in seller_capabilities %}<a href="{% url 'history' %}"><strong>История проверок</strong><small>Изменения и результаты мониторинга</small></a>{% endif %}
               {% if 'finance_audit' in seller_capabilities %}<a href="{% url 'finance_audit' %}"><strong>Финансы WB</strong><small>Отчёты продавца</small></a>{% endif %}
               {% if 'store_advice' in seller_capabilities %}<a href="{% url 'store_advisor' %}"><strong>Рекомендации</strong><small>Аналитика по магазину</small></a>{% endif %}
@@ -391,19 +379,10 @@
     </div>
   </header>
   <main class="shell">
-    {% if user.is_authenticated and not onboarding_required %}
-    <div class="theme-preview-banner" id="theme-preview-banner" role="status" hidden>
-      <span class="theme-preview-icon" aria-hidden="true">◈</span>
-      <span><strong id="theme-preview-title">Предпросмотр оформления</strong>
-      <span class="theme-preview-copy">Товары, фото, цены и скидки взяты из Wildberries. Другая площадка не подключена; действия по-прежнему относятся к WB.</span></span>
-      <button type="button" id="theme-preview-back" class="theme-preview-back">Вернуть WB</button>
-    </div>
-    {% endif %}
     {% if messages and not onboarding_required %}<ul class="messages" aria-live="polite">{% for message in messages %}<li class="{% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</li>{% endfor %}</ul>{% endif %}
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer"><div class="shell">NoSale · <a href="{% url 'public_offer' %}">Оферта</a> · <a href="{% url 'public_privacy' %}">Персональные данные</a> · <a href="{% url 'public_contacts' %}">Контакты</a></div></footer>
-  {% if user.is_authenticated and not onboarding_required %}<script src="/static/marketplace-previews.js?v=20261030a" defer></script>{% endif %}
   <script>
     if ("serviceWorker" in navigator && window.isSecureContext) {
       window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));

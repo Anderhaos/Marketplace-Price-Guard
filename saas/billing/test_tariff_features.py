@@ -130,7 +130,8 @@ class TariffFeatureBuilderTests(TestCase):
         self.assertNotContains(page, "Акции и риски")
         self.assertNotContains(page, "История проверок")
         self.assertNotContains(page, "Финансы WB")
-        self.assertContains(page, "Сводки")
+        self.assertContains(page, "Уведомления")
+        self.assertContains(page, 'href="/notifications/"', count=1)
 
     def test_basic_push_disabled_cannot_queue_or_deliver(self):
         self.standard_offer.features = []

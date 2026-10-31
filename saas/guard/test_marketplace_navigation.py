@@ -36,25 +36,34 @@ class MarketplaceNavigationTests(TestCase):
         )
         self.client.force_login(self.seller)
 
-    def test_marketplace_dropdown_is_honest_about_availability(self):
+    def test_seller_menu_only_shows_working_wb_sections(self):
         response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, 'aria-label="Выбор маркетплейса"')
         self.assertContains(response, "Wildberries")
-        self.assertContains(response, "Ozon")
-        self.assertContains(response, "Яндекс Маркет")
-        self.assertContains(response, "Мегамаркет")
-        self.assertContains(response, 'data-theme-preview="wb"')
-        self.assertContains(response, 'data-theme-preview="ozon"')
-        self.assertContains(response, 'data-theme-preview="yandex"')
-        self.assertContains(response, 'data-theme-preview="mega"')
-        self.assertContains(response, 'Предпросмотр оформления · данные WB', count=3)
-        self.assertContains(response, 'id="theme-preview-banner"')
-        self.assertContains(response, 'marketplace-previews.js')
-        self.assertContains(response, 'marketplace-previews.css')
+        self.assertContains(response, 'href="/stores/"')
+        self.assertContains(response, 'href="/settings/"')
+        self.assertContains(response, "Подключения")
+        self.assertContains(response, "Уведомления")
+        self.assertContains(response, 'class="seller-more-menu"')
+        self.assertContains(response, 'href="/notifications/"', count=1)
+        self.assertNotContains(response, 'aria-label="Выбор маркетплейса"')
+        self.assertNotContains(response, 'data-theme-preview=')
+        self.assertNotContains(response, 'id="theme-preview-banner"')
+        self.assertNotContains(response, 'marketplace-previews.js')
+        self.assertNotContains(response, 'marketplace-previews.css')
         self.assertNotContains(response, 'href="/ozon/"')
         self.assertNotContains(response, 'href="/admin/"')
+        self.assertNotContains(response, 'Сводки')
+        self.assertNotContains(response, "Сменить магазин")
+
+    def test_switch_store_link_only_when_a_second_shop_exists(self):
+        self.assertNotContains(self.client.get(reverse("dashboard")), "Сменить магазин")
+        GuardAccount.objects.create(
+            user=self.seller, marketplace="wb", name="Second WB",
+            initial_sync_completed_at=timezone.now(), token_ciphertext="opaque2",
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "Сменить магазин")
         self.assertContains(response, 'href="/stores/"')
-        self.assertContains(response, "Подключения")
 
     def test_wide_inventory_grid_only_on_authenticated_dashboard(self):
         dashboard = self.client.get(reverse("dashboard"))
@@ -91,7 +100,7 @@ class MarketplaceNavigationTests(TestCase):
 
     def test_no_seller_chat_visible_in_navigation(self):
         response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, "Сводки")
+        self.assertContains(response, "Уведомления")
         self.assertNotContains(response, 'href="/assistant/"')
         retired = self.client.get(reverse("assistant_chat"))
         self.assertEqual(retired.status_code, 302)

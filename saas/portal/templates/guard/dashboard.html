@@ -7,7 +7,7 @@
 {% if wb_read_only %}<p class="notice" role="status">WB подключён в режиме чтения. Предельные скидки можно настроить, но NoSale не изменяет цены и скидки в WB. Если тем же магазином управляет Solo, не запускайте вторую защиту одновременно.</p>{% endif %}
 <div class="compact-context">
   <div class="wb-dashboard-header">
-    <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span> <a class="compact-link" href="{% url 'stores' %}">Сменить подключение</a></div>
+    <div><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span>{% if has_other_stores %} <a class="compact-link" href="{% url 'stores' %}">Сменить магазин</a>{% endif %}</div>
     <div class="wb-quick-links" aria-label="Быстрый переход в Wildberries">
       <a href="https://www.wildberries.ru/" target="_blank" rel="noopener noreferrer" title="Открыть сайт Wildberries">Открыть Wildberries ↗</a>
       <a href="https://seller.wildberries.ru/" target="_blank" rel="noopener noreferrer" title="Открыть кабинет WB Партнёры">WB Партнёры ↗</a>
