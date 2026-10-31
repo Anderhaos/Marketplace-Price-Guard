@@ -24,6 +24,7 @@
           {% elif event.kind == "upload_error" %}WB не подтвердил исправление
           {% elif event.kind == "discount_changed" %}Обнаружено изменение скидки
           {% elif event.kind == "price_changed" %}Обнаружено изменение цены
+          {% elif event.kind == "rule" %}Изменено правило скидки
           {% elif event.kind == "error" %}Ошибка проверки
           {% else %}{{ event.kind }}{% endif %}</strong>
         <span class="muted" style="font-size:12px;margin-left:7px">{{ event.created_at|date:"H:i" }}</span>
