@@ -299,6 +299,12 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       'Unexpected horizontal overflow: '+JSON.stringify(mobileDimensions));
     step('mobile_dashboard_without_horizontal_overflow',JSON.stringify(mobileDimensions));
     await page.click('details.seller-more-menu > summary');
+    await page.waitForFunction(()=>{
+      const panel=document.querySelector('details.seller-more-menu[open] .seller-more-options');
+      if(!panel)return false;
+      const rect=panel.getBoundingClientRect();
+      return rect.left>=0 && rect.right<=window.innerWidth+2;
+    },{timeout:2000});
     const menuVisible=await page.$eval('details.seller-more-menu .seller-more-options',x=>{
       const r=x.getBoundingClientRect();
       const test=document.elementFromPoint(r.left+20,r.top+20);
