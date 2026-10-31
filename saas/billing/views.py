@@ -78,7 +78,10 @@ def tochka_webhook(request):
         # Needed for Tochka initial endpoint availability checks.
         return HttpResponse(status=200)
     if not configured():
-        return HttpResponse(status=503)
+        # Tochka sends a test POST while registering a webhook, and requires
+        # HTTP 200. Acknowledge with NO JWT parse, DB write or grant while
+        # acquiring is disabled. Disabled seller checkout remains blocked.
+        return HttpResponse(status=200)
     if request.content_type != "text/plain":
         return HttpResponse(status=200)
     try:
