@@ -119,7 +119,6 @@ def create_tochka_link(payment):
         "saveCard": False,
         "redirectUrl": base + "/billing/return/?payment=" + str(payment.pk),
         "failRedirectUrl": base + "/billing/return/?payment=" + str(payment.pk),
-        "webhookUrl": base + "/billing/tochka/webhook/",
         "ttl": 30,
         "taxSystemCode": tax,
         "Client": {"email": buyer_email},

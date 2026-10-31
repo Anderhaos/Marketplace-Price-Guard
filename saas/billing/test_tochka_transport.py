@@ -86,7 +86,7 @@ class TochkaTransportContractTests(SimpleTestCase):
         self.assertEqual(data["ttl"], 30)
         self.assertEqual(data["redirectUrl"], "https://nosale.svdev.pro/billing/return/?payment=42")
         self.assertEqual(data["failRedirectUrl"], data["redirectUrl"])
-        self.assertEqual(data["webhookUrl"], "https://nosale.svdev.pro/billing/tochka/webhook/")
+        self.assertNotIn("webhookUrl", data)  # Register event via Tochka ManageWebhookData API
 
     def test_refuses_bank_response_without_operation_id(self):
         opener = FakeOpener(FakeResponse({"Data": {"paymentLink": "https://merch.tochka.com/order/test"}}))
