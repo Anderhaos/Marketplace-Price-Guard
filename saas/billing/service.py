@@ -85,7 +85,11 @@ def apply_verified_event(payload):
     if not isinstance(operation, str) or not operation or len(operation) > 128:
         raise InvalidWebhook("Missing operation identifier")
     # link id is a NoSale DB pk, unique only inside this application.
-    if not isinstance(link_id, str) or not link_id.isdecimal():
+    # The NoSale prefix prevents collision with other services at the same
+    # merchant. Keep historical numeric references for already issued links.
+    if isinstance(link_id, str) and link_id.startswith("nosale-"):
+        link_id = link_id[len("nosale-"):]
+    if not isinstance(link_id, str) or not link_id.isdecimal() or len(link_id) > 18:
         raise InvalidWebhook("Missing independent payment link ID")
     candidate = SubscriptionPayment.objects.filter(pk=int(link_id), provider="tochka").first()
     if candidate is None:
