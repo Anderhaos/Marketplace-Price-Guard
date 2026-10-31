@@ -403,6 +403,22 @@
         window.setTimeout(() => toast.remove(), 200);
       }, 5000 + index * 350);
     });
+    // Keep the extra navigation inside the viewport when its trigger wraps on phones.
+    document.querySelectorAll('details.seller-more-menu').forEach((menu) => {
+      const options = menu.querySelector('.seller-more-options');
+      if (!options) return;
+      const align = () => {
+        options.style.transform = '';
+        if (!menu.open) return;
+        const bounds = options.getBoundingClientRect();
+        const margin = 12;
+        const shift = Math.max(margin - bounds.left, 0)
+                    - Math.max(bounds.right - (window.innerWidth - margin), 0);
+        if (shift) options.style.transform = 'translateX(' + Math.round(shift) + 'px)';
+      };
+      menu.addEventListener('toggle', align);
+      window.addEventListener('resize', align);
+    });
   </script>
 </body>
 </html>
