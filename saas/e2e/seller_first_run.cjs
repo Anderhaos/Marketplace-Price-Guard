@@ -341,6 +341,28 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await submit('button[type=submit]');
     await waitText('Browser fixture item A');
     step('existing_seller_relogin_via_pin');
+    // Verify password recovery ends in a logged-in dashboard, not a second login.
+    const recoveryLogout=await page.$('form[action="/logout/"]');
+    assert.ok(recoveryLogout, 'recovery prerequisite: dashboard logout unavailable');
+    await Promise.all([
+      page.waitForNavigation({waitUntil:'domcontentloaded'}),
+      page.$eval('form[action="/logout/"]',f=>f.submit())
+    ]);
+    await goto('/password-reset/');
+    await page.type('input[name="email"]',sellerEmail);
+    await submit('button[type=submit]');
+    assert.ok(page.url().endsWith('/auth/code/'),'recovery must issue email challenge');
+    await page.type('input[name="code"]','0007');
+    await submit('button[type=submit]');
+    assert.ok(page.url().endsWith('/auth/pin/'),'recovery email must verify');
+    await page.type('input[name="pin"]','5269');
+    await page.type('input[name="confirm_pin"]','5269');
+    await submit('button[type=submit]');
+    assert.ok(page.url().endsWith('/'), 'PIN recovery must auto-login to dashboard');
+    await waitText('Browser fixture item A');
+    assert.ok(await page.$('form[action="/logout/"]'),'recovered account is not authenticated');
+    await page.screenshot({path:snapshotDir+'/08-recovery-auto-login.png',fullPage:true});
+    step('recovery_email_code_new_pin_auto_login');
     // Separate synthetic seller: 429 during first sync must NOT start trial
     // or open a fictional inventory dashboard.
     await goto('/');
