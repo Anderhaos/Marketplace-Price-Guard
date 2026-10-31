@@ -34,7 +34,10 @@
    (Get Retailers), client_id и публичный ключ проверки подписи Точки.
 5. Настроить получение acquiringInternetPayment по HTTPS:
    https://nosale.svdev.pro/billing/tochka/webhook/
-   Для статуса используем подписанный JWT и проверку RS256.
+   Точка отправляет тестовый POST при регистрации и ждёт HTTP 200;
+   даже при выключенном эквайринге NoSale отвечает 200 без изменения
+   платежей и прав. После включения активной обработки события
+   проверяются подписанным JWT RS256.
 6. В защищённом окружении E5 задать, НЕ публикуя секреты:
    NOSALE_TOCHKA_JWT_TOKEN, NOSALE_TOCHKA_CUSTOMER_CODE,
    NOSALE_TOCHKA_MERCHANT_ID, NOSALE_TOCHKA_WEBHOOK_JWK_JSON,

@@ -158,7 +158,8 @@ def create_tochka_link(payment):
 def get_tochka_operation(operation_id):
     """Authenticated readback from Tochka when a signed webhook is lost.
 
-    Official response: Data.Operation[0] per Get Payment Operation Info.
+    Current official response: Data is one payment operation object.
+    Older integration responses may embed Data.Operation with one element.
     This is an independent TLS-validated server-to-server read, not an
     untrusted browser callback or unsigned incoming webhook.
     """
@@ -181,10 +182,17 @@ def get_tochka_operation(operation_id):
             result = json.loads(response.read(65536))
     except (OSError, ValueError) as exc:
         raise AcquiringUnavailable("Bank status lookup temporarily unavailable") from exc
-    operations = result.get("Data", {}).get("Operation") if isinstance(result, dict) else None
-    if not isinstance(operations, list) or len(operations) != 1 or not isinstance(operations[0], dict):
+    data = result.get("Data") if isinstance(result, dict) else None
+    if not isinstance(data, dict):
         raise AcquiringUnavailable("Invalid bank operation response")
-    operation = operations[0]
+    if "Operation" in data:
+        # Legacy payload shape: reject ambiguous/multi-operation results.
+        operations = data["Operation"]
+        if not isinstance(operations, list) or len(operations) != 1 or not isinstance(operations[0], dict):
+            raise AcquiringUnavailable("Invalid bank operation response")
+        operation = operations[0]
+    else:
+        operation = data
     if operation.get("operationId") != operation_id:
         raise AcquiringUnavailable("Bank returned another operation")
     return operation

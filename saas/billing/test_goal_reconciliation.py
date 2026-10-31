@@ -74,7 +74,7 @@ class GoalBankTransportTests(TestCase):
             status = 200
             def __enter__(self): return self
             def __exit__(self, *_): return False
-            def read(self, count): return json.dumps({"Data": {"Operation": [operation]}}).encode()[:count]
+            def read(self, count): return json.dumps({"Data": operation}).encode()[:count]
         class Opener:
             def open(self, request, timeout):
                 self.request, self.timeout = request, timeout
@@ -90,3 +90,40 @@ class GoalBankTransportTests(TestCase):
         from .tochka import get_tochka_operation, AcquiringUnavailable
         with self.assertRaises(AcquiringUnavailable):
             get_tochka_operation("../../../users")
+
+    def test_legacy_bank_operation_array_still_supported(self):
+        import json
+        from .tochka import get_tochka_operation
+        operation = {"operationId": "old-123", "status": "APPROVED"}
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def read(self, count):
+                return json.dumps({"Data": {"Operation": [operation]}}).encode()[:count]
+        class Opener:
+            def open(self, *_args, **_kwargs): return Response()
+        with patch("billing.tochka.build_opener", return_value=Opener()):
+            self.assertEqual(get_tochka_operation("old-123"), operation)
+
+    def test_bank_readback_rejects_mismatched_operation_or_ambiguous_response(self):
+        import json
+        from .tochka import AcquiringUnavailable, get_tochka_operation
+        cases = [
+            {"Data": {"operationId": "foreign", "status": "APPROVED"}},
+            {"Data": {"Operation": [
+                {"operationId": "op-123"}, {"operationId": "op-123"},
+            ]}},
+            {"Data": []},
+        ]
+        for payload in cases:
+            class Response:
+                status = 200
+                def __enter__(self): return self
+                def __exit__(self, *_): return False
+                def read(self, count): return json.dumps(payload).encode()[:count]
+            class Opener:
+                def open(self, *_args, **_kwargs): return Response()
+            with self.subTest(payload=payload), patch("billing.tochka.build_opener", return_value=Opener()):
+                with self.assertRaises(AcquiringUnavailable):
+                    get_tochka_operation("op-123")

@@ -213,6 +213,20 @@ class AcquiringTests(TestCase):
             self.assertRedirects(response, reverse("subscription"))
             self.assertFalse(SubscriptionPayment.objects.exists())
 
+    def test_disabled_acquiring_acknowledges_bank_registration_probe_without_effect(self):
+        payment = self.payment()
+        with override_settings(TOCHKA_BILLING_ENABLED=False):
+            for body in ("test", "arbitrary.unsolicited.jwt"):
+                with self.subTest(body=body):
+                    response = self.client.post(
+                        reverse("tochka_webhook"), data=body,
+                        content_type="text/plain",
+                    )
+                    self.assertEqual(response.status_code, 200)
+                    self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+                    payment.refresh_from_db()
+                    self.assertEqual(payment.status, "pending")
+
     def test_bank_webhook_not_json_or_unsigned(self):
         payment = self.payment()
         result = self.client.post(reverse("tochka_webhook"), data='{"status":"APPROVED"}',
