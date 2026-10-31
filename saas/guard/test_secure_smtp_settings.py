@@ -9,7 +9,12 @@ from django.test import SimpleTestCase
 class SecureSmtpSettingsTests(SimpleTestCase):
     def _check(self, **overrides):
         env = os.environ.copy()
+        # CI does not export the Django secret to test subprocesses.
+        # Use independent, synthetic, correctly formatted keys in tests.
+        from cryptography.fernet import Fernet
         env.update({
+            "DJANGO_SECRET_KEY": "smtp-setting-tests-only-not-a-production-secret",
+            "TOKEN_ENCRYPTION_KEY": Fernet.generate_key().decode("ascii"),
             "DJANGO_DEBUG": "0",
             "SAAS_PIN_AUTH_ENABLED": "1",
             "REQUIRE_EMAIL_VERIFICATION": "1",
