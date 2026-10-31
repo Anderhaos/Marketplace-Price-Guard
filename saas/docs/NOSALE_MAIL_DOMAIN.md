@@ -35,3 +35,21 @@ Only switch production after DNS, verified sender and real email
 delivery are confirmed. The existing trusted HTTPS relay remains active
 until then. Do not simply spoof the displayed From while retaining an
 unrelated SMTP envelope sender or unauthorized SPF.
+
+
+## Protected secret-file deployment (preferred)
+
+Rather than copying the mailbox password into .env, mount the root-owned
+host file read-only into each email-sending container and set
+SMTP_PASSWORD_FILE=/run/secrets/nosale_smtp_password.
+The file must not be accessible to group/other users (mode 0400 or 0600).
+Leave SMTP_PASSWORD empty. Only services with SMTP_PASSWORD_FILE set
+will read the secret; all others may continue using the trusted relay.
+Use the committed `compose.smtp.example.yml` as the template for a private
+`compose.override.yml` in the production `saas/` directory. Set
+`NOSALE_SMTP_SECRET_HOST_FILE=/opt/nosale/private/smtp-password` in the
+root-owned production `.env`. The override targets `web` and `notifications`
+only; the other services retain the existing relay until separately migrated.
+Use `docker compose config` to validate the combined configuration. Do not
+restart the WB worker as part of this mail cutover. The actual secret remains
+exclusively in the root-owned file and its read-only container mount.
