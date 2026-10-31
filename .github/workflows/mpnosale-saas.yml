@@ -112,6 +112,7 @@ jobs:
       SAAS_WB_READ_ONLY: "1"
       NOSALE_WB_FINANCE_ENABLED: "0"
       NOSALE_TOCHKA_ENABLED: "0"
+      NOSALE_PUBLIC_BASE_URL: "https://nosale.pro"
       DJANGO_EMAIL_BACKEND: "django.core.mail.backends.locmem.EmailBackend"
       NOSALE_SYNTHETIC_BROWSER_E2E: "1"
       PYTHONPATH: "."
