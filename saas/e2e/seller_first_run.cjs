@@ -265,20 +265,26 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       let expected=null;
       for(const route of workspaceRoutes){
         await goto(route);
-        const geometry=await page.evaluate(()=>({
-          main:document.querySelector('main.shell').getBoundingClientRect(),
-          header:document.querySelector('.header-inner').getBoundingClientRect(),
-          footer:document.querySelector('.site-footer .shell').getBoundingClientRect(),
-          width:document.documentElement.scrollWidth,
-          viewport:document.documentElement.clientWidth,
-          shared:document.body.classList.contains('seller-workspace-page'),
-        }));
+        const geometry=await page.evaluate(()=>{
+          const main=document.querySelector('main.shell').getBoundingClientRect();
+          const header=document.querySelector('.header-inner').getBoundingClientRect();
+          const footer=document.querySelector('.site-footer .shell').getBoundingClientRect();
+          return {
+            mainWidth:main.width,headerWidth:header.width,footerWidth:footer.width,
+            mainLeft:main.left,headerLeft:header.left,footerLeft:footer.left,
+            width:document.documentElement.scrollWidth,
+            viewport:document.documentElement.clientWidth,
+            shared:document.body.classList.contains('seller-workspace-page'),
+          };
+        });
         assert.ok(geometry.shared,'Shared seller layout missing on '+route);
         assert.ok(geometry.width<=geometry.viewport+2,'Horizontal overflow '+route+' at '+width);
-        assert.ok(Math.abs(geometry.main.width-geometry.header.width)<=1,'Header/main width differs '+route);
-        assert.ok(Math.abs(geometry.main.width-geometry.footer.width)<=1,'Footer/main width differs '+route);
-        if(expected===null)expected=geometry.main.width;
-        assert.ok(Math.abs(expected-geometry.main.width)<=1,'Inconsistent page width '+route+' at '+width);
+        assert.ok(Math.abs(geometry.mainWidth-geometry.headerWidth)<=1,'Header/main width differs '+route+': '+JSON.stringify(geometry));
+        assert.ok(Math.abs(geometry.mainWidth-geometry.footerWidth)<=1,'Footer/main width differs '+route+': '+JSON.stringify(geometry));
+        assert.ok(Math.abs(geometry.mainLeft-geometry.headerLeft)<=1,'Header/main alignment differs '+route);
+        assert.ok(Math.abs(geometry.mainLeft-geometry.footerLeft)<=1,'Footer/main alignment differs '+route);
+        if(expected===null)expected=geometry.mainWidth;
+        assert.ok(Math.abs(expected-geometry.mainWidth)<=1,'Inconsistent page width '+route+' at '+width);
       }
       step('seller_workspace_shared_geometry_'+width,'7 routes, no horizontal overflow');
     }
