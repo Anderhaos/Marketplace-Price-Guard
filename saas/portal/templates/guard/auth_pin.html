@@ -1,8 +1,8 @@
 {% extends 'guard/base.html' %}
 {% block title %}{% if purpose == 'recover' %}Новый PIN{% else %}Создание PIN{% endif %} — NoSale{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/welcome.css?v=20261031-stable">{% endblock %}
 {% block content %}
 <script src="/static/pin-visibility.js" defer></script>
-<link rel="stylesheet" href="/static/welcome.css">
 <div class="welcome-layout auth-flow-layout">
   <section class="welcome-story auth-flow-story" aria-labelledby="auth-guide-title">
     <div class="welcome-kicker">NoSale · защита вашего аккаунта</div>
