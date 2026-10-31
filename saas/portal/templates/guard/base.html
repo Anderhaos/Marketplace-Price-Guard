@@ -273,6 +273,11 @@
     .marketplace-choice.is-disabled{opacity:.58;cursor:not-allowed}
     .seller-more-options a{display:block;border-radius:10px;padding:10px;color:var(--text);font-size:12px;text-decoration:none}
     .nav-notification-count{display:grid;place-items:center;background:var(--accent);color:#fff;border-radius:99px;min-width:17px;height:17px;padding:0 4px;font-size:10px}
+    .site-nav .nav-notifications{display:inline-flex;align-items:center;gap:6px}
+    .nav-notifications svg{width:15px;height:15px;flex:0 0 15px}
+    .nav-notifications .nav-notification-count{font-weight:700}
+    @media(max-width:430px){.site-nav .nav-notifications{padding-inline:7px;gap:4px}}
+
     .site-nav form button{margin-left:3px}
     body.marketplace-wb{--accent:#9636dc;--accent-strong:#c184f6;background:radial-gradient(circle at 75% 0%,rgba(135,46,191,.17),transparent 34%),#09080e}
     .marketplace-wb .brand-mark{color:var(--accent)}
@@ -338,9 +343,9 @@
       .public-visitor .site-nav{width:auto;flex-wrap:nowrap;padding:0;overflow:visible}
     }
   </style>
-  {% if user.is_authenticated and not onboarding_required and request.path == '/' %}<link rel="stylesheet" href="/static/seller-dashboard-grid.css?v=20261030a">{% endif %}
+  {% if user.is_authenticated and not onboarding_required %}<link rel="stylesheet" href="/static/seller-dashboard-grid.css?v=20261031b">{% endif %}
 </head>
-<body class="{% if not user.is_authenticated %}public-visitor{% endif %}{% if user.is_authenticated and not onboarding_required %} marketplace-wb{% endif %}{% if user.is_authenticated and not onboarding_required and request.path == '/' %} seller-dashboard-page{% endif %}">
+<body class="{% if not user.is_authenticated %}public-visitor{% endif %}{% if user.is_authenticated and not onboarding_required %} marketplace-wb seller-workspace-page{% endif %}{% if user.is_authenticated and not onboarding_required and request.path == '/' %} seller-dashboard-page{% endif %}">
   <header class="site-header">
     <div class="shell header-inner">
       <a class="brand" href="{% url 'dashboard' %}">
@@ -353,12 +358,17 @@
           <a class="nav-primary {% if request.path == '/' %}is-active{% endif %}" href="{% url 'dashboard' %}">Товары</a>
           {% if 'promotion_audit' in seller_capabilities %}<a class="nav-primary {% if request.path == '/promotions/' %}is-active{% endif %}" href="{% url 'promotion_audit' %}" title="Участие в акциях Wildberries, календарь и предупреждения">Акции и риски</a>{% endif %}
           <a class="nav-primary {% if request.path == '/settings/' %}is-active{% endif %}" href="{% url 'settings' %}">Настройки</a>
+          {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}
+          <a class="nav-primary nav-notifications {% if request.path == '/notifications/' %}is-active{% endif %}" href="{% url 'notifications' %}" aria-label="Уведомления, непрочитано: {{ unread_notification_count|default:0 }}">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+            <span>Уведомления</span><span class="nav-notification-count">{{ unread_notification_count|default:0 }}</span>
+          </a>
+          {% endif %}
           <details class="seller-more-menu">
-            <summary aria-label="Открыть дополнительные разделы">Ещё <span aria-hidden="true">⌄</span>{% if unread_notification_count %}<span class="nav-notification-count">{{ unread_notification_count }}</span>{% endif %}</summary>
+            <summary aria-label="Открыть дополнительные разделы">Ещё <span aria-hidden="true">⌄</span></summary>
             <div class="seller-more-options">
               <a href="{% url 'stores' %}"><strong>Подключения</strong><small>Несколько магазинов одной площадки</small></a>
               <a href="{% url 'subscription' %}"><strong>Тариф и подписка</strong><small>Standard / Smart и срок доступа</small></a>
-              {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}<a href="{% url 'notifications' %}"><strong>Уведомления{% if unread_notification_count %} · {{ unread_notification_count }}{% endif %}</strong><small>События, сообщения и сводки</small></a>{% endif %}
               {% if 'activity_history' in seller_capabilities %}<a href="{% url 'history' %}"><strong>История проверок</strong><small>Изменения и результаты мониторинга</small></a>{% endif %}
               {% if 'finance_audit' in seller_capabilities %}<a href="{% url 'finance_audit' %}"><strong>Финансы WB</strong><small>Отчёты продавца</small></a>{% endif %}
               {% if 'store_advice' in seller_capabilities %}<a href="{% url 'store_advisor' %}"><strong>Рекомендации</strong><small>Аналитика по магазину</small></a>{% endif %}
@@ -392,6 +402,23 @@
         toast.classList.add('toast-out');
         window.setTimeout(() => toast.remove(), 200);
       }, 5000 + index * 350);
+    });
+    // Keep the extra navigation inside the viewport when its trigger wraps on phones.
+    document.querySelectorAll('details.seller-more-menu').forEach((menu) => {
+      const options = menu.querySelector('.seller-more-options');
+      if (!options) return;
+      const align = () => {
+        options.style.transform = '';
+        if (!menu.open) return;
+        const bounds = options.getBoundingClientRect();
+        const margin = 12;
+        const shift = Math.max(margin - bounds.left, 0)
+                    - Math.max(bounds.right - (window.innerWidth - margin), 0);
+        if (shift) options.style.transform = 'translateX(' + Math.round(shift) + 'px)';
+      };
+      menu.querySelector('summary')?.addEventListener('click', () => queueMicrotask(align));
+      menu.addEventListener('toggle', align);
+      window.addEventListener('resize', align);
     });
   </script>
 </body>

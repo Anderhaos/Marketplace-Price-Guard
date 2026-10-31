@@ -205,6 +205,9 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       return {
         primary:[...nav.querySelectorAll('a.nav-primary')].map(a=>a.textContent.trim()),
         notificationLinks:nav.querySelectorAll('a[href="/notifications/"]').length,
+        bell:!!nav.querySelector('a.nav-notifications svg'),
+        bellCount:nav.querySelector('a.nav-notifications .nav-notification-count')?.textContent.trim(),
+        bellActive:nav.querySelector('a.nav-notifications')?.getAttribute('aria-label'),
         more:!!nav.querySelector('details.seller-more-menu'),
         links:[...nav.querySelectorAll('.seller-more-options a')].map(a=>new URL(a.href).pathname),
         hasWBLinks:[...document.querySelectorAll('.wb-quick-links a')].map(a=>a.href),
@@ -212,10 +215,14 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     });
     assert.ok(navState.primary.includes('Товары'),'Inventory must remain primary');
     assert.ok(navState.primary.includes('Настройки'),'WB settings must remain available');
-    assert.ok(navState.primary.length<=3,'Too many main navigation items: '+JSON.stringify(navState));
+    assert.ok(navState.primary.length<=4,'Too many main navigation items: '+JSON.stringify(navState));
     assert.equal(navState.notificationLinks,1,'Notifications must appear exactly once');
+    assert.ok(navState.bell,'Separate notifications bell must be present');
+    assert.ok(/^\d+$/.test(navState.bellCount),'Unread counter must be numeric');
+    assert.ok(navState.bellActive.includes('Уведомления'));
     assert.ok(navState.more,'Secondary navigation must be grouped');
-    for(const url of ['/stores/','/billing/','/notifications/','/history/']){
+    assert.ok(!navState.links.includes('/notifications/'),'Notifications must not be hidden under More');
+    for(const url of ['/stores/','/billing/','/history/']){
       assert.ok(navState.links.includes(url),'Secondary section lost '+url);
     }
     assert.ok(navState.hasWBLinks.includes('https://www.wildberries.ru/'));
@@ -226,7 +233,8 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     step('minimal_real_marketplace_navigation_with_no_duplicates');
     await goto('/assistant/');
     assert.ok(page.url().endsWith('/notifications/'), 'Retired assistant URL must redirect to scheduled messages');
-    await page.waitForSelector('form[action="/push/preferences/"]');
+    assert.equal(await page.$('form[action="/push/preferences/"]'),null,'Notification feed must not contain settings');
+    assert.equal(await page.$('#push-enable'),null,'Push controls belong to settings');
     assert.equal(await page.$('#assistant-question'), null, 'Free AI chat must not be visible');
     const summaryWidth=await page.evaluate(()=>({
       width:window.innerWidth,pageWidth:document.documentElement.scrollWidth
@@ -240,15 +248,46 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(subscriptionText.toLowerCase().includes('standard'),'trial should have Standard capabilities');
     step('trial_granted_on_first_import');
     await goto('/settings/');
-    await page.waitForSelector('form');
+    await page.waitForSelector('form[action="/push/preferences/"]');
+    assert.ok(await page.$('#notification-settings'),'Notifications settings section missing');
     step('seller_settings_access');
     await goto('/notifications/');
+    assert.equal(await page.$('#notification-settings'),null);
     await waitText('Важных событий пока нет.');
     step('routine_sync_does_not_spam_important_notifications');
     await page.screenshot({path:snapshotDir+'/03-notifications.png'});
     await goto('/history/');
     await waitText('Проверок: 1');
     step('successful_wb_check_is_recorded_in_history');
+    const workspaceRoutes=['/','/settings/','/notifications/','/promotions/','/history/','/stores/','/billing/'];
+    for(const width of [1920,390]){
+      await page.setViewport({width,height:900,deviceScaleFactor:1,isMobile:width<640,hasTouch:width<640});
+      let expected=null;
+      for(const route of workspaceRoutes){
+        await goto(route);
+        const geometry=await page.evaluate(()=>{
+          const main=document.querySelector('main.shell').getBoundingClientRect();
+          const header=document.querySelector('.header-inner').getBoundingClientRect();
+          const footer=document.querySelector('.site-footer .shell').getBoundingClientRect();
+          return {
+            mainWidth:main.width,headerWidth:header.width,footerWidth:footer.width,
+            mainLeft:main.left,headerLeft:header.left,footerLeft:footer.left,
+            width:document.documentElement.scrollWidth,
+            viewport:document.documentElement.clientWidth,
+            shared:document.body.classList.contains('seller-workspace-page'),
+          };
+        });
+        assert.ok(geometry.shared,'Shared seller layout missing on '+route);
+        assert.ok(geometry.width<=geometry.viewport+2,'Horizontal overflow '+route+' at '+width);
+        assert.ok(Math.abs(geometry.mainWidth-geometry.headerWidth)<=1,'Header/main width differs '+route+': '+JSON.stringify(geometry));
+        assert.ok(Math.abs(geometry.mainWidth-geometry.footerWidth)<=1,'Footer/main width differs '+route+': '+JSON.stringify(geometry));
+        assert.ok(Math.abs(geometry.mainLeft-geometry.headerLeft)<=1,'Header/main alignment differs '+route);
+        assert.ok(Math.abs(geometry.mainLeft-geometry.footerLeft)<=1,'Footer/main alignment differs '+route);
+        if(expected===null)expected=geometry.mainWidth;
+        assert.ok(Math.abs(expected-geometry.mainWidth)<=1,'Inconsistent page width '+route+' at '+width);
+      }
+      step('seller_workspace_shared_geometry_'+width,'7 routes, no horizontal overflow');
+    }
     await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
     await goto('/');
     await waitText('Browser fixture item A');
@@ -260,13 +299,23 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       'Unexpected horizontal overflow: '+JSON.stringify(mobileDimensions));
     step('mobile_dashboard_without_horizontal_overflow',JSON.stringify(mobileDimensions));
     await page.click('details.seller-more-menu > summary');
+    await page.waitForFunction(()=>{
+      const panel=document.querySelector('details.seller-more-menu[open] .seller-more-options');
+      if(!panel)return false;
+      const rect=panel.getBoundingClientRect();
+      return rect.left>=0 && rect.right<=window.innerWidth+2;
+    },{timeout:2000});
     const menuVisible=await page.$eval('details.seller-more-menu .seller-more-options',x=>{
       const r=x.getBoundingClientRect();
       const test=document.elementFromPoint(r.left+20,r.top+20);
-      return r.width>190 && r.left>=0 && r.right<=window.innerWidth+2
-        && !!(test && x.contains(test));
+      return {
+        visible:r.width>190 && r.left>=0 && r.right<=window.innerWidth+2
+          && !!(test && x.contains(test)),
+        left:r.left,right:r.right,viewport:window.innerWidth,
+        hit:test?.tagName || null,
+      };
     });
-    assert.ok(menuVisible,'Compact extra menu must remain usable at 390px');
+    assert.ok(menuVisible.visible,'Compact extra menu must remain usable at 390px: '+JSON.stringify(menuVisible));
     assert.ok(await page.$('details.seller-more-menu[open] a[href="/stores/"]'));
     await page.screenshot({path:snapshotDir+'/05-simplified-navigation-mobile.png'});
     step('compact_more_menu_usable_on_mobile');

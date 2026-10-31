@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from billing.models import AccessGrant
 from .models import GuardAccount, Product
+from push.models import NotificationPreference
 
 
 @override_settings(SAAS_PIN_AUTH_ENABLED=False, SAAS_WB_NETWORK_ENABLED=False,
@@ -45,6 +46,9 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(response, "Уведомления")
         self.assertContains(response, 'class="seller-more-menu"')
         self.assertContains(response, 'href="/notifications/"', count=1)
+        self.assertContains(response, 'class="nav-primary nav-notifications ')
+        self.assertContains(response, 'class="nav-notification-count">0</span>')
+        self.assertNotContains(response, '<strong>Уведомления')
         self.assertNotContains(response, 'aria-label="Выбор маркетплейса"')
         self.assertNotContains(response, 'data-theme-preview=')
         self.assertNotContains(response, 'id="theme-preview-banner"')
@@ -65,16 +69,44 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(response, "Сменить магазин")
         self.assertContains(response, 'href="/stores/"')
 
-    def test_wide_inventory_grid_only_on_authenticated_dashboard(self):
+    def test_shared_wide_workspace_only_on_authenticated_seller_pages(self):
+        for route in ("dashboard", "settings", "notifications", "promotion_audit",
+                      "stores", "history", "subscription"):
+            with self.subTest(route=route):
+                page = self.client.get(reverse(route))
+                self.assertEqual(page.status_code, 200)
+                self.assertContains(page, "seller-workspace-page")
+                self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
-        self.assertContains(dashboard, "seller-dashboard-grid.css?v=20261030a")
-        assistant = self.client.get(reverse("assistant_chat"), follow=True)
-        self.assertNotContains(assistant, "seller-dashboard-page")
-        self.assertNotContains(assistant, "seller-dashboard-grid.css")
+        notifications = self.client.get(reverse("notifications"))
+        self.assertNotContains(notifications, "seller-dashboard-page")
         self.client.logout()
         public = self.client.get(reverse("login"))
+        self.assertNotContains(public, "seller-workspace-page")
         self.assertNotContains(public, "seller-dashboard-grid.css")
+
+    def test_notifications_are_feed_only_settings_own_configuration(self):
+        feed = self.client.get(reverse("notifications"))
+        self.assertContains(feed, "Сообщения и рекомендации")
+        self.assertNotContains(feed, 'form action="/push/preferences/"')
+        self.assertNotContains(feed, 'action="/push/preferences/"')
+        self.assertNotContains(feed, 'id="push-enable"')
+        config = self.client.get(reverse("settings"))
+        self.assertContains(config, 'id="notification-settings"')
+        self.assertContains(config, 'action="/push/preferences/"')
+        self.assertContains(config, 'name="instant_enabled"')
+        self.assertContains(config, 'name="timezone_name"')
+        posted = self.client.post(reverse("push_preferences"), {
+            "instant_enabled": "on",
+            "daily_enabled": "on",
+            "timezone_name": "Europe/Moscow",
+        })
+        self.assertRedirects(posted, reverse("settings"), fetch_redirect_response=False)
+        pref = NotificationPreference.objects.get(user=self.seller)
+        self.assertTrue(pref.instant_enabled)
+        self.assertTrue(pref.daily_enabled)
+        self.assertContains(self.client.get(reverse("settings")), 'name="instant_enabled" checked')
 
     def test_owner_has_no_operator_admin_link_in_seller_workspace(self):
         self.client.force_login(self.operator)

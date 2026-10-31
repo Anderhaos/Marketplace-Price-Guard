@@ -73,7 +73,7 @@ def preferences(request):
     else:
         pref.smart_ai_consent_at = None
     pref.save(update_fields=["instant_enabled", "daily_enabled", "timezone_name", "smart_ai_consent_at"])
-    return redirect("notifications")
+    return redirect("settings")
 
 
 def deactivate_on_logout(sender, request, user, **kwargs):
