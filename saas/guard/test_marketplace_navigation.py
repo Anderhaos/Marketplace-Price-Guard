@@ -60,6 +60,17 @@ class MarketplaceNavigationTests(TestCase):
         self.assertNotContains(response, 'Сводки')
         self.assertNotContains(response, "Сменить магазин")
 
+    def test_discount_controls_are_compact_and_accessibly_labelled(self):
+        page = self.client.get(reverse("dashboard"))
+        self.assertContains(page, 'name="enabled" aria-label="Защита скидок"')
+        self.assertNotContains(page, '<span class="toggle-track"></span><b>')
+        self.assertContains(
+            page,
+            '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
+        )
+        self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
+        self.assertContains(page, "seller-workspace-panels.css?v=20261101b")
+
     def test_switch_store_link_only_when_a_second_shop_exists(self):
         self.assertNotContains(self.client.get(reverse("dashboard")), "Сменить магазин")
         GuardAccount.objects.create(
@@ -127,7 +138,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101a")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101b")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))
