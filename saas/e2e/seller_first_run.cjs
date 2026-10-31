@@ -23,17 +23,79 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
   const waitText=async (needle,timeout=10000) => {await page.waitForFunction(s=>document.body.innerText.includes(s),{timeout},needle);};
   const submit=async selector => {await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded',timeout:16000}),page.click(selector)]);};
   try {
+    // Public SEO homepage and no-layout-shift acceptance on real Chrome.
+    await goto('/');
+    assert.equal(new URL(page.url()).pathname, '/', 'anonymous home must not redirect to ?next=/');
+    assert.ok(await page.$('#public-headline'), 'public SEO homepage missing');
+    const publicMeta = await page.evaluate(() => ({
+      canonical: document.querySelector('link[rel="canonical"]')?.href,
+      description: document.querySelector('meta[name="description"]')?.content,
+      gutter: getComputedStyle(document.documentElement).scrollbarGutter
+    }));
+    assert.equal(publicMeta.canonical, 'https://nosale.pro/');
+    assert.ok(publicMeta.description.includes('Wildberries'));
+    assert.ok(publicMeta.gutter.includes('stable'), 'scrollbar gutter not reserved');
+    await page.screenshot({path:snapshotDir+'/00-public-home-desktop.png',fullPage:true});
+    for (const width of [390,320]) {
+      await page.setViewport({width,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
+      await goto('/');
+      const state = await page.evaluate(() => ({
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        menuVisible: getComputedStyle(document.querySelector('.public-mobile-menu')).display !== 'none',
+        headerHeight: document.querySelector('.site-header').getBoundingClientRect().height
+      }));
+      assert.ok(state.overflow <= 1, 'Public horizontal overflow at '+width+': '+JSON.stringify(state));
+      assert.ok(state.menuVisible, 'Public mobile menu missing at '+width);
+      await page.click('.public-mobile-menu summary');
+      const openHeight = await page.$eval('.site-header',el=>el.getBoundingClientRect().height);
+      assert.ok(Math.abs(openHeight-state.headerHeight)<=1,'Menu opening must not shift header');
+      assert.ok(await page.$('.public-mobile-menu[open] .public-mobile-links a[href="#features"]'));
+      await page.screenshot({path:snapshotDir+'/00-public-mobile-'+width+'.png',fullPage:true});
+    }
+    await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
     await goto('/login/');
+    const noScrollbarShift = await page.evaluate(() => {
+      const header = document.querySelector('.header-inner');
+      const main = document.querySelector('main.shell');
+      const was = main.style.display;
+      main.style.display = 'none';
+      const shortLeft = header.getBoundingClientRect().left;
+      const tall = document.createElement('div');
+      tall.style.flex = '0 0 200vh';
+      document.body.appendChild(tall);
+      const tallLeft = header.getBoundingClientRect().left;
+      tall.remove();
+      main.style.display = was;
+      return Math.abs(shortLeft-tallLeft);
+    });
+    assert.ok(noScrollbarShift <= 1,'Scrollbar causes page to jump: '+noScrollbarShift);
+    const alignment = async () => page.evaluate(() => {
+      const story = document.querySelector('.welcome-story')?.getBoundingClientRect();
+      const form = document.querySelector('.welcome-panel')?.getBoundingClientRect();
+      const brand = document.querySelector('.site-header .brand')?.getBoundingClientRect();
+      return {left:story?.left,storyTop:story?.top,panelTop:form?.top,brandX:brand?.left,brandY:brand?.top};
+    });
+    const loginPosition = await alignment();
+    assert.ok(Math.abs(loginPosition.storyTop-loginPosition.panelTop)<=1,
+      'Login columns are not top-aligned: '+JSON.stringify(loginPosition));
     assert.ok(await page.$('input[name="email"]'));
-    step('welcome_entry');
+    step('public_seo_mobile_navigation_scrollbar_and_top_alignment');
     await page.type('input[name="email"]',sellerEmail);
     await submit('button[type=submit]');
     assert.ok(page.url().endsWith('/auth/code/'),'expected email verification, got '+page.url());
+    const codePosition = await alignment();
+    assert.ok(Math.abs(codePosition.storyTop-codePosition.panelTop)<=1,'Code columns not top aligned');
+    assert.ok(Math.abs(codePosition.brandX-loginPosition.brandX)<=1 && Math.abs(codePosition.brandY-loginPosition.brandY)<=1,
+      'Brand/header moves between login and email code steps');
     await page.screenshot({path:snapshotDir+'/01-code.png'});
     step('email_registration_code_page');
     await page.type('input[name="code"]','0007');
     await submit('button[type=submit]');
     assert.ok(page.url().endsWith('/auth/pin/'));
+    const pinPosition = await alignment();
+    assert.ok(Math.abs(pinPosition.storyTop-pinPosition.panelTop)<=1,'PIN columns not top aligned');
+    assert.ok(Math.abs(pinPosition.brandX-loginPosition.brandX)<=1 && Math.abs(pinPosition.brandY-loginPosition.brandY)<=1,
+      'Brand/header moves between login and PIN registration');
     step('email_otp_verified');
     await page.type('input[name="pin"]','8394');
     await page.type('input[name="confirm_pin"]','8394');
