@@ -1,8 +1,8 @@
 {% extends 'guard/base.html' %}
 {% block title %}NoSale — контроль скидок Wildberries{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/welcome.css?v=20261031-stable">{% endblock %}
 {% block content %}
 <script src="/static/pin-visibility.js" defer></script>
-<link rel="stylesheet" href="/static/welcome.css">
 <div class="welcome-layout">
   {% if stage == 'pin' %}
   <section class="welcome-story auth-flow-story" aria-labelledby="login-guide-title">
