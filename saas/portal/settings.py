@@ -176,8 +176,10 @@ if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend" and SMTP_PASSW
     secret_path = Path(SMTP_PASSWORD_FILE)
     try:
         mode = stat.S_IMODE(secret_path.stat().st_mode)
-        if mode & 0o077:
-            raise RuntimeError("SMTP password file must not be group/world readable")
+        # A read-only mail-service group is allowed for non-root app containers.
+        # Group write/execute and any access by others are forbidden.
+        if mode & 0o037:
+            raise RuntimeError("SMTP password file permissions are too broad")
         EMAIL_HOST_PASSWORD = secret_path.read_text(encoding="utf-8").rstrip("\r\n")
     except OSError as exc:
         raise RuntimeError("SMTP password file cannot be read") from exc
