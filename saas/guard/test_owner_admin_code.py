@@ -54,3 +54,22 @@ class OwnerAdminStepupTests(TestCase):
         self.client.post("/admin/code/", {"action": "resend"})
         self.assertEqual(len(mail.outbox), 1)
         self.assertNotEqual(self.client.get("/admin/").status_code, 200)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="NoSale <noreply@svdev.pro>",
+    )
+    def test_code_screen_explicitly_distinguishes_email_code_from_pin(self):
+        from django.core import mail
+        owner = User.objects.create_superuser(
+            username="owner-ui@example.test", email="owner-ui@example.test",
+            password="exampletest",
+        )
+        self.client.force_login(owner)
+        page = self.client.get("/admin/code/")
+        self.assertContains(page, "Код из письма — не PIN")
+        self.assertContains(page, "Ваш постоянный PIN уже проверен")
+        self.assertContains(page, owner.email)
+        self.assertContains(page, "10 минут")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [owner.email])
