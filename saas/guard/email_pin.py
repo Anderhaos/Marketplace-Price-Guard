@@ -256,7 +256,7 @@ def finish_pin(request):
                         return redirect("dashboard")
                 elif challenge.purpose == "recover":
                     user = _existing_user(challenge.email)
-                    if user is None:
+                    if user is None or not user.is_active:
                         form.add_error(None, "Не удалось восстановить PIN.")
                     else:
                         user.set_password(form.cleaned_data["pin"])
@@ -264,8 +264,12 @@ def finish_pin(request):
                         EmailPinLoginThrottle.objects.filter(email=challenge.email).delete()
                         challenge.delete()
                         request.session.pop(SESSION_CHALLENGE, None)
-                        messages.success(request, "PIN обновлён. Войдите с новым PIN.")
-                        return redirect("login")
+                        # Email possession was proved by the one-time challenge
+                        # and the new PIN has just been set. Log in immediately,
+                        # matching first registration rather than demanding a
+                        # redundant second email/PIN round trip.
+                        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+                        return redirect("dashboard")
         except OperationalError:
             # SQLite on Windows (local preview) can fail an interleaved
             # read-to-write transaction with "database is locked". Preserve
