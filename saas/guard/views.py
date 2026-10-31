@@ -700,7 +700,7 @@ def mark_notifications_read(request):
 
 @login_required
 def history(request):
-    if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(request.user.pk, "activity_history"):
+    if feature_disabled_for_active_plan(request.user.pk, "activity_history"):
         return HttpResponseForbidden("История не включена в тариф.")
     account = _account(request)
     nm_id = request.GET.get("product")
