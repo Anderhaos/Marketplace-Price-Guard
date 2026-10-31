@@ -1,23 +1,26 @@
 {% extends 'guard/base.html' %}
 {% block title %}Подключения — NoSale{% endblock %}
 {% block content %}
-<section class="page-hero">
+<section class="page-hero workspace-hero">
   <span class="eyebrow">NoSale / Wildberries</span>
   <h1>Подключения магазинов</h1>
   <p class="lead">Здесь отображаются ваши уже подключённые кабинеты продавца WB. Для каждого кабинета — свой API-токен, товары и правила контроля скидок. Ничего повторно добавлять не нужно.</p>
 </section>
-<section class="card">
+<div class="workspace-columns">
+<section class="card workspace-section">
   <h2>Ваши кабинеты Wildberries</h2>
+  <div class="workspace-stores-list">
   {% for shop in stores %}
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
+    <div class="workspace-store-row">
       <div><strong>{{ shop.name }}</strong><p class="muted">{{ shop.get_marketplace_display }} · {% if shop.token_ciphertext %}API подключён{% else %}Не подключён{% endif %} · {% if shop.enabled %}Защита включена{% else %}Защита выключена{% endif %}</p></div>
       {% if shop.id == selected_store_id %}<span class="status-pill good">Выбран</span>{% else %}
         <form method="post" action="{% url 'select_store' shop.id %}">{% csrf_token %}<button class="secondary" type="submit">Открыть магазин</button></form>
       {% endif %}
     </div>
   {% empty %}<p class="muted">Магазины пока не созданы.</p>{% endfor %}
+  </div>
 </section>
-<section class="card">
+<section class="card workspace-section">
   <details class="connection-add">
     <summary>Подключить ещё один кабинет Wildberries</summary>
     <p class="muted">Этот шаг нужен только если у вас <strong>другой кабинет продавца WB</strong>. Если товары уже отображаются — ничего добавлять не надо. Новому подключению потребуется собственный разрешённый API-токен.</p>
@@ -28,5 +31,5 @@
     <p class="field-help">Создание подключения не обращается к WB и не копирует токены существующих магазинов.</p>
   </details>
 </section>
-<p class="muted">Другие маркетплейсы видны в переключателе площадки в верхнем меню. Они станут доступны после реализации соответствующих интеграций.</p>
+</div>
 {% endblock %}

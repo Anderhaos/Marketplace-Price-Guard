@@ -1,40 +1,42 @@
 {% extends "guard/base.html" %}
 {% block title %}Подписка — NoSale{% endblock %}
 {% block content %}
-<section class="card" style="max-width:760px;margin:auto">
-  <span class="eyebrow">NoSale / подписка</span>
-  <h1 style="font-size:26px">Ваш тариф</h1>
-  {% if subscription_state.active %}
-    <p class="lead">Сейчас действует тариф <b>{{ subscription_state.active_plan|capfirst }}</b>
-      {% if subscription_state.access_source == "trial" %}(пробный период){% endif %}
-      до <b>{{ subscription_state.expires_at|date:"d.m.Y H:i" }}</b>.
-    </p>
-  {% elif subscription_state.trial_expired %}
-    <p class="lead">Пробный период закончился. Данные магазина сохранены. Защита будет доступна после активации оплаченного тарифа.</p>
-  {% else %}
-    <p class="lead">После подключения магазина — 3 бесплатных дня Standard. Платить за пробный период не нужно.</p>
-  {% endif %}
-  {% if subscription_state.upcoming_plan %}
-    <p class="notice">Оплаченный тариф <b>{{ subscription_state.upcoming_plan|capfirst }}</b> начнёт действовать {{ subscription_state.upcoming_starts_at|date:"d.m.Y H:i" }}. До этой даты функции Smart, если они ещё не активны, остаются недоступными.</p>
-  {% endif %}
-  <h2 style="font-size:18px">Тарифы на месяц</h2>
-  <p class="muted">Оплата разовая, автоматического продления и списаний нет. При покупке следующего тарифа оплаченный месяц начнётся после окончания существующего доступа.</p>
-  {% if subscription_state.active or subscription_state.upcoming_plan %}
-    <p class="muted">Ориентировочное начало нового оплаченного периода при подтверждении платежа сейчас:
-      <b>{{ subscription_state.next_purchase_starts_at|date:"d.m.Y H:i" }}</b>.
-      Окончательная дата фиксируется после подтверждения банком и может измениться при изменении доступа.
-    </p>
-  {% else %}
-    <p class="muted">Если нет действующего или уже запланированного доступа, новый тариф начнёт действовать после подтверждения оплаты банком.</p>
-  {% endif %}
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">
+<section class="page-hero workspace-hero workspace-hero--split">
+  <div>
+    <span class="eyebrow">NoSale / подписка</span>
+    <h1>Ваш тариф</h1>
+    {% if subscription_state.active %}
+      <p class="lead">Сейчас действует тариф <b>{{ subscription_state.active_plan|capfirst }}</b>
+        {% if subscription_state.access_source == "trial" %}(пробный период){% endif %}
+        до <b>{{ subscription_state.expires_at|date:"d.m.Y H:i" }}</b>.</p>
+    {% elif subscription_state.trial_expired %}
+      <p class="lead">Пробный период закончился. Данные магазина сохранены. Защита будет доступна после активации оплаченного тарифа.</p>
+    {% else %}
+      <p class="lead">После подключения магазина — 3 бесплатных дня Standard. Платить за пробный период не нужно.</p>
+    {% endif %}
+    {% if subscription_state.upcoming_plan %}
+      <p class="notice">Оплаченный тариф <b>{{ subscription_state.upcoming_plan|capfirst }}</b> начнёт действовать {{ subscription_state.upcoming_starts_at|date:"d.m.Y H:i" }}. До этой даты функции Smart, если они ещё не активны, остаются недоступными.</p>
+    {% endif %}
+  </div>
+</section>
+<div class="workspace-columns">
+  <section class="card workspace-section">
+    <div class="workspace-section-head">
+      <div><span class="workspace-kicker">Доступные предложения</span><h2>Тарифы на месяц</h2>
+        <p class="muted">Сравните возможности и выберите нужный набор функций.</p></div>
+    </div>
+    <div class="workspace-tariff-cards">
     {% for offer in tariff_offers %}
-      <div class="notice" style="margin:0">
-        <h3 style="font-size:19px;margin:0 0 8px">{{ offer.name }}</h3>
-        <p style="margin:0 0 10px">{{ offer.description }}</p>
-        {% if offer.feature_labels %}<ul style="margin:0 0 14px;padding-left:20px">{% for label in offer.feature_labels %}<li>{{ label }}</li>{% endfor %}</ul>{% else %}<p class="muted">Возможности тарифа пока отключены владельцем.</p>{% endif %}
+      <article class="workspace-card-item workspace-tariff">
+        <h3>{{ offer.name }}</h3>
+        <p class="muted">{{ offer.description }}</p>
+        {% if offer.feature_labels %}
+          <ul>{% for label in offer.feature_labels %}<li>{{ label }}</li>{% endfor %}</ul>
+        {% else %}
+          <p class="muted">Возможности тарифа пока отключены владельцем.</p>
+        {% endif %}
         {% if offer.price_rub %}
-          <p><strong>{{ offer.price_rub|floatformat:2 }} ₽ / месяц</strong></p>
+          <p class="workspace-tariff-price">{{ offer.price_rub|floatformat:2 }} ₽ <span>/ месяц</span></p>
         {% else %}
           <p class="muted">Стоимость пока не утверждена.</p>
         {% endif %}
@@ -47,22 +49,43 @@
         {% else %}
           <p class="muted">Оплата этого тарифа пока недоступна.</p>
         {% endif %}
-      </div>
+      </article>
     {% endfor %}
-  </div>
-  {% if not billing_enabled %}
-    <p class="muted" style="margin-top:14px">Оплата пока не подключена. Мы откроем её после настройки эквайринга и фискализации.</p>
-  {% endif %}
-  {% if payments %}
-  <div style="margin-top:24px">
-    <h2 style="font-size:17px">История платежей</h2>
-    {% for p in payments %}
-      <div style="display:flex;gap:10px;justify-content:space-between;border-top:1px solid var(--line);padding:12px 0;font-size:13px">
-        <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.get_plan_display }} · {{ p.amount_rubles|floatformat:2 }} ₽</span>
-        <strong>{% if p.status == "paid" %}Оплачено{% elif p.status == "pending" %}Ожидает оплаты{% elif p.status == "refunded" %}Возврат{% else %}Не оплачено{% endif %}</strong>
+    </div>
+    {% if not billing_enabled %}
+      <p class="muted workspace-panel-footnote">Оплата пока не подключена. Мы откроем её после настройки эквайринга и фискализации.</p>
+    {% endif %}
+  </section>
+
+  <aside class="workspace-side-stack">
+    <section class="card workspace-section">
+      <span class="workspace-kicker">Условия</span>
+      <h2>Период и оплата</h2>
+      <p class="muted">Оплата разовая, автоматического продления и списаний нет. При покупке следующего тарифа оплаченный месяц начнётся после окончания существующего доступа.</p>
+      {% if subscription_state.active or subscription_state.upcoming_plan %}
+        <p class="muted">Ориентировочное начало нового оплаченного периода при подтверждении платежа сейчас:
+          <b>{{ subscription_state.next_purchase_starts_at|date:"d.m.Y H:i" }}</b>.
+          Окончательная дата фиксируется после подтверждения банком и может измениться при изменении доступа.</p>
+      {% else %}
+        <p class="muted">Если нет действующего или уже запланированного доступа, новый тариф начнёт действовать после подтверждения оплаты банком.</p>
+      {% endif %}
+    </section>
+    {% if payments %}
+    <section class="card workspace-section">
+      <span class="workspace-kicker">Платежи</span>
+      <h2>История платежей</h2>
+      <div class="workspace-card-list">
+      {% for p in payments %}
+        <article class="workspace-card-item">
+          <div class="workspace-payment-row">
+            <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.get_plan_display }} · {{ p.amount_rubles|floatformat:2 }} ₽</span>
+            <strong>{% if p.status == "paid" %}Оплачено{% elif p.status == "pending" %}Ожидает оплаты{% elif p.status == "refunded" %}Возврат{% else %}Не оплачено{% endif %}</strong>
+          </div>
+        </article>
+      {% endfor %}
       </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-</section>
+    </section>
+    {% endif %}
+  </aside>
+</div>
 {% endblock %}

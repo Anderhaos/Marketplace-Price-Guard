@@ -1,81 +1,122 @@
 {% extends 'guard/base.html' %}
 {% block title %}Финансовые отчёты WB — NoSale{% endblock %}
 {% block content %}
-<section class="card">
-  <span class="eyebrow">Финансовая сверка · только чтение</span>
-  <h1>Отчёты WB — {{ account.name }}</h1>
-  <p class="lead">Финансовые отчёты отделены от управления скидками. NoSale никогда не передаёт финансовый токен в AI, не изменяет цены и не объявляет акцию прибыльной или оплаченной WB без подтверждающих данных.</p>
-  {% if not finance_enabled %}
-  {% if access_expired %}
-  <p class="notice" role="status">Доступ к финансовым данным завершён. Здесь можно удалить ранее предоставленный доступ, не продлевая подписку.</p>
-  {% else %}
-  <p class="notice" role="status">Финансовое подключение ещё не открыто оператором сервиса. Не отправляйте токен WB. После разрешения финансового доступа эта страница позволит подключить отдельный сервисный токен.</p>
-  {% endif %}
-  {% if connected %}
-  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><button type="submit" class="secondary">Отключить и удалить финансовые сведения</button></form>
-  {% endif %}
-  {% elif not connected %}
-  <form method="post" autocomplete="off">{% csrf_token %}
-    <input type="hidden" name="action" value="connect">
-    <div class="field"><label for="finance-token">Отдельный сервисный API-токен WB · категория «Финансы»</label>
-    <textarea id="finance-token" name="finance_token" maxlength="4096" required autocomplete="off" spellcheck="false"></textarea></div>
-    <p class="field-help">Не используйте персональный токен Solo или токен для изменения цен. Перед сохранением убедитесь, что токен создан для подключения сервиса к вашему магазину WB.</p>
-    <label><input type="checkbox" name="finance_consent" value="yes" required> Согласен предоставить NoSale доступ на чтение финансовых отчётов этого магазина</label>
-    <p><button type="submit">Подключить финансовый доступ</button></p>
-  </form>
-  {% else %}
-  <p class="notice">Финансовый токен сохранён в зашифрованном виде. Время последней проверки: {% if snapshot.fetched_at %}{{ snapshot.fetched_at|date:"d.m.Y H:i" }}{% else %}ещё не проверялся{% endif %}.</p>
-  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="refresh"><button type="submit" {% if not can_refresh %}disabled{% endif %}>Загрузить список отчётов (только чтение)</button></form>
-  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><button type="submit" class="secondary">Отключить и удалить финансовые сведения</button></form>
-  {% if snapshot.last_error %}<p class="notice" role="alert">{{ snapshot.last_error }}</p>{% endif %}
-  {% if snapshot.partial %}<p class="notice">История отчётов может быть неполной. Нельзя определять прибыль, источник финансирования акции или итоговые выплаты по этой сводке.</p>{% endif %}
-  {% for item in reports %}
-  <article class="card">
-    <strong>Отчёт №{{ item.report_id }}</strong>
-    <p>{{ item.start }} — {{ item.end }} · {{ item.currency }}</p>
-    <p>По отчёту к перечислению: {{ item.for_pay|default:"не подтверждено" }}</p>
-    <p>Розничная сумма: {{ item.retail_amount|default:"не подтверждено" }}</p>
-    <small>Кто финансирует конкретную скидку — неизвестно. Прибыль не рассчитана.</small>
-    {% if snapshot.fetched_at %}
-    <form method="post">{% csrf_token %}
-      <input type="hidden" name="action" value="detail">
-      <input type="hidden" name="report_id" value="{{ item.report_id }}">
-      <button type="submit" class="secondary" {% if not can_refresh %}disabled{% endif %}>Посмотреть первую страницу операций</button>
-    </form>
-    {% endif %}
-  </article>
-  {% empty %}
-  {% if snapshot.fetched_at %}<p>За выбранный период отчёты не найдены или WB вернул отсутствие данных.</p>{% endif %}
-  {% endfor %}
-  {% if snapshot.detail_fetched_at %}
-  <section aria-label="Детализация выбранного отчёта">
-    <h3>Операции отчёта №{{ snapshot.detail_report_id }}</h3>
-    <p class="notice">Первая страница и последующие ручные страницы: {{ detail_rows|length }} строк. Проверено: {{ snapshot.detail_fetched_at|date:"d.m.Y H:i" }}. Скидка продавца не доказывает финансирование остальных скидок. Прибыль не рассчитана.</p>
-    {% for row in detail_rows %}
-    <article class="card">
-      <strong>Товар WB №{{ row.nm_id|default:"не указан" }}</strong>
-      <p>Операция №{{ row.rrd_id }} · {{ row.sale_date|default:"дата не указана" }} · {{ row.currency }}</p>
-      <p>Розничная сумма: {{ row.retail_amount|default:"не подтверждена" }} · К перечислению: {{ row.for_pay|default:"не подтверждено" }}</p>
-      <p>Собственная акция продавца (ID): {{ row.seller_promo_id|default:"не указана" }} · Скидка по ней: {{ row.seller_promo_discount_pct|default:"неизвестна" }}%</p>
-      <small>Финансирование всех скидок: неизвестно · Прибыль: не подтверждена</small>
-    </article>
-    {% empty %}
-    <p>Строк по выбранному отчёту нет.</p>
-    {% endfor %}
-    {% if snapshot.detail_partial %}
-      <p class="notice">Отчёт не завершён: другие строки могут отсутствовать. Продолжение — отдельный ручной запрос WB с интервалом не менее 75 секунд, максимум {{ detail_page_limit }} сохранённых строк.</p>
-      {% if can_continue %}
-      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="detail_more">
-        <button type="submit" class="secondary">Загрузить следующую страницу вручную</button>
-      </form>
-      {% elif detail_rows|length >= detail_page_limit %}
-      <p class="notice">Достигнут предел сохранения данных. Загрузка остановлена; полнота отчёта не подтверждена.</p>
-      {% endif %}
-    {% else %}
-      <p class="notice">WB подтвердил конец страниц ответом 204. Это не доказывает прибыль или источник финансирования скидки.</p>
-    {% endif %}
-  </section>
-  {% endif %}
-  {% endif %}
+<section class="page-hero workspace-hero workspace-hero--split">
+  <div>
+    <span class="eyebrow">Финансовая сверка · только чтение</span>
+    <h1>Отчёты WB — {{ account.name }}</h1>
+    <p class="lead">Финансовые отчёты отделены от управления скидками. NoSale не передаёт финансовый токен в AI, не изменяет цены и не объявляет акцию прибыльной без подтверждённых данных.</p>
+  </div>
 </section>
+<div class="workspace-finance-content">
+  {% if not finance_enabled %}
+    <div class="workspace-columns">
+      <section class="card workspace-section">
+        <h2>Доступ к финансовым отчётам</h2>
+        {% if access_expired %}
+          <p class="notice" role="status">Доступ к финансовым данным завершён. Здесь можно удалить ранее предоставленный доступ, не продлевая подписку.</p>
+        {% else %}
+          <p class="notice" role="status">Финансовое подключение ещё не открыто оператором сервиса. Не отправляйте токен WB. После разрешения финансового доступа эта страница позволит подключить отдельный сервисный токен.</p>
+        {% endif %}
+        {% if connected %}
+          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><button type="submit" class="secondary">Отключить и удалить финансовые сведения</button></form>
+        {% endif %}
+      </section>
+      <section class="card workspace-section">
+        <h2>Безопасность данных</h2>
+        <p class="muted">Финансовые отчёты доступны только отдельно от подключения цен и скидок. Источник финансирования акции и прибыль нельзя определить без подтверждающих документов и себестоимости.</p>
+      </section>
+    </div>
+  {% elif not connected %}
+    <div class="workspace-columns">
+      <section class="card workspace-section">
+        <h2>Подключить финансовые отчёты</h2>
+        <p class="muted">Требуется отдельный сервисный токен Wildberries только для финансовых сведений.</p>
+        <form method="post" autocomplete="off">{% csrf_token %}
+          <input type="hidden" name="action" value="connect">
+          <div class="field"><label for="finance-token">Отдельный сервисный API-токен WB · категория «Финансы»</label>
+            <textarea id="finance-token" name="finance_token" maxlength="4096" required autocomplete="off" spellcheck="false"></textarea>
+          </div>
+          <p class="field-help">Не используйте персональный токен Solo или токен для изменения цен. Перед сохранением убедитесь, что токен создан для подключения сервиса к вашему магазину WB.</p>
+          <label><input type="checkbox" name="finance_consent" value="yes" required> Согласен предоставить NoSale доступ на чтение финансовых отчётов этого магазина</label>
+          <p><button type="submit">Подключить финансовый доступ</button></p>
+        </form>
+      </section>
+      <section class="card workspace-section">
+        <h2>Какие данные используются</h2>
+        <p class="muted">Отчёты читаются отдельно от основных правил защиты. Подключение не разрешает изменять цены или участвовать в акциях.</p>
+      </section>
+    </div>
+  {% else %}
+    <section class="card workspace-section">
+      <div class="workspace-section-head">
+        <div>
+          <h2>Подключение и загрузка</h2>
+          <p class="muted">Финансовый токен сохранён в зашифрованном виде. Последняя проверка: {% if snapshot.fetched_at %}{{ snapshot.fetched_at|date:"d.m.Y H:i" }}{% else %}ещё не проверялся{% endif %}.</p>
+        </div>
+      </div>
+      <div class="actions">
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="refresh"><button type="submit" {% if not can_refresh %}disabled{% endif %}>Загрузить список отчётов (только чтение)</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><button type="submit" class="secondary">Отключить и удалить финансовые сведения</button></form>
+      </div>
+      {% if snapshot.last_error %}<p class="notice" role="alert">{{ snapshot.last_error }}</p>{% endif %}
+      {% if snapshot.partial %}<p class="notice">История отчётов может быть неполной. Нельзя определять прибыль, источник финансирования акции или итоговые выплаты по этой сводке.</p>{% endif %}
+    </section>
+    <section class="workspace-section" aria-label="Список финансовых отчётов">
+      <div class="workspace-section-title"><div><h2>Отчёты</h2><p class="muted">Данные WB без расчёта прибыли и источника финансирования скидки.</p></div></div>
+      <div class="workspace-finance-rows">
+        {% for item in reports %}
+        <article class="card workspace-section">
+          <h3>Отчёт №{{ item.report_id }}</h3>
+          <p class="muted">{{ item.start }} — {{ item.end }} · {{ item.currency }}</p>
+          <p>По отчёту к перечислению: {{ item.for_pay|default:"не подтверждено" }}</p>
+          <p>Розничная сумма: {{ item.retail_amount|default:"не подтверждено" }}</p>
+          <p class="muted">Кто финансирует конкретную скидку — неизвестно. Прибыль не рассчитана.</p>
+          {% if snapshot.fetched_at %}
+          <form method="post">{% csrf_token %}
+            <input type="hidden" name="action" value="detail">
+            <input type="hidden" name="report_id" value="{{ item.report_id }}">
+            <button type="submit" class="secondary" {% if not can_refresh %}disabled{% endif %}>Посмотреть первую страницу операций</button>
+          </form>
+          {% endif %}
+        </article>
+        {% empty %}
+        {% if snapshot.fetched_at %}<div class="card workspace-section"><p class="muted">За выбранный период отчёты не найдены или WB вернул отсутствие данных.</p></div>{% endif %}
+        {% endfor %}
+      </div>
+    </section>
+    {% if snapshot.detail_fetched_at %}
+      <section class="card workspace-section" aria-label="Детализация выбранного отчёта">
+        <div class="workspace-section-title">
+          <div><h2>Операции отчёта №{{ snapshot.detail_report_id }}</h2>
+            <p class="muted">Проверено: {{ snapshot.detail_fetched_at|date:"d.m.Y H:i" }} · {{ detail_rows|length }} строк.</p></div>
+        </div>
+        <p class="notice">Первая страница и последующие ручные страницы. Скидка продавца не доказывает финансирование остальных скидок. Прибыль не рассчитана.</p>
+        <div class="workspace-finance-rows">
+          {% for row in detail_rows %}
+          <article class="workspace-card-item">
+            <h3>Товар WB №{{ row.nm_id|default:"не указан" }}</h3>
+            <p class="muted">Операция №{{ row.rrd_id }} · {{ row.sale_date|default:"дата не указана" }} · {{ row.currency }}</p>
+            <p>Розничная сумма: {{ row.retail_amount|default:"не подтверждена" }} · К перечислению: {{ row.for_pay|default:"не подтверждено" }}</p>
+            <p>Собственная акция продавца (ID): {{ row.seller_promo_id|default:"не указана" }} · Скидка по ней: {{ row.seller_promo_discount_pct|default:"неизвестна" }}%</p>
+            <p class="muted">Финансирование всех скидок: неизвестно · Прибыль: не подтверждена</p>
+          </article>
+          {% empty %}<p class="muted">Строк по выбранному отчёту нет.</p>{% endfor %}
+        </div>
+        {% if snapshot.detail_partial %}
+          <p class="notice">Отчёт не завершён: другие строки могут отсутствовать. Продолжение — отдельный ручной запрос WB с интервалом не менее 75 секунд, максимум {{ detail_page_limit }} сохранённых строк.</p>
+          {% if can_continue %}
+          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="detail_more">
+            <button type="submit" class="secondary">Загрузить следующую страницу вручную</button>
+          </form>
+          {% elif detail_rows|length >= detail_page_limit %}
+          <p class="notice">Достигнут предел сохранения данных. Загрузка остановлена; полнота отчёта не подтверждена.</p>
+          {% endif %}
+        {% else %}
+          <p class="notice">WB подтвердил конец страниц ответом 204. Это не доказывает прибыль или источник финансирования скидки.</p>
+        {% endif %}
+      </section>
+    {% endif %}
+  {% endif %}
+</div>
 {% endblock %}
