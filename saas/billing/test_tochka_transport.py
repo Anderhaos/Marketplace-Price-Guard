@@ -42,10 +42,14 @@ class FakeOpener:
     TOCHKA_MERCHANT_ID="200000000001056",
     TOCHKA_API_BASE="https://enter.tochka.com/uapi",
     NOSALE_PAYMENT_RETURN_BASE="https://nosale.svdev.pro",
+    NOSALE_FISCALIZATION_CONFIRMED=True,
+    NOSALE_TOCHKA_TAX_SYSTEM_CODE="usn_income",
+    NOSALE_TOCHKA_VAT_TYPE="none",
+    NOSALE_TOCHKA_RECEIPT_PAYMENT_METHOD="full_payment",
 )
 class TochkaTransportContractTests(SimpleTestCase):
     def setUp(self):
-        self.payment = SimpleNamespace(pk=42, amount_kopeks=99000, plan="standard", period_months=1)
+        self.payment = SimpleNamespace(pk=42, amount_kopeks=99000, plan="standard", period_months=1, user=SimpleNamespace(email="buyer@example.test"))
 
     def test_creates_real_documented_payment_link_request_and_parses_bank_data(self):
         opener = FakeOpener(FakeResponse({"Data": {
@@ -56,7 +60,7 @@ class TochkaTransportContractTests(SimpleTestCase):
             payment_url, operation_id = create_tochka_link(self.payment)
         self.assertEqual(payment_url, "https://merch.tochka.com/order/?uuid=test")
         self.assertEqual(operation_id, "example-bank-operation-id")
-        self.assertEqual(opener.request.full_url, "https://enter.tochka.com/uapi/acquiring/v1.0/payments")
+        self.assertEqual(opener.request.full_url, "https://enter.tochka.com/uapi/acquiring/v1.0/payments_with_receipt")
         self.assertEqual(opener.request.get_method(), "POST")
         self.assertEqual(opener.request.get_header("Authorization"), "Bearer test-token-not-a-bank-secret")
         self.assertEqual(opener.timeout, 12)
@@ -66,12 +70,23 @@ class TochkaTransportContractTests(SimpleTestCase):
         self.assertEqual(data["amount"], 990.00)  # RUB, never kopeks
         self.assertEqual(data["customerCode"], "300000092")
         self.assertEqual(data["merchantId"], "200000000001056")
-        self.assertEqual(data["paymentLinkId"], "42")
+        self.assertEqual(data["paymentLinkId"], "nosale-42")
+        self.assertEqual(data["taxSystemCode"], "usn_income")
+        self.assertEqual(data["Client"], {"email": "buyer@example.test"})
+        self.assertEqual(data["saveCard"], False)
+        self.assertEqual(data["preAuthorization"], False)
+        self.assertEqual(data["Items"], [{
+            "name": "NoSale Standard — доступ на 1 мес.",
+            "amount": 990.0, "quantity": 1, "vatType": "none",
+            "paymentMethod": "full_payment", "paymentObject": "service",
+            "measure": "шт.",
+        }])
+        self.assertEqual(data["Items"][0]["amount"], data["amount"])
         self.assertEqual(data["paymentMode"], ["card", "sbp"])
         self.assertEqual(data["ttl"], 30)
         self.assertEqual(data["redirectUrl"], "https://nosale.svdev.pro/billing/return/?payment=42")
         self.assertEqual(data["failRedirectUrl"], data["redirectUrl"])
-        self.assertEqual(data["webhookUrl"], "https://nosale.svdev.pro/billing/tochka/webhook/")
+        self.assertNotIn("webhookUrl", data)  # Register event via Tochka ManageWebhookData API
 
     def test_refuses_bank_response_without_operation_id(self):
         opener = FakeOpener(FakeResponse({"Data": {"paymentLink": "https://merch.tochka.com/order/test"}}))
@@ -87,3 +102,38 @@ class TochkaTransportContractTests(SimpleTestCase):
         with patch("billing.tochka.build_opener", return_value=opener):
             with self.assertRaises(AcquiringUnavailable):
                 create_tochka_link(self.payment)
+
+    def test_fiscalization_must_be_confirmed_before_bank_api(self):
+        with override_settings(NOSALE_FISCALIZATION_CONFIRMED=False):
+            with patch("billing.tochka.build_opener") as bank:
+                with self.assertRaises(AcquiringUnavailable):
+                    create_tochka_link(self.payment)
+                bank.assert_not_called()
+
+    def test_buyer_email_mandatory_for_receipt(self):
+        self.payment.user.email = ""
+        with patch("billing.tochka.build_opener") as bank:
+            with self.assertRaises(AcquiringUnavailable):
+                create_tochka_link(self.payment)
+            bank.assert_not_called()
+
+    def test_tax_and_vat_must_be_confirmed_and_never_guessed(self):
+        for values in ({"NOSALE_TOCHKA_TAX_SYSTEM_CODE": ""},
+                       {"NOSALE_TOCHKA_VAT_TYPE": "guess"},
+                       {"NOSALE_TOCHKA_RECEIPT_PAYMENT_METHOD": ""}):
+            with self.subTest(values=values), override_settings(**values):
+                with patch("billing.tochka.build_opener") as bank:
+                    with self.assertRaises(AcquiringUnavailable):
+                        create_tochka_link(self.payment)
+                    bank.assert_not_called()
+
+    def test_bank_response_wrong_merchant_or_order_ref_rejected(self):
+        for values in ({"merchantId": "foreign"}, {"paymentLinkId": "beclients-42"}):
+            with self.subTest(values=values):
+                response = {"Data": {
+                    "paymentLink": "https://merch.tochka.com/order/?uuid=test",
+                    "operationId": "fixture", **values,
+                }}
+                with patch("billing.tochka.build_opener", return_value=FakeOpener(FakeResponse(response))):
+                    with self.assertRaises(AcquiringUnavailable):
+                        create_tochka_link(self.payment)

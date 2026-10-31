@@ -135,6 +135,14 @@ class AcquiringTests(TestCase):
         self.post_signed(self.event(payment))
         self.assertEqual(AccessGrant.objects.filter(user=self.user).count(), 2)
 
+    def test_prefixed_nosale_payment_link_id_activates_once(self):
+        payment = self.payment()
+        payload = self.event(payment)
+        payload["data"]["paymentLinkId"] = f"nosale-{payment.pk}"
+        self.assertEqual(self.post_signed(payload).status_code, 200)
+        self.assertEqual(self.post_signed(payload).status_code, 200)
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="payment").count(), 1)
+
     def test_unverified_signature_never_activates(self):
         payment = self.payment()
         self.assertEqual(self.post_signed(self.event(payment), tamper=True).status_code, 200)

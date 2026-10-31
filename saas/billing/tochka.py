@@ -15,6 +15,8 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 
 
 class AcquiringUnavailable(Exception):
@@ -84,22 +86,50 @@ def validate_payment_url(value):
 def create_tochka_link(payment):
     if not configured():
         raise AcquiringUnavailable("Acquiring has not been activated")
+    # The plain /payments endpoint does NOT issue a 54-FZ receipt. Use the
+    # documented fiscalized method, with buyer email and a one-item receipt.
+    if not getattr(settings, "NOSALE_FISCALIZATION_CONFIRMED", False):
+        raise AcquiringUnavailable("NoSale fiscalization is not confirmed")
+    tax = getattr(settings, "NOSALE_TOCHKA_TAX_SYSTEM_CODE", "")
+    vat = getattr(settings, "NOSALE_TOCHKA_VAT_TYPE", "")
+    method = getattr(settings, "NOSALE_TOCHKA_RECEIPT_PAYMENT_METHOD", "")
+    if tax not in {"osn", "usn_income", "usn_income_outcome", "esn", "patent"}:
+        raise AcquiringUnavailable("NoSale tax system not confirmed")
+    if vat not in {"none", "vat0", "vat5", "vat7", "vat10", "vat22", "vat105", "vat107", "vat110", "vat122"}:
+        raise AcquiringUnavailable("NoSale VAT rate not confirmed")
+    if method not in {"full_payment", "full_prepayment"}:
+        raise AcquiringUnavailable("NoSale receipt payment method not confirmed")
+    buyer_email = (payment.user.email or "").strip()
+    try:
+        validate_email(buyer_email)
+    except ValidationError as exc:
+        raise AcquiringUnavailable("Buyer email for fiscal receipt is missing") from exc
     amount = Decimal(payment.amount_kopeks) / 100
     base = settings.NOSALE_PAYMENT_RETURN_BASE
+    name = f"NoSale {payment.plan.title()} — доступ на {payment.period_months} мес."
+    order_ref = f"nosale-{payment.pk}"
     body = {"Data": {
         "amount": float(amount),
         "customerCode": settings.TOCHKA_CUSTOMER_CODE,
         "merchantId": settings.TOCHKA_MERCHANT_ID,
-        "purpose": f"NoSale {payment.plan}: доступ на {payment.period_months} месяц",
+        "purpose": name,
         "paymentMode": ["card", "sbp"],
-        "paymentLinkId": str(payment.pk),
+        "paymentLinkId": order_ref,
+        "preAuthorization": False,
+        "saveCard": False,
         "redirectUrl": base + "/billing/return/?payment=" + str(payment.pk),
         "failRedirectUrl": base + "/billing/return/?payment=" + str(payment.pk),
-        "webhookUrl": base + "/billing/tochka/webhook/",
         "ttl": 30,
+        "taxSystemCode": tax,
+        "Client": {"email": buyer_email},
+        "Items": [{
+            "name": name, "amount": float(amount), "quantity": 1,
+            "vatType": vat, "paymentMethod": method,
+            "paymentObject": "service", "measure": "шт.",
+        }],
     }}
     req = Request(
-        settings.TOCHKA_API_BASE + "/acquiring/v1.0/payments",
+        settings.TOCHKA_API_BASE + "/acquiring/v1.0/payments_with_receipt",
         method="POST",
         headers={"Authorization": "Bearer " + settings.TOCHKA_JWT_TOKEN, "Content-Type": "application/json"},
         data=json.dumps(body, separators=(",", ":")).encode(),
@@ -114,6 +144,10 @@ def create_tochka_link(payment):
     obj = _from_data(data)
     if not isinstance(obj, dict):
         raise AcquiringUnavailable("Invalid acquiring reply")
+    if obj.get("paymentLinkId") not in (None, order_ref):
+        raise AcquiringUnavailable("Wrong bank order reference")
+    if obj.get("merchantId") not in (None, settings.TOCHKA_MERCHANT_ID):
+        raise AcquiringUnavailable("Wrong acquiring merchant")
     url = obj.get("paymentLink") or obj.get("paymentUrl") or obj.get("url")
     operation = obj.get("operationId")
     if not isinstance(operation, str) or not operation or len(operation) > 128:
