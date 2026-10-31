@@ -109,3 +109,11 @@
 .welcome-panel .pin-visibility-toggle .pin-eye-hidden{display:none}
 .welcome-panel .pin-visibility-toggle[aria-pressed="true"] .pin-eye-visible{display:none}
 .welcome-panel .pin-visibility-toggle[aria-pressed="true"] .pin-eye-hidden{display:inline}
+
+/* Optional public analytics permission, styled with the existing orange UI. */
+.nosale-analytics-consent{position:fixed;left:16px;right:16px;bottom:16px;z-index:100;max-width:630px;background:#19191e;border:1px solid #48404a;border-radius:14px;padding:18px;box-shadow:0 16px 55px #0009;display:grid;gap:13px}
+.nosale-analytics-consent[hidden]{display:none}
+.nosale-analytics-consent p{margin:0;color:#d4d0d7;font-size:13px;line-height:1.55}
+.nosale-analytics-consent>div{display:flex;flex-wrap:wrap;gap:10px}
+.nosale-analytics-consent button{cursor:pointer;border-radius:10px;padding:10px 14px;background:#e15f2b;color:#fff;font-size:13px;border:1px solid #e15f2b}
+.nosale-analytics-consent button:last-child{background:transparent;border-color:#777179}
