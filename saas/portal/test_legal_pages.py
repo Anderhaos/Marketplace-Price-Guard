@@ -46,6 +46,14 @@ class PublicLegalPagesTests(TestCase):
                 self.assertEqual(self.client.head(url).status_code, 200)
                 self.assertEqual(self.client.post(url).status_code, 405)
 
+    def test_public_documents_use_configured_domain(self):
+        with override_settings(NOSALE_PUBLIC_BASE_URL="https://nosale.pro"):
+            for path in ("/offer/", "/privacy/", "/contacts/"):
+                with self.subTest(path=path):
+                    response = self.client.get(path)
+                    self.assertContains(response, "https://nosale.pro")
+                    self.assertNotContains(response, "https://nosale.svdev.pro")
+
     def test_offer_truthful_trial_payment_and_wildberries_terms(self):
         self.assertEqual(TRIAL_DAYS, 3)
         response = self.client.get("/offer/")

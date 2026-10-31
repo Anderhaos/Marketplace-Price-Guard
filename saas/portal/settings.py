@@ -95,7 +95,8 @@ NOSALE_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_MONTHLY_PRICE_RUB", "0")
 NOSALE_STANDARD_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_STANDARD_MONTHLY_PRICE_RUB")
 NOSALE_SMART_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_SMART_MONTHLY_PRICE_RUB", "0")
 NOSALE_FISCALIZATION_CONFIRMED = env_bool("NOSALE_FISCALIZATION_CONFIRMED", False)
-NOSALE_PAYMENT_RETURN_BASE = "https://nosale.svdev.pro"
+NOSALE_PUBLIC_BASE_URL = os.environ.get("NOSALE_PUBLIC_BASE_URL", "https://nosale.svdev.pro").strip().rstrip("/")
+NOSALE_PAYMENT_RETURN_BASE = os.environ.get("NOSALE_PAYMENT_RETURN_BASE", NOSALE_PUBLIC_BASE_URL).strip().rstrip("/")
 # Central AI Platform Gateway; independent of bank, WB and seller API tokens.
 # Disabled until NoSale project enrollment issues its own service token.
 NOSALE_AI_GATEWAY_URL = os.environ.get("NOSALE_AI_GATEWAY_URL", "")

@@ -22,7 +22,7 @@
 <section class="card legal-sheet" aria-labelledby="legal-main-title">
   <span class="eyebrow">NoSale / юридические документы</span>
   <h1 id="legal-main-title">{% block legal_heading %}{% endblock %}</h1>
-  <p class="legal-meta">Редакция {{ edition }} от {{ edition_date }} · Сервис https://nosale.svdev.pro</p>
+  <p class="legal-meta">Редакция {{ edition }} от {{ edition_date }} · Сервис {{ site_url }}</p>
   <nav class="legal-nav" aria-label="Юридические страницы">
     <a href="{% url 'public_offer' %}">Публичная оферта</a>
     <a href="{% url 'public_privacy' %}">Персональные данные</a>
