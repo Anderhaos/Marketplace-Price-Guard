@@ -6,43 +6,6 @@
   <h1>Уведомления</h1>
   <p class="lead">Исправления после подтверждения WB, критические ошибки, вечерние отчёты и Smart-сводки по изменениям. События сохраняются, даже если приложение закрыто.</p>
 </section>
-<section class="card">
-  <h2>Уведомления на телефоне и компьютере</h2>
-  {% if push_ready %}
-    <p class="muted">Подключено устройств: {{ push_devices }}. Разрешите системные Push-уведомления на этом устройстве.</p>
-    <div class="actions">
-      <button type="button" id="push-enable">Включить уведомления</button>
-      <button type="button" class="secondary" id="push-disable">Отключить на этом устройстве</button>
-    </div>
-    <p class="field-help">На iPhone (iOS 16.4+) сначала добавьте MPNO Sale на экран «Домой» и откройте установленное приложение.</p>
-    <p id="push-state" class="field-help" role="status"></p>
-  {% else %}
-    <p class="muted">Отправка Web Push пока не включена на сервере. История событий и вечерние сводки доступны здесь.</p>
-  {% endif %}
-</section>
-<section class="card">
-  <h2>Настройки уведомлений</h2>
-  <form method="post" action="{% url 'push_preferences' %}">
-    {% csrf_token %}
-    <div class="field"><label><input type="checkbox" name="instant_enabled" {% if preferences.instant_enabled %}checked{% endif %}> Мгновенно: подтверждённые исправления и ошибки</label></div>
-    <div class="field"><label><input type="checkbox" name="daily_enabled" {% if preferences.daily_enabled %}checked{% endif %}> Ежедневный отчёт и рекомендации Smart по расписанию</label></div>
-    <div class="field">
-      <label for="push-timezone">Часовой пояс</label>
-      <select name="timezone_name" id="push-timezone" style="min-height:44px;padding:9px;background:var(--panel-strong);color:var(--text);border:1px solid var(--line);border-radius:12px">
-        {% for tz in timezones %}
-          <option value="{{ tz }}" {% if preferences.timezone_name == tz %}selected{% endif %}>{{ tz }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    {% if smart_access %}
-    <div class="notice" style="margin:12px 0">
-      <p><strong>Smart по расписанию.</strong> NoSale рассчитывает рекомендации скриптами. DeepSeek может составить короткое резюме только по подтверждённым данным и с вашим разрешением. Без согласия доступны обычные сводки без AI.</p>
-      <label><input type="checkbox" name="smart_ai_consent" {% if preferences.smart_ai_consent_at %}checked{% endif %}> Согласен(на) передавать через AI Platform краткую подборку данных моего магазина модели DeepSeek для составления рекомендаций. Согласие можно отозвать здесь.</label>
-    </div>
-    {% endif %}
-    <button type="submit">Сохранить настройки</button>
-  </form>
-</section>
 <form method="post" action="{% url 'mark_notifications_read' %}" style="margin-bottom:14px">
   {% csrf_token %}<button class="secondary" type="submit">Отметить всё прочитанным</button>
 </form>
@@ -80,60 +43,4 @@
   </article>
   {% empty %}<p class="muted">Важных событий пока нет.</p>{% endfor %}
 </section>
-{% if push_ready %}
-<script>
-(() => {
-  const enable = document.getElementById('push-enable');
-  const disable = document.getElementById('push-disable');
-  const status = document.getElementById('push-state');
-  const publicKey = '{{ push_public_key|escapejs }}';
-  const csrf = document.querySelector('input[name=csrfmiddlewaretoken]').value;
-  function bytes(key) {
-    const padded = (key + '='.repeat((4 - key.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
-    return Uint8Array.from(atob(padded), x => x.charCodeAt(0));
-  }
-  async function save(url, obj) {
-    const response = await fetch(url, {
-      method: 'POST', credentials: 'same-origin',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
-      body: JSON.stringify(obj)
-    });
-    if (!response.ok) throw new Error((await response.json()).error || 'Ошибка сохранения');
-  }
-  async function registration() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      throw new Error('Ваш браузер не поддерживает Web Push');
-    }
-    if (!window.isSecureContext) throw new Error('Требуется HTTPS');
-    await navigator.serviceWorker.register('/sw.js');
-    return navigator.serviceWorker.ready;
-  }
-  enable.addEventListener('click', async () => {
-    status.textContent = 'Подключаем уведомления…';
-    try {
-      if (!('Notification' in window)) throw new Error('Web Push недоступен');
-      // Must be requested directly from the click, before other awaits (iOS).
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('Разрешение на уведомления не предоставлено');
-      const sw = await registration();
-      let sub = await sw.pushManager.getSubscription();
-      if (!sub) sub = await sw.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:bytes(publicKey)});
-      await save('{% url "push_subscribe" %}', sub.toJSON());
-      status.textContent = 'Уведомления подключены к этому устройству.';
-    } catch (e) { status.textContent = e.message || 'Не удалось подключить уведомления'; }
-  });
-  disable.addEventListener('click', async () => {
-    try {
-      const sw = await registration();
-      const sub = await sw.pushManager.getSubscription();
-      if (sub) {
-        await save('{% url "push_unsubscribe" %}', {endpoint:sub.endpoint});
-        await sub.unsubscribe();
-      }
-      status.textContent = 'Уведомления отключены на этом устройстве.';
-    } catch (e) { status.textContent = e.message || 'Не удалось отключить'; }
-  });
-})();
-</script>
-{% endif %}
 {% endblock %}

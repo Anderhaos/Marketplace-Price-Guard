@@ -43,4 +43,10 @@
     <p class="field-help" style="margin-top:18px">Автоисправление и пределы скидок находятся на странице товаров.</p>
   </section>
 </div>
+{% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}
+<section id="notification-settings" class="settings-notifications">
+  <div class="section-head"><div><h2>Уведомления</h2><p class="muted">Доставка на устройства, отчёты и расписание.</p></div></div>
+  {% include 'guard/notification_preferences.html' %}
+</section>
+{% endif %}
 {% endblock %}

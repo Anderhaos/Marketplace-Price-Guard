@@ -559,6 +559,12 @@ def settings_view(request):
         "token_form": token_form,
         "settings_form": settings_form,
         "token_permissions": token_permissions,
+        "preferences": NotificationPreference.objects.get_or_create(user=request.user)[0],
+        "smart_access": has_smart_access(request.user.pk),
+        "push_public_key": settings.PUSH_VAPID_PUBLIC_KEY,
+        "push_ready": bool(settings.PUSH_VAPID_PUBLIC_KEY and settings.PUSH_VAPID_PRIVATE_KEY),
+        "push_devices": PushSubscription.objects.filter(user=request.user, active=True).count(),
+        "timezones": sorted(SUPPORTED_TIMEZONES),
     })
 
 
@@ -672,15 +678,9 @@ def notifications(request):
         account__user=request.user,
         kind__in=IMPORTANT_EVENT_KINDS,
     ).select_related("account").order_by("-created_at", "-id")[:100]
-    pref, _ = NotificationPreference.objects.get_or_create(user=request.user)
     digest_messages = PushMessage.objects.filter(user=request.user, kind__in=("digest", "smart")).order_by("-created_at")[:30]
     return render(request, "guard/notifications.html", {
         "events": events, "digest_messages": digest_messages,
-        "preferences": pref, "smart_access": has_smart_access(request.user.pk),
-        "push_public_key": settings.PUSH_VAPID_PUBLIC_KEY,
-        "push_ready": bool(settings.PUSH_VAPID_PUBLIC_KEY and settings.PUSH_VAPID_PRIVATE_KEY),
-        "push_devices": PushSubscription.objects.filter(user=request.user, active=True).count(),
-        "timezones": sorted(SUPPORTED_TIMEZONES),
     })
 
 

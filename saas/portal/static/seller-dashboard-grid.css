@@ -1,9 +1,9 @@
 /*
- * Seller inventory layout: expand the dashboard to a comfortable 1800px cap.
- * Other app screens, auth/onboarding, and the owner admin keep their own layout.
- * This stylesheet loads after the base and marketplace-preview skins.
+ * Shared authenticated seller workspace width, matching the inventory page.
+ * Public auth/onboarding and operator admin are not affected.
+ * Product card breakpoints remain dashboard-only.
  */
-body.seller-dashboard-page .shell {
+body.seller-workspace-page .shell {
   width: min(1800px, calc(100% - 48px));
 }
 
@@ -48,7 +48,7 @@ body.seller-dashboard-page .product-rule > * {
 }
 
 @media (max-width: 639px) {
-  body.seller-dashboard-page .shell {
+  body.seller-workspace-page .shell {
     width: calc(100% - 24px);
   }
 
