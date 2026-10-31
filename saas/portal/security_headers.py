@@ -32,10 +32,8 @@ class NoSaleSecurityHeadersMiddleware:
         # Avoid interfering with API responses, service workers and downloads.
         if response.get("Content-Type", "").lower().startswith("text/html"):
             response["Content-Security-Policy"] = CSP
-            # Some middleware-level tests call with a None request. Treat that
-            # context as private rather than crashing or allowing indexing.
-            request_path = getattr(request, "path", "")
-            public_path = request_path in ("/", "/offer/", "/privacy/", "/contacts/")
-            if not public_path or (request_path == "/" and request.user.is_authenticated):
-                response["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+            if request is not None:
+                public_path = request.path in ("/", "/offer/", "/privacy/", "/contacts/")
+                if not public_path or (request.path == "/" and request.user.is_authenticated):
+                    response["X-Robots-Tag"] = "noindex, nofollow, noarchive"
         return response
