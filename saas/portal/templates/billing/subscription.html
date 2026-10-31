@@ -1,24 +1,16 @@
 {% extends "guard/base.html" %}
 {% block title %}Подписка — NoSale{% endblock %}
 {% block content %}
-<section class="page-hero workspace-hero workspace-hero--split">
-  <div>
-    <span class="eyebrow">NoSale / подписка</span>
-    <h1>Ваш тариф</h1>
-    {% if subscription_state.active %}
-      <p class="lead">Сейчас действует тариф <b>{{ subscription_state.active_plan|capfirst }}</b>
-        {% if subscription_state.access_source == "trial" %}(пробный период){% endif %}
-        до <b>{{ subscription_state.expires_at|date:"d.m.Y H:i" }}</b>.</p>
-    {% elif subscription_state.trial_expired %}
-      <p class="lead">Пробный период закончился. Данные магазина сохранены. Защита будет доступна после активации оплаченного тарифа.</p>
-    {% else %}
-      <p class="lead">После подключения магазина — 3 бесплатных дня Standard. Платить за пробный период не нужно.</p>
-    {% endif %}
-    {% if subscription_state.upcoming_plan %}
-      <p class="notice">Оплаченный тариф <b>{{ subscription_state.upcoming_plan|capfirst }}</b> начнёт действовать {{ subscription_state.upcoming_starts_at|date:"d.m.Y H:i" }}. До этой даты функции Smart, если они ещё не активны, остаются недоступными.</p>
-    {% endif %}
-  </div>
-</section>
+<header class="compact-page-head"><div><h1>Тариф</h1>
+{% if subscription_state.active %}
+  <span class="compact-page-count">{{ subscription_state.active_plan|capfirst }}{% if subscription_state.access_source == "trial" %} · пробный{% endif %} · до {{ subscription_state.expires_at|date:"d.m.Y" }}</span>
+{% elif subscription_state.trial_expired %}
+  <span class="compact-page-count">Доступ закончился</span>
+{% else %}
+  <span class="compact-page-count">3 бесплатных дня Standard после подключения магазина</span>
+{% endif %}
+</div></header>
+{% if subscription_state.upcoming_plan %}<p class="compact-inline-note">Следующий тариф: {{ subscription_state.upcoming_plan|capfirst }} · {{ subscription_state.upcoming_starts_at|date:"d.m.Y H:i" }}</p>{% endif %}
 <div class="workspace-columns">
   <section class="card workspace-section">
     <div class="workspace-section-head">

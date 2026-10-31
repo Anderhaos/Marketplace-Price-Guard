@@ -1,12 +1,10 @@
 {% extends 'guard/base.html' %}
 {% block title %}История — MPNO Sale{% endblock %}
 {% block content %}
-<section class="page-hero">
-  <span class="eyebrow">MPNO Sale / журнал</span>
-  <h1>{% if product %}История товара {{ product.vendor_code }}{% else %}История изменений{% endif %}</h1>
-  <p class="lead">Проверки сгруппированы по дням. Исправления отделены от отправленных задач и ошибок.</p>
-</section>
-{% if product %}<p><a class="button secondary" href="{% url 'history' %}">Вся история</a></p>{% endif %}
+<header class="compact-page-head"><div><h1>{% if product %}История товара {{ product.vendor_code }}{% else %}История{% endif %}</h1></div>
+{% if product %}<a class="button secondary" href="{% url 'history' %}">Вся история</a>{% endif %}
+</header>
+
 <div class="workspace-panel-grid workspace-panel-grid--auto">
 {% for day in days %}
 <section class="card workspace-day">

@@ -1,58 +1,101 @@
 {% extends 'guard/base.html' %}
-{% block title %}Настройки — MP No Sale{% endblock %}
+{% block title %}Настройки — NoSale{% endblock %}
 {% block content %}
-<section class="page-hero workspace-hero">
-  <span class="eyebrow">MP No Sale / настройки</span>
-  <h1>Настройки магазина: {{ account.name }}</h1>
-  <p class="lead">Подключение Wildberries и технические параметры проверок.</p>
-</section>
-<div class="settings-grid workspace-settings-grid">
-  <section class="card">
-    <div class="section-head"><div><h2>Подключение Wildberries</h2><p>Один токен для доступа к данным магазина и управления скидками.</p></div></div>
+<header class="compact-page-head">
+  <div><h1>Настройки</h1><span class="compact-page-count">{{ account.name }}</span></div>
+</header>
+<div class="settings-grid workspace-settings-grid compact-settings-grid">
+  <section class="card compact-settings-card">
+    <h2>Wildberries</h2>
     {% if account.token_hint %}
-      <div class="notice token-summary">
-        <div><span class="status-pill good">Текущий токен сохранён</span> <span class="muted">{{ account.token_hint }}</span></div>
-        {% if token_permissions %}
-          <div class="token-permissions">
-            <span class="token-permissions-title">Тип: {{ token_permissions.token_type_label }} · Права: {{ token_permissions.access }}</span>
-            {% for category in token_permissions.categories %}<span class="scope-chip">{{ category }}</span>{% endfor %}
-          </div>
-          {% if token_permissions.token_type == 'base' %}
-            <p class="field-help bad">Базовый токен ограничивает частоту исправлений — работа защиты может задерживаться.</p>
-            <details class="workspace-settings-token-note">
-              <summary>Какие права нужны для облачного NoSale?</summary>
-              <p>Базовый токен допускает «Чтение и запись», но WB устанавливает для него значительно более низкие лимиты. Для облачного NoSale предпочтителен сервисный токен из Каталога WB с доступом «Чтение и запись» и категориями «Цены и скидки», «Контент». Персональный токен предназначен для собственных программ и локальных установок, а не стороннего облачного SaaS.</p>
-            </details>
-          {% endif %}
-        {% else %}
-          <p class="field-help">Права этого токена определить не удалось. Вставьте новый токен Wildberries, если хотите обновить данные.</p>
-        {% endif %}
+      <div class="compact-token-status">
+        <span class="status-pill good">Подключён</span>
+        <span class="muted">{{ account.token_hint }}</span>
       </div>
-    {% else %}<p class="notice">Токен ещё не подключён.</p>{% endif %}
-    <form method="post">
-      {% csrf_token %}<input type="hidden" name="action" value="token">
-      {{ token_form.non_field_errors }}
-      <div class="field token-field"><label for="{{ token_form.token.id_for_label }}">{{ token_form.token.label }}</label>{{ token_form.token }}{{ token_form.token.errors }}<p class="field-help">Вставьте полный токен целиком. Текущий токен остаётся рабочим, пока новый не пройдёт проверку. После успешного сохранения новый токен полностью заменит старый; удалять старый отдельно не нужно.</p></div>
-      <button>Проверить и сохранить токен</button>
-    </form>
-    <p class="field-help" style="margin-top:18px">После замены включите автоисправление на странице товаров.</p>
+      {% if token_permissions %}
+      <details class="compact-disclosure">
+        <summary>Права токена · {{ token_permissions.token_type_label }}</summary>
+        <div class="token-permissions">
+          {% for category in token_permissions.categories %}<span class="scope-chip">{{ category }}</span>{% endfor %}
+        </div>
+        {% if token_permissions.token_type == 'base' %}
+          <p class="field-help">Базовый токен имеет более низкие лимиты WB; исправления могут выполняться с задержкой. Для облачного сервиса предпочтителен сервисный токен с правами «Чтение и запись» и категориями «Цены и скидки», «Контент».</p>
+        {% endif %}
+      </details>
+      {% endif %}
+    {% else %}
+      <p class="muted">Магазин не подключён.</p>
+    {% endif %}
+    <details class="compact-disclosure" {% if token_form.errors %}open{% endif %}>
+      <summary>{% if account.token_hint %}Заменить API-токен{% else %}Подключить API-токен{% endif %}</summary>
+      <form method="post" class="compact-settings-form">
+        {% csrf_token %}<input type="hidden" name="action" value="token">
+        {{ token_form.non_field_errors }}
+        <div class="field"><label for="{{ token_form.token.id_for_label }}">{{ token_form.token.label }}</label>{{ token_form.token }}{{ token_form.token.errors }}</div>
+        <p class="field-help">Новый токен заменит предыдущий только после успешной проверки.</p>
+        <button type="submit">Проверить и сохранить</button>
+      </form>
+    </details>
+    {% if seller_has_other_stores %}
+      <a class="compact-setting-link" href="{% url 'stores' %}">Переключить магазин</a>
+    {% else %}
+      <details class="compact-disclosure">
+        <summary>Добавить ещё магазин</summary>
+        <p class="field-help">Если у вас есть второй кабинет WB, подключите его отдельно.</p>
+        <a class="button secondary" href="{% url 'stores' %}">Добавить магазин</a>
+      </details>
+    {% endif %}
   </section>
-  <section class="card">
-    <div class="section-head"><div><h2>Проверки</h2><p>Частота работы гварда и количество товаров в одной задаче Wildberries.</p></div></div>
-    <form method="post">
+
+  <section class="card compact-settings-card">
+    <h2>Проверки</h2>
+    <form method="post" class="compact-settings-form">
       {% csrf_token %}<input type="hidden" name="action" value="settings">
       {{ settings_form.non_field_errors }}
       <div class="field"><label for="{{ settings_form.interval_minutes.id_for_label }}">{{ settings_form.interval_minutes.label }}</label>{{ settings_form.interval_minutes }}{{ settings_form.interval_minutes.errors }}</div>
       <div class="field"><label for="{{ settings_form.max_fixes.id_for_label }}">{{ settings_form.max_fixes.label }}</label>{{ settings_form.max_fixes }}{{ settings_form.max_fixes.errors }}</div>
-      <button>Сохранить настройки</button>
+      <button type="submit">Сохранить</button>
     </form>
-    <p class="field-help" style="margin-top:18px">Автоисправление и пределы скидок находятся на странице товаров.</p>
+    {% if 'promotion_audit' in seller_capabilities and not seller_has_promotion_data %}
+      <form method="post" action="{% url 'promotion_audit' %}" class="compact-settings-extra">
+        {% csrf_token %}<input type="hidden" name="action" value="refresh">
+        <button type="submit" class="secondary">Загрузить календарь акций WB</button>
+      </form>
+    {% endif %}
   </section>
+
+  {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}
+  <div id="notification-settings" class="compact-settings-notifications">
+    {% include 'guard/notification_preferences.html' %}
+  </div>
+  {% endif %}
 </div>
-{% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}
-<section id="notification-settings" class="workspace-settings-group">
-  <div class="section-head"><div><h2>Уведомления</h2><p class="muted">Доставка на устройства, отчёты и расписание.</p></div></div>
-  {% include 'guard/notification_preferences.html' %}
+
+{% if finance_ui_enabled or finance_connected %}
+<section id="finance-settings" class="compact-finance-panel card">
+  <h2>Финансы WB</h2>
+  {% if finance_connected %}
+    <span class="status-pill good">Токен подключён</span>
+    {% if finance_snapshot and finance_snapshot.fetched_at %}
+      <span class="muted">Отчётов: {{ finance_snapshot.reports|length }} · {{ finance_snapshot.fetched_at|date:"d.m H:i" }}</span>
+      <a class="button secondary" href="{% url 'finance_audit' %}">Просмотреть отчёты</a>
+    {% endif %}
+    <form method="post" action="{% url 'finance_audit' %}" class="compact-finance-action">
+      {% csrf_token %}<input type="hidden" name="action" value="revoke">
+      <button type="submit" class="secondary">Отключить финансовый доступ</button>
+    </form>
+  {% elif finance_ui_enabled %}
+    <details class="compact-disclosure">
+      <summary>Подключить финансовые отчёты</summary>
+      <p class="field-help">Для финансов нужен отдельный сервисный токен WB с категорией «Финансы».</p>
+      <form method="post" action="{% url 'finance_audit' %}" autocomplete="off">
+        {% csrf_token %}<input type="hidden" name="action" value="connect">
+        <div class="field"><label for="finance-token">Токен категории «Финансы»</label><textarea id="finance-token" name="finance_token" maxlength="4096" required autocomplete="off" spellcheck="false"></textarea></div>
+        <label><input type="checkbox" name="finance_consent" value="yes" required> Согласен предоставить доступ к финансовым отчётам на чтение.</label>
+        <p><button type="submit">Подключить</button></p>
+      </form>
+    </details>
+  {% endif %}
 </section>
 {% endif %}
 {% endblock %}

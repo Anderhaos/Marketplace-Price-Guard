@@ -1,13 +1,7 @@
 {% extends 'guard/base.html' %}
 {% block title %}Финансовые отчёты WB — NoSale{% endblock %}
 {% block content %}
-<section class="page-hero workspace-hero workspace-hero--split">
-  <div>
-    <span class="eyebrow">Финансовая сверка · только чтение</span>
-    <h1>Отчёты WB — {{ account.name }}</h1>
-    <p class="lead">Финансовые отчёты отделены от управления скидками. NoSale не передаёт финансовый токен в AI, не изменяет цены и не объявляет акцию прибыльной без подтверждённых данных.</p>
-  </div>
-</section>
+<header class="compact-page-head"><div><h1>Финансы</h1><span class="compact-page-count">Только чтение · {{ account.name }}</span></div></header>
 <div class="workspace-finance-content">
   {% if not finance_enabled %}
     <div class="workspace-columns">

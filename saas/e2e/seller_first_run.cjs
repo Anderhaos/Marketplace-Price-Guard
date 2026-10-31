@@ -222,9 +222,12 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(navState.bellActive.includes('Уведомления'));
     assert.ok(navState.more,'Secondary navigation must be grouped');
     assert.ok(!navState.links.includes('/notifications/'),'Notifications must not be hidden under More');
-    for(const url of ['/stores/','/billing/','/history/']){
+    for(const url of ['/billing/','/history/']){
       assert.ok(navState.links.includes(url),'Secondary section lost '+url);
     }
+    assert.ok(!navState.links.includes('/stores/'),'Single WB shop does not need a stores menu');
+    assert.ok(!navState.links.includes('/finance/'),'Disabled finance must not be in the menu');
+    assert.ok(!navState.primary.some(v=>v.includes('Акции')),'Empty campaign calendar must not be in the menu');
     assert.ok(navState.hasWBLinks.includes('https://www.wildberries.ru/'));
     assert.ok(navState.hasWBLinks.includes('https://seller.wildberries.ru/'));
     await page.click('details.seller-more-menu > summary');
@@ -253,7 +256,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     step('seller_settings_access');
     await goto('/notifications/');
     assert.equal(await page.$('#notification-settings'),null);
-    await waitText('Критических событий нет');
+    await waitText('Пока нет уведомлений.');
     step('routine_sync_does_not_spam_important_notifications');
     await page.screenshot({path:snapshotDir+'/03-notifications.png'});
     await goto('/history/');
@@ -286,9 +289,8 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         if(expected===null)expected=geometry.mainWidth;
         assert.ok(Math.abs(expected-geometry.mainWidth)<=1,'Inconsistent page width '+route+' at '+width);
         const target={
-          '/notifications/':'.workspace-columns--inbox',
-          '/settings/':'.workspace-settings-grid',
-          '/promotions/':'.workspace-columns',
+          '/notifications/':'.compact-inbox',
+          '/settings/':'.compact-settings-grid',
           '/history/':'.workspace-panel-grid',
           '/stores/':'.workspace-columns',
           '/billing/':'.workspace-tariff-cards'
@@ -303,7 +305,23 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           assert.ok(panels.width<=geometry.mainWidth+1,'Grid exceeds shell: '+route);
           if(route==='/notifications/' || route==='/settings/'){
             const tracks=panels.columns.split(' ').filter(Boolean).length;
-            assert.equal(tracks,width>=980?2:1,'Panels must adapt to viewport '+width+' '+route);
+            const targetTracks=route==='/notifications/'?1:(width>1160?3:1);
+            assert.equal(tracks,targetTracks,'Panels must adapt to viewport '+width+' '+route);
+          }
+        }
+        if(route==='/promotions/') {
+          assert.ok(await page.$('.compact-page-head'),'Campaigns need a compact heading');
+          assert.equal(await page.$('.page-hero'),null,'No empty campaign landing hero');
+        }
+        if(route==='/') {
+          const stats=await page.$$eval('.compact-summary .summary-cell',cells=>cells.map(el=>{
+            const r=el.getBoundingClientRect();
+            return {top:r.top,height:r.height};
+          }));
+          assert.equal(stats.length,5,'Five summary controls must remain');
+          if(width===1920){
+            assert.ok(stats.every(s=>Math.abs(s.top-stats[0].top)<2),'Summary must occupy a single row');
+            assert.ok(stats.every(s=>s.height<80),'Summary must not contain tall tiles');
           }
         }
         if(route!=='/'){
@@ -343,7 +361,8 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       };
     });
     assert.ok(menuVisible.visible,'Compact extra menu must remain usable at 390px: '+JSON.stringify(menuVisible));
-    assert.ok(await page.$('details.seller-more-menu[open] a[href="/stores/"]'));
+    assert.equal(await page.$('details.seller-more-menu[open] a[href="/stores/"]'),null);
+    assert.ok(await page.$('details.seller-more-menu[open] a[href="/history/"]'));
     await page.screenshot({path:snapshotDir+'/05-simplified-navigation-mobile.png'});
     step('compact_more_menu_usable_on_mobile');
     await goto('/assistant/');

@@ -28,7 +28,7 @@ from billing.models import OwnerAISettings
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
 from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
-from .models import AssistantMessage, GuardAccount, GuardEvent, Product, Upload
+from .models import AssistantMessage, GuardAccount, GuardEvent, Product, Upload, FinanceSnapshot
 from .stores import selected_store, SESSION_KEY
 from push.models import NotificationPreference, PushMessage, PushSubscription
 from push.service import SUPPORTED_TIMEZONES
@@ -554,7 +554,14 @@ def settings_view(request):
         except (ValueError, TypeError):
             # The token itself is never rendered or logged if it cannot be read.
             pass
+    finance_snapshot = FinanceSnapshot.objects.filter(account=account).first()
     return render(request, "guard/settings.html", {
+        "finance_ui_enabled": (
+            has_plan_capability(request.user.pk, "finance_audit")
+            and settings.SAAS_WB_NETWORK_ENABLED and settings.NOSALE_WB_FINANCE_ENABLED
+        ),
+        "finance_connected": bool(finance_snapshot and finance_snapshot.encrypted_finance_token),
+        "finance_snapshot": finance_snapshot,
         "account": account,
         "token_form": token_form,
         "settings_form": settings_form,
