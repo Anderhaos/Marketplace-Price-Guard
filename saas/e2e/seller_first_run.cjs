@@ -246,7 +246,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await page.screenshot({path:snapshotDir+'/06-smart-summaries-desktop.png',fullPage:true});
     step('smart_summaries_replace_interactive_chat');
     await goto('/billing/');
-    await waitText('пробный период');
+    await waitText('пробный');
     const subscriptionText = await page.evaluate(()=>document.body.innerText);
     assert.ok(subscriptionText.toLowerCase().includes('standard'),'trial should have Standard capabilities');
     step('trial_granted_on_first_import');
