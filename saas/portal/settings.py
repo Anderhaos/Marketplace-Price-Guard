@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from email.utils import parseaddr
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -169,19 +170,34 @@ EMAIL_PORT = int(os.environ.get("SMTP_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("SMTP_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("SMTP_USE_TLS", True)
+EMAIL_USE_SSL = env_bool("SMTP_USE_SSL", False)
+EMAIL_TIMEOUT = int(os.environ.get("SMTP_TIMEOUT", "12"))
 DEFAULT_FROM_EMAIL = os.environ.get("SMTP_FROM", "noreply@mpnosale.svdev.pro")
 if not DEBUG and SAAS_PIN_AUTH_ENABLED and not REQUIRE_EMAIL_VERIFICATION:
     raise RuntimeError("PIN authentication requires email verification")
-if not DEBUG and SAAS_PIN_AUTH_ENABLED and EMAIL_BACKEND != "portal.email_backend.RelayEmailBackend":
-    raise RuntimeError("PIN authentication requires the trusted HTTPS relay")
-if not DEBUG and REQUIRE_EMAIL_VERIFICATION:
-    smtp_ready = (EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
-                  and EMAIL_HOST and EMAIL_HOST_USER and EMAIL_HOST_PASSWORD)
-    relay_ready = (EMAIL_BACKEND == "portal.email_backend.RelayEmailBackend"
-                   and MAIL_RELAY_URL == "https://mail.beclients.ru/svdev-relay.php"
-                   and len(MAIL_RELAY_TOKEN) >= 32)
-    if not (smtp_ready or relay_ready):
-        raise RuntimeError("Production registration requires a configured mail transport")
+# Authenticated SMTP is permitted only over an encrypted connection, and the
+# visible From identity must be the same mailbox that logged in to SMTP.
+sender_address = parseaddr(DEFAULT_FROM_EMAIL)[1].lower()
+smtp_tls_valid = (
+    (EMAIL_PORT == 465 and EMAIL_USE_SSL and not EMAIL_USE_TLS)
+    or (EMAIL_PORT == 587 and EMAIL_USE_TLS and not EMAIL_USE_SSL)
+)
+smtp_ready = (
+    EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend"
+    and bool(EMAIL_HOST) and bool(EMAIL_HOST_PASSWORD)
+    and bool(EMAIL_HOST_USER) and "@" in sender_address
+    and EMAIL_HOST_USER.strip().lower() == sender_address
+    and smtp_tls_valid and 0 < EMAIL_TIMEOUT <= 30
+)
+relay_ready = (
+    EMAIL_BACKEND == "portal.email_backend.RelayEmailBackend"
+    and MAIL_RELAY_URL == "https://mail.beclients.ru/svdev-relay.php"
+    and len(MAIL_RELAY_TOKEN) >= 32
+)
+if not DEBUG and SAAS_PIN_AUTH_ENABLED and not (smtp_ready or relay_ready):
+    raise RuntimeError("PIN authentication requires trusted relay or authenticated TLS/SSL SMTP")
+if not DEBUG and REQUIRE_EMAIL_VERIFICATION and not (smtp_ready or relay_ready):
+    raise RuntimeError("Production registration requires verified mail transport")
 if not DEBUG and not os.environ.get("TOKEN_ENCRYPTION_KEY"):
     raise RuntimeError("Production requires TOKEN_ENCRYPTION_KEY")
 if not DEBUG:
