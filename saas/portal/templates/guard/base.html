@@ -328,29 +328,14 @@
     @media(max-width:800px){.assistant-workspace{grid-template-columns:minmax(0,1fr)}.assistant-sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}.assistant-sidebar .card{padding:18px}}
     @media(max-width:560px){.assistant-dialog{padding:17px}.assistant-sidebar{grid-template-columns:1fr}.assistant-intro{padding:19px}.assistant-composer-actions button{margin-left:0;width:100%}.wb-dashboard-header{align-items:flex-start}.wb-quick-links{width:100%}}
 
-    /* Stable viewport across short/long pages: a scrollbar never changes content width. */
+    /* Reserve scrollbar width and fix header geometry without redesigning it. */
     html{scrollbar-gutter:stable}
     @supports not (scrollbar-gutter:stable){html{overflow-y:scroll}}
-    /* Anonymous home and login share one predictable, fixed-height header. */
     .public-visitor .header-inner{min-height:64px;flex-direction:row;align-items:center;padding-block:8px;gap:12px}
-    .public-visitor .brand{flex-shrink:0}
-    .public-visitor .site-nav{width:auto;min-width:0;display:flex;align-items:center;flex-wrap:nowrap;gap:4px;padding:0;margin-left:auto}
-    .public-visitor .site-nav>a{white-space:nowrap}
-    .public-mobile-menu{display:none;position:relative}
-    .public-mobile-menu summary{list-style:none;cursor:pointer;padding:8px 12px;border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:13px;font-weight:700}
-    .public-mobile-menu summary::-webkit-details-marker{display:none}
-    .public-mobile-menu[open] summary{border-color:var(--accent-strong)}
-    .public-mobile-links{position:absolute;right:0;top:calc(100% + 8px);z-index:110;display:grid;min-width:206px;padding:8px;background:#19191f;border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
-    .public-mobile-links a{padding:11px 12px;white-space:nowrap;color:var(--text);font-size:13px;text-decoration:none}
-    .public-mobile-links a:hover,.public-mobile-links a:focus-visible{background:rgba(255,255,255,.065);border-radius:8px}
-    @media(max-width:930px){
-      .public-visitor .public-desktop-links{display:none}
-      .public-visitor .public-mobile-menu{display:block}
-    }
+    .public-visitor .site-nav{width:auto;min-height:34px;display:flex;align-items:center;flex-wrap:nowrap;gap:4px;padding:0;margin-left:auto}
     @media(max-width:600px){
       .public-visitor .header-inner{min-height:60px;gap:8px}
-      .public-visitor .brand{font-size:16px}
-      .public-visitor .brand-product{font-size:10px}
+      .public-visitor .site-nav{width:auto;flex-wrap:nowrap;padding:0;overflow:visible}
     }
   </style>
   {% if user.is_authenticated %}<link rel="stylesheet" href="/static/marketplace-previews.css?v=20261030a">{% endif %}
@@ -394,23 +379,10 @@
           {% endif %}
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="secondary">Выйти</button></form>
         {% else %}
-          {% if request.path == '/' %}
-            <a class="public-desktop-links" href="#features">Возможности</a>
-            <a class="public-desktop-links" href="#how">Как работает</a>
-            <a class="public-desktop-links" href="#pricing">Тарифы</a>
-            <a class="public-desktop-links" href="#faq">Вопросы</a>
-            <a class="public-desktop-links" href="{% url 'login' %}">Войти</a>
-            <a class="public-desktop-links nav-accent" href="{% url 'login' %}">Начать бесплатно</a>
-            <details class="public-mobile-menu"><summary aria-label="Открыть меню">Меню</summary>
-              <div class="public-mobile-links">
-                <a href="#features">Возможности</a><a href="#how">Как работает</a>
-                <a href="#pricing">Тарифы</a><a href="#faq">Вопросы</a>
-                <a href="{% url 'login' %}">Войти</a>
-                <a href="{% url 'login' %}">Начать бесплатно</a>
-              </div>
-            </details>
-          {% elif request.path == '/login/' or request.path == '/auth/code/' or request.path == '/auth/pin/' or request.path == '/register/' or request.path == '/password-reset/' %}
-            <a href="{% url 'dashboard' %}">← На главную</a>
+          {% if request.path == '/' or request.path == '/login/' %}
+            {% if stage == 'pin' %}<a href="{% url 'login' %}">Другой email</a>{% else %}<a href="#welcome-headline">Как это работает</a>{% endif %}
+          {% elif request.path == '/auth/code/' or request.path == '/auth/pin/' or request.path == '/register/' or request.path == '/password-reset/' %}
+            <a href="{% url 'login' %}">Вернуться к входу</a>
           {% else %}
             <a href="{% url 'login' %}">Войти</a><a class="nav-accent" href="{% url 'register' %}">Регистрация</a>
           {% endif %}
