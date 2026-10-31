@@ -169,6 +169,20 @@ EMAIL_HOST = os.environ.get("SMTP_HOST", "")
 EMAIL_PORT = int(os.environ.get("SMTP_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("SMTP_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_PASSWORD_FILE = os.environ.get("SMTP_PASSWORD_FILE", "").strip()
+if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend" and SMTP_PASSWORD_FILE:
+    # An optional root-owned bind mount keeps SMTP credentials out of .env.
+    import stat
+    secret_path = Path(SMTP_PASSWORD_FILE)
+    try:
+        mode = stat.S_IMODE(secret_path.stat().st_mode)
+        if mode & 0o077:
+            raise RuntimeError("SMTP password file must not be group/world readable")
+        EMAIL_HOST_PASSWORD = secret_path.read_text(encoding="utf-8").rstrip("\r\n")
+    except OSError as exc:
+        raise RuntimeError("SMTP password file cannot be read") from exc
+    if not EMAIL_HOST_PASSWORD:
+        raise RuntimeError("SMTP password file must not be empty")
 EMAIL_USE_TLS = env_bool("SMTP_USE_TLS", True)
 EMAIL_USE_SSL = env_bool("SMTP_USE_SSL", False)
 EMAIL_TIMEOUT = int(os.environ.get("SMTP_TIMEOUT", "12"))
