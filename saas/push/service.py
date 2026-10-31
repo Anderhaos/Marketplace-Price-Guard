@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from guard.models import GuardAccount, GuardEvent, Product
 from guard.advisor import store_recommendations
-from billing.access import has_smart_access
+from billing.access import has_smart_access, has_plan_capability
 from billing.models import OwnerAISettings, OwnerOperationsSettings
 from .models import NotificationPreference, PushDelivery, PushMessage, PushSubscription
 
@@ -98,6 +98,8 @@ def unsubscribe(user, endpoint):
 
 
 def _enqueue_for_devices(message, not_before=None):
+    if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(message.user_id, 'notifications'):
+        return
     query = PushSubscription.objects.filter(user_id=message.user_id, active=True)
     if not_before:
         query = query.filter(created_at__lte=not_before)
@@ -122,6 +124,8 @@ def queue_new_events(now=None):
     )
     queued = 0
     for event in events:
+        if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(event.account.user_id, 'notifications', at=now):
+            continue
         title = {
             "confirmed": "WB подтвердил исправление",
             "error": "Ошибка проверки WB",
@@ -201,6 +205,8 @@ def create_daily_digests(now=None):
         pref, _ = NotificationPreference.objects.get_or_create(user=user)
         if not pref.daily_enabled:
             continue
+        if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(user.pk, 'notifications', at=now):
+            continue
         tzname = pref.timezone_name if pref.timezone_name in SUPPORTED_TIMEZONES else "Europe/Moscow"
         tz = ZoneInfo(tzname)
         local_now = timezone.localtime(now, tz)
@@ -262,7 +268,7 @@ def create_smart_briefs(now=None):
         return 0
 
     sellers = get_user_model().objects.filter(
-        is_active=True, saas_access_grants__plan="smart",
+        is_active=True,
         saas_access_grants__starts_at__lte=now,
         saas_access_grants__ends_at__gt=now,
         saas_access_grants__revoked_at__isnull=True,
@@ -407,8 +413,10 @@ def deliver_due_pushes(now=None, send=None):
             continue
         delivery.refresh_from_db(fields=["attempts"])
         subscription = delivery.subscription
-        if not subscription.active or subscription.user_id != delivery.message.user_id:
-            PushDelivery.objects.filter(pk=delivery.pk).update(state="gone")
+        if (not subscription.active or subscription.user_id != delivery.message.user_id
+                or (settings.SAAS_ACCESS_ENFORCED
+                    and not has_plan_capability(delivery.message.user_id, "notifications", at=now))):
+            PushDelivery.objects.filter(pk=delivery.pk).update(state="gone", locked_at=None)
             continue
         try:
             validate_endpoint(subscription.endpoint)  # Prevent unexpected outbound destinations.

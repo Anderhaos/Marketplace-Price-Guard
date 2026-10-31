@@ -134,18 +134,28 @@
     </section>
   </div>
 {% elif section == "tariffs" %}
-  <div class="owner-notice"><strong>Действует только для новых покупок.</strong> Выключение тарифа не отменяет уже оплаченные подписки. Фактическое проведение платежей и фискализация ограничены серверной конфигурацией.</div>
+  <div class="owner-notice"><strong>Два независимых управления:</strong> цена и «Разрешить продажу» влияют только на новые покупки. Чекбоксы функций действуют сразу для всех активных подписок этого тарифа, включая пробный доступ. Снятие «Защита скидок WB» прекращает дальнейшие автоматические исправления. Оплата и фискализация по-прежнему ограничены серверной конфигурацией.</div>
   <div class="owner-section-grid">
     {% with form=forms.tariff_standard %}
     <section class="owner-formcard"><div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПЛАН 01</span><h2>Standard</h2></div></div>
       {% if form %}<form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="tariff_standard">
-        {% for field in form %}<div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>{% endfor %}
+        {% for field in form %}{% if field.name == 'features' %}<fieldset class="owner-feature-picker" style="border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0">
+          <legend style="font-weight:700;padding:0 8px">{{ field.label }}</legend>
+          <p class="owner-small-note" style="margin:4px 0 14px">{{ field.help_text }}</p>
+          <div class="owner-feature-options" style="display:grid;gap:12px">{{ field }}</div>
+          {% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}
+        </fieldset>{% else %}<div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>{% endif %}{% endfor %}
         <button type="submit" class="owner-primary-button">Сохранить Standard</button></form>{% else %}<div class="owner-notice owner-notice--warning">Тариф не найден.</div>{% endif %}
     </section>{% endwith %}
     {% with form=forms.tariff_smart %}
     <section class="owner-formcard"><div class="owner-formcard-head"><div><span class="owner-card-eyebrow">ПЛАН 02</span><h2>Smart</h2></div></div>
       {% if form %}<form method="post" class="owner-settings-form">{% csrf_token %}<input type="hidden" name="_panel" value="tariff_smart">
-        {% for field in form %}<div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>{% endfor %}
+        {% for field in form %}{% if field.name == 'features' %}<fieldset class="owner-feature-picker" style="border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0">
+          <legend style="font-weight:700;padding:0 8px">{{ field.label }}</legend>
+          <p class="owner-small-note" style="margin:4px 0 14px">{{ field.help_text }}</p>
+          <div class="owner-feature-options" style="display:grid;gap:12px">{{ field }}</div>
+          {% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}
+        </fieldset>{% else %}<div class="owner-field{% if field.field.widget.input_type == 'checkbox' %} owner-field--check{% endif %}">{{ field.label_tag }}{{ field }}{% for error in field.errors %}<span class="owner-field-error">{{ error }}</span>{% endfor %}</div>{% endif %}{% endfor %}
         <button type="submit" class="owner-primary-button">Сохранить Smart</button></form>{% else %}<div class="owner-notice owner-notice--warning">Тариф не найден.</div>{% endif %}
     </section>{% endwith %}
   </div>

@@ -7,7 +7,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
-from django.http import FileResponse, HttpResponse, HttpResponseNotAllowed, JsonResponse
+from django.http import FileResponse, HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -490,8 +490,8 @@ def store_advisor(request):
         return HttpResponseNotAllowed(["GET"])
     if not has_smart_access(request.user.pk):
         return render(request, "guard/assistant_access.html", {
-            "access_title": "Рекомендации доступны в Smart",
-            "access_explanation": "Для просмотра рекомендаций по вашему магазину необходим действующий тариф Smart. Базовый помощник остаётся доступен в Standard."
+            "access_title": "Рекомендации не включены в ваш тариф",
+            "access_explanation": "Владелец сервиса управляет доступом к рекомендациям отдельно для Standard и Smart."
         }, status=403)
     account = _account(request)
     return render(request, "guard/advisor.html", {
@@ -643,6 +643,8 @@ def product_rule(request, nm_id):
 
 @login_required
 def product_history_data(request, nm_id):
+    if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(request.user.pk, "activity_history"):
+        return JsonResponse({"error": "История не включена в тариф."}, status=403)
     account = _account(request)
     product = get_object_or_404(Product, account=account, nm_id=nm_id)
     events = GuardEvent.objects.filter(account=account, nm_id=nm_id)[:100]
@@ -662,6 +664,10 @@ IMPORTANT_EVENT_KINDS = ("confirmed", "upload_error", "error")
 
 @login_required
 def notifications(request):
+    if (settings.SAAS_ACCESS_ENFORCED
+            and not (has_plan_capability(request.user.pk, "notifications")
+                     or has_plan_capability(request.user.pk, "store_advice"))):
+        return HttpResponseForbidden("Сводки и уведомления не включены в тариф.")
     events = GuardEvent.objects.filter(
         account__user=request.user,
         kind__in=IMPORTANT_EVENT_KINDS,
@@ -695,6 +701,8 @@ def mark_notifications_read(request):
 
 @login_required
 def history(request):
+    if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(request.user.pk, "activity_history"):
+        return HttpResponseForbidden("История не включена в тариф.")
     account = _account(request)
     nm_id = request.GET.get("product")
     events = GuardEvent.objects.filter(account=account)

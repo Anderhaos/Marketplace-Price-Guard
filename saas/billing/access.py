@@ -1,19 +1,66 @@
 from django.conf import settings
 from django.utils import timezone
 from django.db.models import Case, IntegerField, Value, When
-from .models import AccessGrant
+from .models import AccessGrant, OwnerTariffOffer
 
 
 # Inspired by BeClients billing-capabilities.ts: one effective AccessGrant
 # selects a small set of server-enforced features. This is intentionally
 # not a second subscription/payment ledger.
-PLAN_CAPABILITIES = {
-    "standard": frozenset({"discount_guard", "notifications", "web_assistant_basic"}),
-    "smart": frozenset({
-        "discount_guard", "notifications", "web_assistant_basic",
-        "store_advice", "ai_advice", "ai_questions",
-    }),
+# Actual working features, not conceptual/retired product claims. Owner can
+# combine these independently per tariff; unimplemented AI chat is not listed.
+FEATURE_CHOICES = (
+    ("discount_guard", "Автоматическая защита скидок WB"),
+    ("notifications", "Уведомления, отчёты и Web Push"),
+    ("activity_history", "История проверок и событий"),
+    ("promotion_audit", "Аудит акций Wildberries"),
+    ("finance_audit", "Финансовая аналитика Wildberries"),
+    ("store_advice", "Smart: рекомендации по расписанию"),
+    ("ai_advice", "DeepSeek: краткое AI-резюме рекомендаций"),
+)
+FEATURE_KEYS = frozenset(code for code, _ in FEATURE_CHOICES)
+FEATURE_DESCRIPTIONS = {
+    "discount_guard": "Автоматическая проверка и исправление скидок в пределах настроенных правил.",
+    "notifications": "События, ежедневные отчёты и отправка Push на устройства.",
+    "activity_history": "Хронология проверок, изменений и конкретных товаров.",
+    "promotion_audit": "Календарь акций WB, предупреждения и обновление данных по запросу.",
+    "finance_audit": "Финансовые отчёты WB с отдельным согласием и токеном.",
+    "store_advice": "Скриптовые выводы по данным магазинов, лента и плановые сводки.",
+    "ai_advice": "Одна короткая DeepSeek-формулировка только при согласии и наличии бюджета.",
 }
+# Compatibility when a tariff row has not yet been configured by the owner.
+# NULL means legacy defaults; an explicitly saved [] means no features.
+PLAN_CAPABILITIES = {
+    "standard": frozenset({
+        "discount_guard", "notifications", "activity_history",
+        "promotion_audit", "finance_audit",
+    }),
+    "smart": FEATURE_KEYS,
+}
+
+
+def capabilities_for_plan(plan):
+    default = PLAN_CAPABILITIES.get(plan, frozenset())
+    if not default:
+        return frozenset()
+    configured = OwnerTariffOffer.objects.filter(slug=plan).values_list(
+        "features", flat=True,
+    ).first()
+    if configured is None:
+        return default
+    if not isinstance(configured, list):
+        return frozenset()
+    return frozenset(code for code in configured if isinstance(code, str) and code in FEATURE_KEYS)
+
+
+def capabilities_for_user(user_id, at=None):
+    plan = effective_plan(user_id, at=at)
+    return capabilities_for_plan(plan)
+
+
+def feature_choices_with_hints():
+    return FEATURE_CHOICES
+
 
 
 def effective_plan(user_id, at=None):
@@ -30,8 +77,7 @@ def effective_plan(user_id, at=None):
 def has_plan_capability(user_id, capability, at=None):
     if not isinstance(capability, str) or not capability:
         return False
-    plan = effective_plan(user_id, at=at)
-    return capability in PLAN_CAPABILITIES.get(plan, frozenset())
+    return capability in capabilities_for_user(user_id, at=at)
 
 
 def has_active_access(user_id, at=None):
@@ -44,7 +90,10 @@ def has_active_access(user_id, at=None):
     ).exists()
 
 def guard_is_permitted(account):
-    return settings.SAAS_WB_NETWORK_ENABLED and has_active_access(account.user_id)
+    return (settings.SAAS_WB_NETWORK_ENABLED
+            and has_active_access(account.user_id)
+            and (not settings.SAAS_ACCESS_ENFORCED
+                 or has_plan_capability(account.user_id, "discount_guard")))
 
 
 def first_inventory_import_permitted(account):

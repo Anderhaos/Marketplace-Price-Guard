@@ -322,16 +322,18 @@
             </div>
           </details>
           <a class="nav-primary {% if request.path == '/' %}is-active{% endif %}" href="{% url 'dashboard' %}">Товары</a>
-          <a class="nav-primary {% if request.path == '/notifications/' %}is-active{% endif %}" href="{% url 'notifications' %}">Сводки</a>
-          <a class="nav-primary {% if request.path == '/promotions/' %}is-active{% endif %}" href="{% url 'promotion_audit' %}" title="Участие в акциях Wildberries, календарь и предупреждения">Акции и риски</a>
+          {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}<a class="nav-primary {% if request.path == '/notifications/' %}is-active{% endif %}" href="{% url 'notifications' %}">Сводки</a>{% endif %}
+          {% if 'promotion_audit' in seller_capabilities %}<a class="nav-primary {% if request.path == '/promotions/' %}is-active{% endif %}" href="{% url 'promotion_audit' %}" title="Участие в акциях Wildberries, календарь и предупреждения">Акции и риски</a>{% endif %}
           <a class="nav-primary {% if request.path == '/settings/' %}is-active{% endif %}" href="{% url 'settings' %}">Настройки WB</a>
           <details class="seller-more-menu">
             <summary aria-label="Открыть дополнительные разделы">Ещё <span aria-hidden="true">⌄</span>{% if unread_notification_count %}<span class="nav-notification-count">{{ unread_notification_count }}</span>{% endif %}</summary>
             <div class="seller-more-options">
               <a href="{% url 'stores' %}"><strong>Подключения</strong><small>Несколько магазинов одной площадки</small></a>
               <a href="{% url 'subscription' %}"><strong>Тариф и подписка</strong><small>Standard / Smart и срок доступа</small></a>
-              <a href="{% url 'notifications' %}"><strong>События{% if unread_notification_count %} · {{ unread_notification_count }}{% endif %}</strong><small>Ошибки, уведомления и отчёты</small></a>
-              <a href="{% url 'history' %}"><strong>История проверок</strong><small>Изменения и результаты мониторинга</small></a>
+              {% if 'notifications' in seller_capabilities or 'store_advice' in seller_capabilities %}<a href="{% url 'notifications' %}"><strong>События{% if unread_notification_count %} · {{ unread_notification_count }}{% endif %}</strong><small>Ошибки, уведомления и отчёты</small></a>{% endif %}
+              {% if 'activity_history' in seller_capabilities %}<a href="{% url 'history' %}"><strong>История проверок</strong><small>Изменения и результаты мониторинга</small></a>{% endif %}
+              {% if 'finance_audit' in seller_capabilities %}<a href="{% url 'finance_audit' %}"><strong>Финансы WB</strong><small>Отчёты продавца</small></a>{% endif %}
+              {% if 'store_advice' in seller_capabilities %}<a href="{% url 'store_advisor' %}"><strong>Рекомендации</strong><small>Аналитика по магазину</small></a>{% endif %}
             </div>
           </details>
           {% endif %}

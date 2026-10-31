@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from billing.access import has_smart_access
+from billing.access import has_smart_access, has_plan_capability
 from billing.models import OwnerAISettings
 from billing.ai_platform_connection import runtime_gateway
 from guard.ai_gateway import gateway_chat
@@ -21,7 +21,8 @@ def narrate_scheduled_smart(user, account, evidence, *, now=None):
     Reservation protects local ruble budget. It is not provider spend tracking.
     """
     now = now or timezone.now()
-    if account.user_id != user.pk or not has_smart_access(user.pk, at=now):
+    if (account.user_id != user.pk or not has_smart_access(user.pk, at=now)
+            or not has_plan_capability(user.pk, "ai_advice", at=now)):
         return None
     if not NotificationPreference.objects.filter(
         user=user, daily_enabled=True, smart_ai_consent_at__isnull=False,
@@ -78,9 +79,11 @@ def narrate_scheduled_smart(user, account, evidence, *, now=None):
         if not _numbers_are_grounded(reply, evidence):
             raise ValueError("Unsupported numeric or financial claims")
         # Recheck consent and entitlement after the provider call.
-        if not has_smart_access(user.pk) or not NotificationPreference.objects.filter(
+        if (not has_smart_access(user.pk)
+                or not has_plan_capability(user.pk, "ai_advice")
+                or not NotificationPreference.objects.filter(
             user=user, daily_enabled=True, smart_ai_consent_at__isnull=False,
-        ).exists():
+        ).exists()):
             raise ValueError("Access or consent revoked")
         call.status = "success"
         call.input_tokens = min(1000000, max(0, usage.get("input_tokens", 0)))

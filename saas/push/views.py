@@ -3,6 +3,7 @@ import json
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseNotAllowed, JsonResponse
+from billing.access import has_plan_capability
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -26,6 +27,8 @@ def parse_json(request):
 @login_required
 @require_POST
 def subscribe(request):
+    if settings.SAAS_ACCESS_ENFORCED and not has_plan_capability(request.user.pk, 'notifications'):
+        return JsonResponse({'error': 'Push не включён в тариф.'}, status=403)
     if not settings.PUSH_VAPID_PUBLIC_KEY:
         return JsonResponse({"error": "Push пока не настроен."}, status=503)
     try:

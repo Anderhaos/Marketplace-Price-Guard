@@ -31,7 +31,8 @@
     {% for offer in tariff_offers %}
       <div class="notice" style="margin:0">
         <h3 style="font-size:19px;margin:0 0 8px">{{ offer.name }}</h3>
-        <p style="margin:0 0 14px">{{ offer.description }}</p>
+        <p style="margin:0 0 10px">{{ offer.description }}</p>
+        {% if offer.feature_labels %}<ul style="margin:0 0 14px;padding-left:20px">{% for label in offer.feature_labels %}<li>{{ label }}</li>{% endfor %}</ul>{% else %}<p class="muted">Возможности тарифа пока отключены владельцем.</p>{% endif %}
         {% if offer.price_rub %}
           <p><strong>{{ offer.price_rub|floatformat:2 }} ₽ / месяц</strong></p>
         {% else %}
