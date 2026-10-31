@@ -416,6 +416,7 @@
                     - Math.max(bounds.right - (window.innerWidth - margin), 0);
         if (shift) options.style.transform = 'translateX(' + Math.round(shift) + 'px)';
       };
+      menu.querySelector('summary')?.addEventListener('click', () => queueMicrotask(align));
       menu.addEventListener('toggle', align);
       window.addEventListener('resize', align);
     });
