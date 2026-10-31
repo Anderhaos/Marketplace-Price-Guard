@@ -42,7 +42,10 @@ unrelated SMTP envelope sender or unauthorized SPF.
 Rather than copying the mailbox password into .env, mount the root-owned
 host file read-only into each email-sending container and set
 SMTP_PASSWORD_FILE=/run/secrets/nosale_smtp_password.
-The file must not be accessible to group/other users (mode 0400 or 0600).
+The host /opt/nosale/private directory must remain root-owned mode 0700.
+For the Docker app running uid/gid 999, use a root-owned file with gid 999
+and mode 0640; the container sees a read-only bind mount. Group write/execute
+and all access by other users remain forbidden.
 Leave SMTP_PASSWORD empty. Only services with SMTP_PASSWORD_FILE set
 will read the secret; all others may continue using the trusted relay.
 Use the committed `compose.smtp.example.yml` as the template for a private
