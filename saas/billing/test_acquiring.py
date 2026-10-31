@@ -34,6 +34,7 @@ def b64(value):
     NOSALE_MONTHLY_PRICE_RUB="990.00",
     NOSALE_PAYMENT_RETURN_BASE="https://nosale.svdev.pro",
     SAAS_ACCESS_ENFORCED=True,
+    SAAS_PIN_AUTH_ENABLED=False,
 )
 class AcquiringTests(TestCase):
     @classmethod
