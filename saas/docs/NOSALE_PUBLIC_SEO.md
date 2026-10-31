@@ -1,46 +1,44 @@
-# NoSale public site / SEO
+# NoSale — индексируемая главная без изменения дизайна
 
-Site: https://nosale.pro. One public marketing homepage, no CMS or extra marketing routes.
+Production URL: https://nosale.pro/
 
-## Routes
+## Утверждённый интерфейс
 
-- Anonymous GET /: server-rendered one-page public site with features, how it works, tariffs and FAQ.
-- Authenticated GET /: existing seller dashboard; protected WB actions unchanged.
-- /login/: clean email-first login. Preserve the special owner /login/?next=/admin/ flow.
-- /offer/, /privacy/, /contacts/: existing public legal pages.
-- /robots.txt and /sitemap.xml: only public links are allowed/listed.
-- Every private HTML response includes X-Robots-Tag noindex, nofollow, noarchive.
-- Sitemap/canonical/Open Graph use NOSALE_PUBLIC_BASE_URL.
-- Prices are read from OwnerTariffOffer. Do not claim sales are enabled while disabled.
+Публичная главная `/` сохраняет исходный двухколоночный экран входа NoSale:
+«Ваши скидки под контролем. Даже когда вы отдыхаете.», блок пробного
+периода и оригинальная форма email/PIN справа. Публичный вход и регистрация
+остаются одним процессом без дополнительного лендинга и без новых секций меню.
 
-## Menu
+- Анонимный `/`: оригинальный интерфейс `guard/login_pin.html`, HTTP 200.
+- `/login/`: тот же интерфейс входа, `noindex`.
+- Авторизованный `/`: без изменений показывает кабинет.
+- `/login/?next=/admin/`: сохранён защищённый сценарий владельца.
+- На публичной главной нет бессмысленного `?next=/`.
+- Ширина и верхняя граница контента, шапка, прокрутка остаются стабильными
+  на переходах email → код → PIN.
+- Логотип, фирменный оранжевый цвет, шрифты и оригинальная композиция не меняются.
 
-Возможности -> /#features; Как работает -> /#how; Тарифы -> /#pricing;
-Вопросы -> /#faq; Войти and Начать бесплатно -> /login/.
-No extra public FAQ, features, blog, tariffs routes.
+## SEO
 
-## Analytics rollout
+`/` содержит индексируемые title, description, canonical, Open Graph и
+Schema.org WebSite/SoftwareApplication. `/offer/`, `/privacy/`, `/contacts/`
+остаются публичными и входят в `/sitemap.xml`. `/robots.txt` исключает
+служебные URL из обхода, приватные HTML получают `noindex`.
+Включено единое основное имя `nosale.pro`, без дубля `www`.
 
-Create separate Yandex Metrica counter for NoSale. Set NOSALE_YM_COUNTER_ID
-to its actual numeric identifier in private env only. Optional ownership tags:
-NOSALE_YANDEX_VERIFICATION and NOSALE_GOOGLE_VERIFICATION. Do not reuse IDs from
-BeClients and other sites.
+## Аналитика
 
-Public landing requests consent before Yandex script is loaded; no analytics
-runs on login, registration, seller dashboard, billing, WB tokens or admin.
-Do not send emails, PINs, WB tokens or private shop data as analytics goals.
-Webvisor and clickmap stay off. After enabling counter, verify the public
-pageview and start_trial link goal in the real owner account.
+Только отдельный счётчик NoSale `NOSALE_YM_COUNTER_ID` (в production
+оставить пустым, пока пользователь не создаст счётчик). Яндекс.Метрика
+на публичном `/` загружается **только после согласия**. Вебвизор и карта
+кликов отключены. Не передавать в цели email, PIN, токены или данные WB.
+Подтверждение сайта Яндекс.Вебмастером и Google Search Console требует
+реальных кодов или доступов, которых нельзя придумывать.
 
-## Acceptance
+## Приёмка
 
-- Anonymous / returns 200, canonical, SEO description, social metadata.
-- Authenticated / retains seller dashboard.
-- /login/ and owner /login/?next=/admin/ keep PIN security and workflow.
-- Robots and sitemap return 200 with valid contents, no private URLs in sitemap.
-- Public and private robots headers are correct.
-- Test 320px, mobile and desktop navigation, no JS errors.
-- After deployment, verify E5 legacy redirect, new HTTPS, all services healthy.
-- WB worker is not rebuilt or restarted during the public-site release.
-- Submit sitemap to Yandex Webmaster and Google Search Console once connected.
-- Rankings and indexing require subsequent observation; SEO markup alone is not proof.
+GitHub exact-head CI: Django, PostgreSQL, Chromium E2E; в браузере сравнить
+`/` и `/login/` (исходный интерфейс), переходы по email/код/PIN, 320px,
+390px, desktop и отсутствие скачков по scrollbar. После merge в main
+развернуть **только web**, не перезапуская WB-агента. Проверить production
+HTTP 200/SEO/CSP/health и отсутствие изменения рабочего кабинета.
