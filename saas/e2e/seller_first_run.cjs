@@ -23,10 +23,12 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
   const waitText=async (needle,timeout=10000) => {await page.waitForFunction(s=>document.body.innerText.includes(s),{timeout},needle);};
   const submit=async selector => {await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded',timeout:16000}),page.click(selector)]);};
   try {
-    // Public SEO homepage and no-layout-shift acceptance on real Chrome.
+    // Preserve the original email-first welcome appearance at the public root.
     await goto('/');
-    assert.equal(new URL(page.url()).pathname, '/', 'anonymous home must not redirect to ?next=/');
-    assert.ok(await page.$('#public-headline'), 'public SEO homepage missing');
+    assert.equal(new URL(page.url()).pathname, '/', 'root must stay clean without ?next=/');
+    assert.ok(await page.$('#welcome-headline'), 'original welcome design missing');
+    assert.ok(await page.$('#welcome-auth input[name="email"]'), 'original email form missing');
+    assert.equal(await page.$('.public-landing'), null, 'unrequested marketing redesign still visible');
     const publicMeta = await page.evaluate(() => ({
       canonical: document.querySelector('link[rel="canonical"]')?.href,
       description: document.querySelector('meta[name="description"]')?.content,
@@ -35,29 +37,26 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     }));
     assert.equal(publicMeta.canonical, 'https://nosale.pro/');
     assert.ok(publicMeta.description.includes('Wildberries'));
-    assert.ok(publicMeta.gutter.includes('stable'), 'scrollbar gutter not reserved');
-    await page.screenshot({path:snapshotDir+'/00-public-home-desktop.png',fullPage:true});
+    assert.ok(publicMeta.gutter.includes('stable'), 'scrollbar gutter must be reserved');
+    await page.screenshot({path:snapshotDir+'/00-original-welcome-desktop.png',fullPage:true});
     for (const width of [390,320]) {
       await page.setViewport({width,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
       await goto('/');
       const state = await page.evaluate(() => ({
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        menuVisible: getComputedStyle(document.querySelector('.public-mobile-menu')).display !== 'none',
+        original: !!document.querySelector('.welcome-story') && !!document.querySelector('.welcome-panel'),
         headerHeight: document.querySelector('.site-header').getBoundingClientRect().height
       }));
-      assert.ok(state.overflow <= 1, 'Public horizontal overflow at '+width+': '+JSON.stringify(state));
-      assert.ok(state.menuVisible, 'Public mobile menu missing at '+width);
-      await page.click('.public-mobile-menu summary');
-      const openHeight = await page.$eval('.site-header',el=>el.getBoundingClientRect().height);
-      assert.ok(Math.abs(openHeight-state.headerHeight)<=1,'Menu opening must not shift header');
-      assert.ok(await page.$('.public-mobile-menu[open] .public-mobile-links a[href="#features"]'));
-      await page.screenshot({path:snapshotDir+'/00-public-mobile-'+width+'.png',fullPage:true});
+      assert.ok(state.overflow <= 1, 'Original welcome has mobile overflow at '+width+': '+JSON.stringify(state));
+      assert.ok(state.original, 'Original welcome layout missing at '+width);
+      await page.screenshot({path:snapshotDir+'/00-original-welcome-mobile-'+width+'.png',fullPage:true});
     }
     await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
     await goto('/login/');
+    assert.ok(await page.$('#welcome-headline'));
     const loginMainLeft = await page.$eval('main.shell',el=>el.getBoundingClientRect().left);
     assert.ok(Math.abs(publicMeta.mainLeft-loginMainLeft)<=1,
-      'Public site and login must have the same left content boundary');
+      'Original home and login must share identical left boundary');
     const noScrollbarShift = await page.evaluate(() => {
       const header = document.querySelector('.header-inner');
       const main = document.querySelector('main.shell');
@@ -83,7 +82,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(Math.abs(loginPosition.storyTop-loginPosition.panelTop)<=1,
       'Login columns are not top-aligned: '+JSON.stringify(loginPosition));
     assert.ok(await page.$('input[name="email"]'));
-    step('public_seo_mobile_navigation_scrollbar_and_top_alignment');
+    step('original_design_restored_with_seo_no_layout_shift');
     await page.type('input[name="email"]',sellerEmail);
     await submit('button[type=submit]');
     assert.ok(page.url().endsWith('/auth/code/'),'expected email verification, got '+page.url());

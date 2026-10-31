@@ -71,4 +71,11 @@
     
   </section>
 </div>
+{% if request.path == '/' and analytics_counter %}
+<div class="nosale-analytics-consent" id="nosale-consent" role="region" aria-label="Настройки аналитики" hidden>
+  <p>С вашего разрешения Яндекс.Метрика помогает оценивать посещаемость. Без согласия аналитика не загружается. <a href="{% url 'public_privacy' %}">Подробнее</a>.</p>
+  <div><button type="button" id="nosale-allow-analytics">Разрешить</button><button type="button" id="nosale-deny-analytics">Только необходимые</button></div>
+</div>
+<script src="/static/public-metrika.js?v=20261031" defer data-metrika-id="{{ analytics_counter }}"></script>
+{% endif %}
 {% endblock %}

@@ -19,10 +19,13 @@ class NoSalePublicSEOTests(TestCase):
     def test_visitor_gets_public_root_not_login_redirect(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Скидки под контролем.")
-        self.assertContains(response, 'id="features"')
-        self.assertContains(response, 'id="pricing"')
-        self.assertContains(response, 'href="/login/"')
+        self.assertContains(response, "Ваши скидки под контролем.")
+        self.assertContains(response, "Даже когда вы отдыхаете.")
+        self.assertContains(response, 'class="welcome-layout"')
+        self.assertContains(response, 'id="welcome-auth"')
+        self.assertContains(response, 'name="email"')
+        self.assertContains(response, 'href="#welcome-headline"')
+        self.assertNotContains(response, 'class="public-landing"')
         self.assertNotContains(response, "?next=/")
         self.assertContains(response, 'rel="canonical" href="https://nosale.pro/"')
         self.assertContains(response, "application/ld+json")
@@ -88,6 +91,16 @@ class NoSalePublicSEOTests(TestCase):
                 response = self.client.get(path)
                 self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow, noarchive")
 
-    def test_unsafe_request_to_public_home_rejected(self):
-        response = self.client.post("/", {"dummy": "value"})
+    def test_public_home_is_the_original_login_and_accepts_form(self):
+        root = self.client.get("/")
+        login = self.client.get("/login/")
+        for marker in ("welcome-layout", "welcome-auth", "Ваши скидки под контролем."):
+            self.assertContains(root, marker)
+            self.assertContains(login, marker)
+        response = self.client.post("/", {"email": "invalid-address"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "welcome-layout")
+
+    def test_unsafe_method_is_rejected(self):
+        response = self.client.put("/", data="data", content_type="text/plain")
         self.assertEqual(response.status_code, 405)

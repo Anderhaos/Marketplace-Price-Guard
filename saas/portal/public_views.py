@@ -1,33 +1,26 @@
-"""One-page public marketing surface with existing seller dashboard untouched."""
+"""Public SEO endpoints with the original seller entry design retained."""
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseNotAllowed
-from django.shortcuts import render
+from django.http import HttpResponse
 from django.urls import reverse
 from django.views.decorators.http import require_safe
 
-from billing.trial import TRIAL_DAYS
-from .legal_views import _legal_context
 
 
 def home_or_dashboard(request):
+    """Keep the original NoSale entry design; only add public SEO at /.
+
+    Both / and /login/ use the existing email-first gateway, including PIN
+    and registration. This avoids any replacement marketing layout.
+    """
     if request.user.is_authenticated:
         from guard.views import dashboard
         return dashboard(request)
-    if request.method != "GET" and request.method != "HEAD":
-        return HttpResponseNotAllowed(["GET", "HEAD"])
-    context = _legal_context()
-    context.update({
-        "trial_days": TRIAL_DAYS,
-        "analytics_counter": settings.NOSALE_YM_COUNTER_ID,
-        "yandex_verification": settings.NOSALE_YANDEX_VERIFICATION,
-        "google_verification": settings.NOSALE_GOOGLE_VERIFICATION,
-    })
-    response = render(request, "public/home.html", context)
+    from guard.email_pin import login_entry
+    response = login_entry(request)
     response["Cache-Control"] = "no-store"
     return response
-
 
 @require_safe
 def robots_txt(request):
