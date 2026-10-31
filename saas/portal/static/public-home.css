@@ -1,7 +1,7 @@
 /* NoSale public landing — intentionally separate from seller dashboard CSS. */
 html{scroll-behavior:smooth}
 body:has(.public-landing){background:#08080e}
-body:has(.public-landing) main.shell{width:min(1260px,calc(100% - 44px));padding-top:0;padding-bottom:54px}
+body:has(.public-landing) main.shell{width:min(1100px,calc(100% - 36px));padding-top:0;padding-bottom:54px}
 body:has(.public-landing) .site-header{background:#0c0b13;border-bottom:1px solid rgba(181,146,244,.13)}
 .public-landing{color:#f8f6fd}
 .public-hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:48px;align-items:start;padding:95px 0 90px;position:relative}
@@ -83,4 +83,4 @@ body:has(.public-landing) .site-header{background:#0c0b13;border-bottom:1px soli
 .public-cookie-consent button{background:#945fda;border:1px solid #bb90ed;color:white;border-radius:10px;padding:10px 17px;font-weight:750;cursor:pointer}
 .public-cookie-consent button:last-child{background:transparent;border-color:#7b7289}
 @media(max-width:920px){.public-hero{grid-template-columns:1fr;gap:33px;padding:60px 0}.public-visual{max-width:720px}.public-features{gap:11px}.public-feature{padding:21px}}
-@media(max-width:660px){body:has(.public-landing) main.shell{width:calc(100% - 30px)}.public-hero{padding:45px 0 55px}.public-hero h1{font-size:clamp(35px,10vw,48px)}.public-visual{padding:20px;border-radius:20px}.public-visual-top{margin-bottom:21px}.public-section{padding:48px 0}.public-section-heading h2{font-size:31px}.public-features,.public-prices,.public-steps{grid-template-columns:1fr}.public-steps-section{padding-inline:15px}.public-steps{gap:12px}.public-steps li{padding:4px}.public-steps-cta{flex-direction:column;align-items:flex-start}.public-price{padding:23px}.public-final-cta{padding:28px;flex-direction:column;align-items:flex-start}.public-final-cta .public-button{width:100%}.public-actions .public-button{flex:1;min-width:160px}.public-kicker{font-size:10px}}
+@media(max-width:660px){body:has(.public-landing) main.shell{width:calc(100% - 24px)}.public-hero{padding:45px 0 55px}.public-hero h1{font-size:clamp(35px,10vw,48px)}.public-visual{padding:20px;border-radius:20px}.public-visual-top{margin-bottom:21px}.public-section{padding:48px 0}.public-section-heading h2{font-size:31px}.public-features,.public-prices,.public-steps{grid-template-columns:1fr}.public-steps-section{padding-inline:15px}.public-steps{gap:12px}.public-steps li{padding:4px}.public-steps-cta{flex-direction:column;align-items:flex-start}.public-price{padding:23px}.public-final-cta{padding:28px;flex-direction:column;align-items:flex-start}.public-final-cta .public-button{width:100%}.public-actions .public-button{flex:1;min-width:160px}.public-kicker{font-size:10px}}
