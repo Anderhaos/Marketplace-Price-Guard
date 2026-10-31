@@ -1,85 +1,64 @@
-{% extends "guard/base.html" %}
-{% block title %}Контроль акций WB — NoSale{% endblock %}
+{% extends 'guard/base.html' %}
+{% block title %}Акции — NoSale{% endblock %}
 {% block content %}
-<section class="page-hero workspace-hero">
-  <span class="eyebrow">NoSale · контроль акций</span>
-  <h1>Акции Wildberries</h1>
-  <p class="lead">Магазин «{{ account.name }}». Только чтение: проверяем календарь WB и, когда это позволяет API, сравниваем текущую и плановую цену товаров. Ни одного изменения цен или участия в акциях.</p>
-  <a class="button secondary" href="{% url 'finance_audit' %}">Финансовые отчёты WB</a>
-</section>
-<div class="workspace-columns">
-<section class="card workspace-section">
-  <div class="section-head">
-    <div>
-      <h2>Результат проверки</h2>
-      {% if snapshot and snapshot.fetched_at %}
-        <p>Данные на {{ snapshot.fetched_at|date:"d.m.Y H:i" }}. При изменениях в WB они могут устареть.</p>
-      {% else %}
-        <p>Пока не проверено. Без токена и разрешения на чтение API реальных данных здесь нет.</p>
-      {% endif %}
-    </div>
-    <form action="{% url 'promotion_audit' %}" method="post">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="refresh">
-      <button type="submit" {% if not can_refresh %}disabled{% endif %}>Обновить акции</button>
-    </form>
+<header class="compact-page-head">
+  <div>
+    <h1>Акции</h1>
+    {% if snapshot and snapshot.fetched_at %}
+      <span class="compact-page-count">{{ promotions|length }} в календаре WB · {{ snapshot.fetched_at|date:"d.m H:i" }}</span>
+    {% endif %}
   </div>
-  {% if not wb_network_enabled %}
-    <p class="notice" role="status">В этом окружении чтение WB API отключено. Кнопка обновления недоступна; реальные продавцы и токены не используются для тестов.</p>
-  {% endif %}
-  {% if snapshot and snapshot.next_refresh_at %}
-    <p class="muted">Следующее допустимое обновление: {{ snapshot.next_refresh_at|date:"d.m.Y H:i" }}. Частота ограничена API Wildberries.</p>
-  {% endif %}
-  {% if snapshot and snapshot.last_error %}
-    <p class="notice" role="alert">{{ snapshot.last_error }} Ранее сохранённые данные не перезаписаны.</p>
-  {% endif %}
-  <p class="muted">Источник финансирования каждой акции не подтверждён календарём. Без финансовых отчётов, себестоимости и условий продавца нельзя утверждать, что акция выгодна или убыточна. Автоакции не раскрывают состав товаров через этот метод API.</p>
-  {% if snapshot and snapshot.partial %}
-    <p class="notice" role="status">Проверка неполная: показана только первая страница акций и ограниченная выборка товаров обычных акций. Отсутствие риска в выборке не означает отсутствия риска во всём ассортименте.</p>
-  {% endif %}
-</section>
-<section class="card workspace-section">
-  <h2>Что дальше</h2>
-  <p>Следующий этап — добровольное подключение финансовой категории WB, сопоставление выплат, себестоимости и расходов. Только после этого возможна оценка маржи. Изменения в WB остаются запрещены без отдельных правил и явного подтверждения.</p>
-  <a class="button secondary" href="{% url 'dashboard' %}">Вернуться к товарам</a>
-</section>
-</div>
+  <form action="{% url 'promotion_audit' %}" method="post">
+    {% csrf_token %}<input type="hidden" name="action" value="refresh">
+    <button class="secondary" type="submit" {% if not can_refresh %}disabled{% endif %}>Обновить календарь</button>
+  </form>
+</header>
+{% if snapshot and snapshot.last_error %}
+  <p class="compact-feedback" role="alert">{{ snapshot.last_error }}</p>
+{% endif %}
+{% if not wb_network_enabled %}
+  <p class="compact-feedback" role="status">Чтение API Wildberries сейчас отключено.</p>
+{% endif %}
 {% if promotions %}
-<section class="card workspace-section">
-  <div class="section-head"><div><h2>Найденные акции</h2><p>{{ promotions|length }} в сохранённой выборке. Источник финансирования — не определён.</p></div></div>
-  <div class="workspace-promotions-list">
+  <p class="compact-inline-note">Календарь Wildberries: участие ваших товаров и источник финансирования скидок не подтверждены. Ни одна акция автоматически не подключается.</p>
+  <div class="compact-promo-grid" aria-label="Календарь Wildberries">
   {% for item in promotions %}
-  <article class="workspace-card-item">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
-      <div>
-        <h3 style="font-size:18px;margin:0 0 5px">{{ item.name }}</h3>
-        <p class="muted" style="margin:0;font-size:13px">WB ID {{ item.id }} · {% if item.type == "auto" %}Автоакция{% elif item.type == "regular" %}Обычная акция{% else %}Тип не установлен{% endif %}</p>
+    <article class="compact-promo-card">
+      <div class="compact-promo-top">
+        <span class="compact-promo-type">{% if item.type == "auto" %}Автоакция{% elif item.type == "regular" %}Обычная{% else %}Акция WB{% endif %}</span>
+        {% if item.risk == "price_drop" %}
+          <span class="compact-promo-risk">Возможно снижение цены</span>
+        {% elif item.risk == "no_drop_observed" %}
+          <span class="compact-promo-neutral">Снижения в выборке нет</span>
+        {% endif %}
       </div>
-      {% if item.risk == "price_drop" %}
-      <strong style="color:var(--danger, #ef8f8f)">Возможное снижение цены</strong>
-      {% elif item.risk == "no_drop_observed" %}
-      <strong>Снижение цены не выявлено в выборке</strong>
-      {% else %}
-      <strong class="muted">Требует проверки</strong>
+      <h2>{{ item.name }}</h2>
+      {% if item.starts_at or item.ends_at %}
+        <p class="compact-promo-date">
+          {% if item.starts_at %}{{ item.starts_at|slice:"8:10" }}.{{ item.starts_at|slice:"5:7" }}{% else %}—{% endif %}
+          —
+          {% if item.ends_at %}{{ item.ends_at|slice:"8:10" }}.{{ item.ends_at|slice:"5:7" }}{% else %}—{% endif %}
+        </p>
       {% endif %}
-    </div>
-    {% if item.starts_at or item.ends_at %}
-    <p class="muted" style="font-size:13px">Период по WB: {{ item.starts_at|default:"—" }} — {{ item.ends_at|default:"—" }}</p>
-    {% endif %}
-    <p style="margin:10px 0">{{ item.explanation }}</p>
-    {% if item.participation %}
-      <p class="muted" style="font-size:13px;margin:0">Проверено товаров: {{ item.participation.inspected }}{% if item.participation.possibly_incomplete %} (частичная выборка){% endif %}; с плановой ценой ниже текущей: {{ item.participation.price_decreases }}; без снижения: {{ item.participation.no_price_decrease }}; без полной информации о цене: {{ item.participation.missing_prices }}.</p>
-      {% for example in item.participation.examples %}
-        <p class="muted" style="font-size:13px;margin:5px 0">WB {{ example.nm_id|default:"—" }}: {{ example.current }} ₽ → {{ example.planned }} ₽ (план).</p>
-      {% endfor %}
-    {% endif %}
-    <p class="muted" style="font-size:12px;margin:12px 0 0">Финансирование: неизвестно. NoSale не меняет участие или цену товара автоматически.</p>
-  </article>
+      {% if item.participation %}
+        <div class="compact-promo-details">
+          Проверено товаров: {{ item.participation.inspected }}{% if item.participation.possibly_incomplete %} (часть){% endif %}
+          {% if item.participation.price_decreases %}
+            · С плановым снижением цены: {{ item.participation.price_decreases }}
+          {% endif %}
+          {% if item.participation.missing_prices %} · Без цен: {{ item.participation.missing_prices }}{% endif %}
+          {% for example in item.participation.examples %}
+            <p>WB {{ example.nm_id|default:"—" }}: {{ example.current }} ₽ → {{ example.planned }} ₽</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </article>
   {% endfor %}
   </div>
-</section>
-{% elif snapshot and snapshot.fetched_at %}
-<section class="card"><p>В полученной части календаря подходящие акции не обнаружены. Это не подтверждение отсутствия всех акций.</p></section>
+{% else %}
+  <p class="compact-empty">{% if snapshot and snapshot.fetched_at %}В последней выборке календаря WB акций нет.{% else %}Календарь ещё не загружен. Нажмите «Обновить календарь».{% endif %}</p>
 {% endif %}
-
+{% if snapshot and snapshot.next_refresh_at and not can_refresh %}
+  <p class="compact-bottom-note">Следующее обновление не раньше {{ snapshot.next_refresh_at|date:"d.m H:i" }} (лимит WB API).</p>
+{% endif %}
 {% endblock %}

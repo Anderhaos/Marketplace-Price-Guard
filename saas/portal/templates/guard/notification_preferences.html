@@ -1,44 +1,38 @@
-<div class="workspace-settings-notification-grid">
-{% if 'notifications' in seller_capabilities %}
-<section class="card">
-  <h2>Уведомления на телефоне и компьютере</h2>
-  {% if push_ready %}
-    <p class="muted">Подключено устройств: {{ push_devices }}. Разрешите системные Push-уведомления на этом устройстве.</p>
-    <div class="actions">
-      <button type="button" id="push-enable">Включить уведомления</button>
-      <button type="button" class="secondary" id="push-disable">Отключить на этом устройстве</button>
-    </div>
-    <p class="field-help">На iPhone (iOS 16.4+) сначала добавьте MPNO Sale на экран «Домой» и откройте установленное приложение.</p>
-    <p id="push-state" class="field-help" role="status"></p>
-  {% else %}
-    <p class="muted">Отправка Web Push пока не включена на сервере. История событий и вечерние сводки доступны здесь.</p>
-  {% endif %}
-</section>
-{% endif %}
-<section class="card">
-  <h2>Настройки уведомлений</h2>
-  <form method="post" action="{% url 'push_preferences' %}">
+<section class="card compact-settings-card compact-prefs-card">
+  <h2>Уведомления</h2>
+  <form method="post" action="{% url 'push_preferences' %}" class="compact-settings-form">
     {% csrf_token %}
-    <div class="field"><label><input type="checkbox" name="instant_enabled" {% if preferences.instant_enabled %}checked{% endif %}> Мгновенно: подтверждённые исправления и ошибки</label></div>
-    <div class="field"><label><input type="checkbox" name="daily_enabled" {% if preferences.daily_enabled %}checked{% endif %}> Ежедневный отчёт и рекомендации Smart по расписанию</label></div>
+    <label class="compact-check"><input type="checkbox" name="instant_enabled" {% if preferences.instant_enabled %}checked{% endif %}> Мгновенно об исправлениях и ошибках</label>
+    <label class="compact-check"><input type="checkbox" name="daily_enabled" {% if preferences.daily_enabled %}checked{% endif %}> Ежедневный отчёт и Smart-сводка</label>
     <div class="field">
       <label for="push-timezone">Часовой пояс</label>
-      <select name="timezone_name" id="push-timezone" style="min-height:44px;padding:9px;background:var(--panel-strong);color:var(--text);border:1px solid var(--line);border-radius:12px">
+      <select name="timezone_name" id="push-timezone">
         {% for tz in timezones %}
           <option value="{{ tz }}" {% if preferences.timezone_name == tz %}selected{% endif %}>{{ tz }}</option>
         {% endfor %}
       </select>
     </div>
     {% if smart_access %}
-    <div class="notice" style="margin:12px 0">
-      <p><strong>Smart по расписанию.</strong> NoSale рассчитывает рекомендации скриптами. DeepSeek может составить короткое резюме только по подтверждённым данным и с вашим разрешением. Без согласия доступны обычные сводки без AI.</p>
-      <label><input type="checkbox" name="smart_ai_consent" {% if preferences.smart_ai_consent_at %}checked{% endif %}> Согласен(на) передавать через AI Platform краткую подборку данных моего магазина модели DeepSeek для составления рекомендаций. Согласие можно отозвать здесь.</label>
-    </div>
+    <details class="compact-disclosure">
+      <summary>AI-резюме Smart</summary>
+      <p class="field-help">По отдельному согласию NoSale может передать краткую подборку подтверждённых данных модели DeepSeek. Без согласия обычные сводки работают без AI.</p>
+      <label class="compact-check"><input type="checkbox" name="smart_ai_consent" {% if preferences.smart_ai_consent_at %}checked{% endif %}> Разрешаю подготовку AI-резюме</label>
+    </details>
     {% endif %}
-    <button type="submit">Сохранить настройки</button>
+    <button type="submit">Сохранить</button>
   </form>
+  {% if 'notifications' in seller_capabilities and push_ready %}
+  <div class="compact-push-actions">
+    <span class="muted">Push · устройств: {{ push_devices }}</span>
+    <div class="actions">
+      <button type="button" id="push-enable" class="secondary">Включить на устройстве</button>
+      <button type="button" class="secondary" id="push-disable">Отключить</button>
+    </div>
+    <p id="push-state" class="field-help" role="status"></p>
+    <details class="compact-disclosure"><summary>Push на iPhone</summary><p class="field-help">iOS 16.4+: добавьте NoSale на экран «Домой» и откройте установленное приложение.</p></details>
+  </div>
+  {% endif %}
 </section>
-</div>
 {% if push_ready and 'notifications' in seller_capabilities %}
 <script>
 (() => {

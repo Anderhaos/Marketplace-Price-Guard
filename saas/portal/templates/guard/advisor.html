@@ -1,10 +1,7 @@
 {% extends "guard/base.html" %}
 {% block title %}Рекомендации — NoSale Smart{% endblock %}
 {% block content %}
-<section class="page-hero workspace-hero">
-  <span class="eyebrow">NoSale Smart · по фактам магазина</span>
-  <h1>Рекомендации для «{{ account.name }}»</h1>
-  <p class="lead">Советы основаны на проверках цен, скидок и журнале событий вашего магазина. Это не финансовый прогноз и не утверждение, что скидка убыточна.</p>
+<section class="compact-page-head"><div><h1>Рекомендации</h1><span class="compact-page-count">Smart · {{ account.name }}</span></div>
   {% if advice.last_observed_at %}
     <p class="muted" style="font-size:13px">Последние данные WB: {{ advice.last_observed_at|date:"d.m.Y H:i" }}{% if advice.is_stale %} · могут быть устаревшими{% endif %}</p>
   {% endif %}

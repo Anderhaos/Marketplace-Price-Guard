@@ -7,8 +7,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from billing.models import AccessGrant
-from .models import GuardAccount, Product
-from push.models import NotificationPreference
+from .models import GuardAccount, Product, PromotionSnapshot, FinanceSnapshot
+from push.models import NotificationPreference, PushMessage
 
 
 @override_settings(SAAS_PIN_AUTH_ENABLED=False, SAAS_WB_NETWORK_ENABLED=False,
@@ -40,9 +40,10 @@ class MarketplaceNavigationTests(TestCase):
     def test_seller_menu_only_shows_working_wb_sections(self):
         response = self.client.get(reverse("dashboard"))
         self.assertContains(response, "Wildberries")
-        self.assertContains(response, 'href="/stores/"')
+        self.assertNotContains(response, '<a href="/stores/"><strong>')
         self.assertContains(response, 'href="/settings/"')
-        self.assertContains(response, "Подключения")
+        self.assertNotContains(response, 'href="/finance/"')
+        self.assertNotContains(response, 'href="/promotions/"')
         self.assertContains(response, "Уведомления")
         self.assertContains(response, 'class="seller-more-menu"')
         self.assertContains(response, 'href="/notifications/"', count=1)
@@ -69,6 +70,55 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(response, "Сменить магазин")
         self.assertContains(response, 'href="/stores/"')
 
+    @override_settings(NOSALE_WB_FINANCE_ENABLED=False)
+    def test_navigation_only_exposes_available_data_for_selected_store(self):
+        home = self.client.get(reverse("dashboard"))
+        self.assertNotContains(home, 'href="/promotions/"')
+        self.assertNotContains(home, 'href="/finance/"')
+        self.assertNotContains(home, "<strong>Магазины</strong>")
+        self.assertContains(self.client.get(reverse("settings")), "Загрузить календарь акций WB")
+
+        PromotionSnapshot.objects.create(
+            account=self.shop, promotions=[{
+                "id": 15, "name": "Календарь WB", "type": "auto",
+                "starts_at": "2026-11-01T00:00:00Z",
+                "ends_at": "2026-11-11T00:00:00Z",
+                "risk": "unknown", "participation": None,
+            }], fetched_at=timezone.now(), partial=True,
+        )
+        home = self.client.get(reverse("dashboard"))
+        self.assertContains(home, 'href="/promotions/"', count=1)
+        self.assertNotContains(home, 'href="/finance/"')
+        calendar = self.client.get(reverse("promotion_audit"))
+        self.assertContains(calendar, 'Календарь Wildberries')
+        self.assertContains(calendar, 'Календарь WB')
+        self.assertNotContains(calendar, 'Что дальше')
+
+        other = GuardAccount.objects.create(
+            user=self.seller, marketplace="wb", name="Secondary WB",
+            initial_sync_completed_at=timezone.now(), token_ciphertext="opaque2",
+        )
+        session = self.client.session
+        session["mpno_selected_store_id"] = other.pk
+        session.save()
+        second_home = self.client.get(reverse("dashboard"))
+        self.assertNotContains(second_home, 'href="/promotions/"')
+        self.assertContains(second_home, "<strong>Магазины</strong>")
+        self.assertContains(second_home, 'href="/stores/"')
+        session = self.client.session
+        session["mpno_selected_store_id"] = self.shop.pk
+        session.save()
+        self.assertContains(self.client.get(reverse("dashboard")), 'href="/promotions/"')
+
+    def test_notifications_show_actual_messages_in_compact_grid(self):
+        PushMessage.objects.create(user=self.seller, kind="digest", title="Отчёт QA",
+                                   body="Без изменений")
+        page = self.client.get(reverse("notifications"))
+        self.assertContains(page, 'compact-feed-grid')
+        self.assertContains(page, 'Отчёт QA')
+        self.assertNotContains(page, "Пока нет уведомлений.")
+        self.assertNotContains(page, "Доставка уведомлений")
+
     def test_shared_wide_workspace_only_on_authenticated_seller_pages(self):
         for route in ("dashboard", "settings", "notifications", "promotion_audit",
                       "stores", "history", "subscription"):
@@ -77,7 +127,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261031a")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101a")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))
@@ -90,17 +140,19 @@ class MarketplaceNavigationTests(TestCase):
 
     def test_notifications_are_feed_only_settings_own_configuration(self):
         feed = self.client.get(reverse("notifications"))
-        self.assertContains(feed, "Сообщения и рекомендации")
-        self.assertContains(feed, "workspace-columns--inbox")
-        self.assertContains(feed, "Критических событий нет")
-        self.assertContains(feed, "Настроить уведомления")
+        self.assertContains(feed, "<h1>Уведомления</h1>")
+        self.assertContains(feed, "compact-inbox")
+        self.assertContains(feed, "Пока нет уведомлений.")
+        self.assertNotContains(feed, "Доставка уведомлений")
+        self.assertNotContains(feed, "Важные события")
         self.assertNotContains(feed, 'name="timezone_name"')
         self.assertNotContains(feed, 'action="/push/preferences/"')
         config = self.client.get(reverse("settings"))
         self.assertContains(config, "workspace-settings-grid")
-        self.assertContains(config, "workspace-settings-notification-grid")
+        self.assertContains(config, "compact-settings-grid")
+        self.assertContains(config, "compact-prefs-card")
         self.assertContains(self.client.get(reverse("stores")), "workspace-store-row")
-        self.assertContains(self.client.get(reverse("promotion_audit")), "workspace-columns")
+        self.assertContains(self.client.get(reverse("promotion_audit")), "Обновить календарь")
         self.assertContains(self.client.get(reverse("subscription")), "workspace-tariff-cards")
         self.assertContains(self.client.get(reverse("history")), "workspace-panel-grid")
 
