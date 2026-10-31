@@ -11,11 +11,11 @@ from .models import OwnerTariffOffer
 PLAN_DESCRIPTIONS = {
     "standard": {
         "name": "Standard",
-        "description": "Защита скидок Wildberries, события и базовый помощник в кабинете.",
+        "description": "Контроль скидок Wildberries, журнал событий и регулярные базовые уведомления.",
     },
     "smart": {
         "name": "Smart",
-        "description": "Всё из Standard, AI-ассистент с фактами вашего магазина и ограниченными рекомендациями.",
+        "description": "Всё из Standard и до двух персональных рекомендательных сводок в день. Аналитика рассчитывается сервисом, DeepSeek формулирует краткое резюме. Свободного AI-чата нет.",
     },
 }
 

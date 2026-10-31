@@ -34,6 +34,7 @@ def b64(value):
     NOSALE_MONTHLY_PRICE_RUB="990.00",
     NOSALE_PAYMENT_RETURN_BASE="https://nosale.svdev.pro",
     SAAS_ACCESS_ENFORCED=True,
+    SAAS_PIN_AUTH_ENABLED=False,
 )
 class AcquiringTests(TestCase):
     @classmethod
@@ -215,4 +216,34 @@ class AcquiringTests(TestCase):
     def test_unauthenticated_checkout_redirects_without_payment(self):
         self.client.logout()
         self.assertEqual(self.client.post(reverse("billing_checkout")).status_code, 302)
+        self.assertFalse(SubscriptionPayment.objects.exists())
+
+
+@override_settings(SAAS_PIN_AUTH_ENABLED=True, TOCHKA_BILLING_ENABLED=False)
+class BillingOnboardingGateTests(TestCase):
+    def test_new_seller_must_finish_wb_import_before_subscription(self):
+        from guard.models import GuardAccount
+        seller = User.objects.create_user(username="gated-buyer@example.test")
+        self.client.force_login(seller)
+        page = reverse("subscription")
+        checkout = reverse("billing_checkout")
+        self.assertRedirects(self.client.get(page), reverse("dashboard"),
+                             fetch_redirect_response=False)
+        self.assertRedirects(self.client.post(checkout, {"plan": "smart"}),
+                             reverse("dashboard"), fetch_redirect_response=False)
+        store = GuardAccount.objects.create(
+            user=seller, marketplace="wb", name="Synthetic store",
+        )
+        self.assertRedirects(self.client.get(page), reverse("dashboard"),
+                             fetch_redirect_response=False)
+        store.token_ciphertext = "synthetic-fixture"
+        store.initial_sync_completed_at = timezone.now()
+        store.save(update_fields=["token_ciphertext", "initial_sync_completed_at"])
+        screen = self.client.get(page)
+        self.assertContains(screen, "Оплата пока не подключена")
+        self.assertContains(screen, "Standard")
+        self.assertContains(screen, "Smart")
+        self.assertNotContains(screen, "Перейти к оплате")
+        self.assertRedirects(self.client.post(checkout, {"plan": "smart"}),
+                             page, fetch_redirect_response=False)
         self.assertFalse(SubscriptionPayment.objects.exists())
