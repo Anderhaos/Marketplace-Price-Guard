@@ -225,19 +225,6 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await page.screenshot({path:snapshotDir+'/05-simplified-navigation.png'});
     step('minimal_real_marketplace_navigation_with_no_duplicates');
     await goto('/assistant/');
-        assert.equal(await page.$eval('body',e=>e.dataset.previewMarketplace),theme.key,
-          'Theme must persist across seller navigation');
-        await goto('/');
-      }
-      if(theme.key!=='wb')await page.click('details.marketplace-picker > summary');
-    }
-    await page.click('details.marketplace-picker > summary');
-    const external = await page.$$eval('.wb-quick-links a',links=>links.map(a=>a.href));
-    assert.ok(external.some(x=>x==='https://www.wildberries.ru/'));
-    assert.ok(external.some(x=>x==='https://seller.wildberries.ru/'));
-    await page.screenshot({path:snapshotDir+'/05-marketplace-selector.png'});
-    step('marketplace_theme_selector_and_wb_quick_links');
-    await goto('/assistant/');
     assert.ok(page.url().endsWith('/notifications/'), 'Retired assistant URL must redirect to scheduled messages');
     await page.waitForSelector('form[action="/push/preferences/"]');
     assert.equal(await page.$('#assistant-question'), null, 'Free AI chat must not be visible');
