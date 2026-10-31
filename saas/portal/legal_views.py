@@ -24,7 +24,7 @@ LEGAL_OPERATOR = {
     # Do not invent a dedicated @nosale mailbox without verifying delivery.
     "email": "support@beclients.ru",
 }
-LEGAL_EDITION = "1.0"
+LEGAL_EDITION = "1.1"
 LEGAL_EDITION_DATE = "31.10.2026"
 
 

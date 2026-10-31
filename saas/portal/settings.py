@@ -98,6 +98,14 @@ NOSALE_SMART_MONTHLY_PRICE_RUB = os.environ.get("NOSALE_SMART_MONTHLY_PRICE_RUB"
 NOSALE_FISCALIZATION_CONFIRMED = env_bool("NOSALE_FISCALIZATION_CONFIRMED", False)
 NOSALE_PUBLIC_BASE_URL = os.environ.get("NOSALE_PUBLIC_BASE_URL", "https://nosale.svdev.pro").strip().rstrip("/")
 NOSALE_PAYMENT_RETURN_BASE = os.environ.get("NOSALE_PAYMENT_RETURN_BASE", NOSALE_PUBLIC_BASE_URL).strip().rstrip("/")
+# The NoSale Yandex Metrica counter belongs to this domain, not BeClients.
+# Empty means zero analytics requests; no counter ID is invented by the app.
+NOSALE_YM_COUNTER_ID = os.environ.get("NOSALE_YM_COUNTER_ID", "").strip()
+if NOSALE_YM_COUNTER_ID and (not NOSALE_YM_COUNTER_ID.isdecimal() or not 5 <= len(NOSALE_YM_COUNTER_ID) <= 15):
+    raise RuntimeError("NOSALE_YM_COUNTER_ID must be a numeric Yandex Metrica counter")
+NOSALE_YANDEX_VERIFICATION = os.environ.get("NOSALE_YANDEX_VERIFICATION", "").strip()
+NOSALE_GOOGLE_VERIFICATION = os.environ.get("NOSALE_GOOGLE_VERIFICATION", "").strip()
+
 # Central AI Platform Gateway; independent of bank, WB and seller API tokens.
 # Disabled until NoSale project enrollment issues its own service token.
 NOSALE_AI_GATEWAY_URL = os.environ.get("NOSALE_AI_GATEWAY_URL", "")
