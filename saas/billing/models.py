@@ -92,6 +92,12 @@ class OwnerTariffOffer(models.Model):
     name = models.CharField(max_length=50)
     price_kopeks = models.PositiveIntegerField(validators=[MinValueValidator(100), MaxValueValidator(10_000_000)], help_text="Цена за месяц в копейках. Редактируется в админке в рублях.")
     enabled = models.BooleanField(default=False, help_text="При выключении новые покупки этого тарифа запрещены.")
+    # None retains pre-constructor rights for historical plans. [] explicitly
+    # removes all capabilities, including from existing paid/trial grants.
+    features = models.JSONField(
+        null=True, blank=True, default=None,
+        help_text="Возможности действующих подписчиков тарифа. Не управляет оплатой или правами владельца.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

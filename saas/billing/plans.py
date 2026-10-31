@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from .tochka import AcquiringUnavailable, approved_price_kopeks, configured
 from .models import OwnerTariffOffer
+from .access import FEATURE_CHOICES, capabilities_for_plan
 
 PLAN_DESCRIPTIONS = {
     "standard": {
@@ -24,6 +25,7 @@ def tariff_offers():
     offers = []
     owner_offers = OwnerTariffOffer.objects.in_bulk(field_name="slug")
     for slug, info in PLAN_DESCRIPTIONS.items():
+        active_features = capabilities_for_plan(slug)
         try:
             amount = approved_price_kopeks(slug)
         except AcquiringUnavailable:
@@ -31,6 +33,8 @@ def tariff_offers():
         offers.append({
             "slug": slug,
             **info,
+            "description": "Функции тарифа задаёт владелец; актуальный состав приведён ниже.",
+            "feature_labels": [label for code, label in FEATURE_CHOICES if code in active_features],
             "name": owner_offers[slug].name if slug in owner_offers else info["name"],
             "price_kopeks": amount,
             "price_rub": Decimal(amount) / 100 if amount is not None else None,

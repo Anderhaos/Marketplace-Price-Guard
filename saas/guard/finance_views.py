@@ -25,7 +25,7 @@ def finance_audit(request):
     if request.method not in ("GET", "POST"):
         return HttpResponseNotAllowed(["GET", "POST"])
     store = selected_store(request)
-    entitled = has_plan_capability(request.user.pk, "discount_guard")
+    entitled = has_plan_capability(request.user.pk, "finance_audit")
     existing = FinanceSnapshot.objects.filter(account=store).first()
     can_revoke = request.method == "POST" and request.POST.get("action") == "revoke"
     if store.marketplace != "wb" or (not entitled and not (can_revoke or (

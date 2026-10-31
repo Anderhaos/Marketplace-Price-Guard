@@ -47,7 +47,15 @@ OperationsForm = modelform_factory(OwnerOperationsSettings, fields=OPERATIONS_FI
 AdapterForm = modelform_factory(OwnerMCPAdapter, fields=("enabled",))
 
 
+from .access import FEATURE_CHOICES, PLAN_CAPABILITIES
+
+
 class TariffForm(forms.ModelForm):
+    features = forms.MultipleChoiceField(
+        choices=FEATURE_CHOICES, widget=forms.CheckboxSelectMultiple,
+        required=False, label="Доступные функции тарифа",
+        help_text="Изменения действуют сразу для всех пользователей с активным тарифом. Отдельно от переключателя продаж.",
+    )
     price_rub = forms.DecimalField(
         label="Цена за месяц, ₽", max_digits=8, decimal_places=2,
         min_value=Decimal("1.00"), max_value=Decimal("100000.00"),
@@ -61,10 +69,15 @@ class TariffForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance.pk and not self.instance._state.adding:
             self.fields["price_rub"].initial = Decimal(self.instance.price_kopeks) / 100
+        self.fields["features"].initial = (
+            self.instance.features if self.instance.features is not None
+            else sorted(PLAN_CAPABILITIES.get(self.instance.slug, ()))
+        )
 
     def save(self, commit=True):
         offer = super().save(commit=False)
         offer.price_kopeks = int(self.cleaned_data["price_rub"] * 100)
+        offer.features = self.cleaned_data["features"]
         if commit:
             offer.save()
         return offer

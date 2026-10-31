@@ -22,7 +22,7 @@ def promotion_audit(request):
     if request.method not in ("GET", "POST"):
         return HttpResponseNotAllowed(["GET", "POST"])
     account = selected_store(request)
-    if not has_plan_capability(request.user.pk, "discount_guard"):
+    if not has_plan_capability(request.user.pk, "promotion_audit"):
         return render(request, "guard/assistant_access.html", {
             "access_title": "Контроль акций доступен с активной подпиской",
             "access_explanation": "Для просмотра акций требуется действующий пробный или оплаченный доступ.",
