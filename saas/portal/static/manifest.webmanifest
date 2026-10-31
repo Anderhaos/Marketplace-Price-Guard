@@ -1,6 +1,6 @@
 {
-  "name": "MPNO Sale — защита скидок",
-  "short_name": "MPNO Sale",
+  "name": "NoSale — контроль скидок Wildberries",
+  "short_name": "NoSale",
   "description": "Автоматический контроль скидок маркетплейсов",
   "lang": "ru",
   "start_url": "/",
