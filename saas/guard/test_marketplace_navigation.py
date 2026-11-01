@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from billing.models import AccessGrant
+from billing.trial import trial_source_ref
 from .models import GuardAccount, Product, PromotionSnapshot, FinanceSnapshot
 from push.models import NotificationPreference, PushMessage
 
@@ -60,6 +61,48 @@ class MarketplaceNavigationTests(TestCase):
         self.assertNotContains(response, 'Сводки')
         self.assertNotContains(response, "Сменить магазин")
 
+    def test_trial_status_is_in_header_on_all_seller_pages_not_under_store(self):
+        grant = AccessGrant.objects.get(user=self.seller)
+        grant.source = "trial"
+        grant.source_ref = trial_source_ref(self.seller.pk)
+        grant.save(update_fields=["source", "source_ref"])
+        for url in (reverse("dashboard"), reverse("settings"), reverse("notifications")):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                html = response.content.decode()
+                self.assertEqual(html.count('class="trial-strip seller-header-access"'), 1)
+                self.assertEqual(html.count("Пробный доступ"), 1)
+                self.assertLess(
+                    html.index('class="trial-strip seller-header-access"'),
+                    html.index('aria-label="Основная навигация"'),
+                )
+                self.assertGreater(
+                    html.index('class="trial-strip seller-header-access"'),
+                    html.index('class="brand"'),
+                )
+                self.assertNotIn('class="compact-context">\n  <span class="trial-strip"', html)
+        self.assertContains(self.client.get(reverse("dashboard")),
+                            "seller-workspace-panels.css?v=20261101d")
+
+    def test_expired_trial_badge_stays_in_header_and_is_short_on_mobile(self):
+        grant = AccessGrant.objects.get(user=self.seller)
+        grant.source = "trial"
+        grant.source_ref = trial_source_ref(self.seller.pk)
+        grant.ends_at = timezone.now() - timedelta(hours=1)
+        grant.save(update_fields=["source", "source_ref", "ends_at"])
+        page = self.client.get(reverse("notifications"))
+        self.assertContains(page, "Пробный период завершён", count=1)
+        self.assertContains(page, 'class="trial-strip trial-strip--expired seller-header-access"')
+        self.assertContains(page, 'class="seller-header-access__until"')
+
+    def test_public_and_pretrial_header_have_no_trial_badge(self):
+        self.client.logout()
+        self.assertNotContains(self.client.get(reverse("dashboard")), "seller-header-access")
+        self.client.force_login(self.seller)
+        AccessGrant.objects.filter(user=self.seller).delete()
+        self.assertNotContains(self.client.get(reverse("dashboard")), 'class="trial-strip seller-header-access"')
+
     def test_discount_controls_are_compact_and_accessibly_labelled(self):
         page = self.client.get(reverse("dashboard"))
         self.assertContains(page, 'name="enabled" aria-label="Защита скидок"')
@@ -69,7 +112,7 @@ class MarketplaceNavigationTests(TestCase):
             '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
         )
         self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
-        self.assertContains(page, "seller-workspace-panels.css?v=20261101c")
+        self.assertContains(page, "seller-workspace-panels.css?v=20261101d")
 
     def test_switch_store_link_only_when_a_second_shop_exists(self):
         self.assertNotContains(self.client.get(reverse("dashboard")), "Сменить магазин")
@@ -138,7 +181,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101c")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101d")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))

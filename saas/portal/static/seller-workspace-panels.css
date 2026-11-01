@@ -449,3 +449,27 @@ body.seller-dashboard-page .section-head{flex-wrap:wrap}
   body.seller-dashboard-page .inventory-actions{justify-content:flex-start}
   body.seller-dashboard-page .inventory-sort-form label{display:none}
 }
+
+/* Subscription status belongs beside the seller identity in the header. */
+body.seller-workspace-page .seller-header-access{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 auto;max-width:100%;white-space:nowrap;
+  margin:0 auto 0 0;padding:5px 9px;
+  font-size:11px;line-height:1.35;
+  font-variant-numeric:tabular-nums;
+}
+@media(max-width:1080px){
+  body.seller-workspace-page .header-inner{
+    flex-direction:row;align-items:center;flex-wrap:wrap;
+    gap:8px 12px;
+  }
+  body.seller-workspace-page .seller-header-access{margin-right:auto}
+  body.seller-workspace-page .site-nav{flex-basis:100%;width:100%}
+}
+@media(max-width:600px){
+  body.seller-workspace-page .seller-header-access{
+    padding:4px 7px;font-size:10px;
+  }
+  body.seller-workspace-page .seller-header-access__until{display:none}
+  body.seller-workspace-page .header-inner{gap:7px}
+}

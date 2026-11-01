@@ -337,6 +337,35 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           assert.equal(await page.$('.page-hero'),null,'No empty campaign landing hero');
         }
         if(route==='/') {
+          const accessBadge=await page.evaluate(()=>{
+            const badge=document.querySelector('.site-header .seller-header-access');
+            const brand=document.querySelector('.site-header .brand');
+            const nav=document.querySelector('.site-header .site-nav');
+            const box=badge?.getBoundingClientRect();
+            const brandBox=brand.getBoundingClientRect();
+            const navBox=nav.getBoundingClientRect();
+            return {
+              exists:!!badge,text:badge?.textContent.trim(),
+              badgeLeft:box?.left,badgeRight:box?.right,badgeTop:box?.top,
+              brandRight:brandBox.right,brandTop:brandBox.top,navTop:navBox.top,
+              lowerBadge:!!document.querySelector('main .trial-strip'),
+              viewport:window.innerWidth
+            };
+          });
+          assert.ok(accessBadge.exists,'Trial badge must appear in the seller header');
+          assert.ok(accessBadge.text.includes('Пробный доступ'),
+            'Real seller trial state must be shown in header');
+          assert.equal(accessBadge.lowerBadge,false,'Do not duplicate trial badge below the shop name');
+          assert.ok(accessBadge.badgeLeft>=accessBadge.brandRight-2,
+            'Trial badge should be right of the logo: '+JSON.stringify(accessBadge));
+          assert.ok(Math.abs(accessBadge.badgeTop-accessBadge.brandTop)<=8,
+            'Trial badge should align with brand: '+JSON.stringify(accessBadge));
+          assert.ok(accessBadge.badgeRight<=width-6,
+            'Trial badge must fit viewport: '+JSON.stringify(accessBadge));
+          if(width===1920){
+            assert.ok(Math.abs(accessBadge.badgeTop-accessBadge.navTop)<=8,
+              'Desktop seller header should be one row: '+JSON.stringify(accessBadge));
+          }
           const filterToolbar=await page.evaluate(()=>{
             const chipBar=document.querySelector('.wb-filter-chips');
             const links=document.querySelector('.wb-quick-links');

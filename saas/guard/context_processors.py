@@ -3,6 +3,7 @@ from .models import GuardAccount, GuardEvent, PromotionSnapshot, FinanceSnapshot
 from .stores import SESSION_KEY
 from push.models import PushMessage
 from billing.access import capabilities_for_user
+from billing.trial import access_snapshot
 
 
 IMPORTANT_EVENT_KINDS = ("confirmed", "upload_error", "error")
@@ -16,6 +17,7 @@ def notification_count(request):
             "seller_has_other_stores": False,
             "seller_has_promotion_data": False,
             "seller_finance_available": False,
+            "seller_header_access": None,
         }
     capabilities = capabilities_for_user(request.user.pk)
     count = GuardEvent.objects.filter(
@@ -54,7 +56,9 @@ def notification_count(request):
             and settings.SAAS_WB_NETWORK_ENABLED
             and settings.NOSALE_WB_FINANCE_ENABLED
         )
+    header_access = access_snapshot(request.user.pk)
     return {
+        "seller_header_access": header_access,
         "unread_notification_count": count + digests,
         "seller_capabilities": capabilities,
         "seller_has_other_stores": len(store_ids) > 1,
