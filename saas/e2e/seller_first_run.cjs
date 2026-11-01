@@ -219,7 +219,18 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     // Only real WB functionality must be visible: no fake marketplace themes
     // or duplicate links to the same notifications screen.
     assert.equal(await page.$('details.marketplace-picker'),null,
-      'Unconnected marketplaces must not appear in the seller navigation');
+      'Old fake marketplace preview switcher must not return');
+    assert.ok(await page.$('details.seller-marketplace-menu > summary[aria-label="Выбор маркетплейса"]'));
+    assert.equal(await page.$('.wb-dashboard-store'),null,'Store name belongs only to the header');
+    await page.click('details.seller-marketplace-menu > summary');
+    assert.ok(await page.$('details.seller-marketplace-menu[open]'));
+    assert.ok(await page.$('details.seller-marketplace-menu .seller-marketplace-option.is-selected'));
+    assert.ok(await page.$('details.seller-marketplace-menu .seller-marketplace-option.is-disabled[aria-disabled="true"]'));
+    assert.ok(await page.$('details.seller-marketplace-menu .seller-marketplace-option.is-disabled strong'));
+    assert.equal(await page.$('details.seller-marketplace-menu a[href="/ozon/"]'),null,
+      'An unimplemented Ozon adapter must not offer a fake navigation link');
+    await page.screenshot({path:snapshotDir+'/marketplace-selector-desktop.png'});
+    await page.click('details.seller-marketplace-menu > summary');
     assert.equal(await page.$('#theme-preview-banner'),null,
       'Decorative marketplace preview banner must be removed');
     assert.equal(await page.$('script[src*="marketplace-previews.js"]'),null);
@@ -340,14 +351,18 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           const accessBadge=await page.evaluate(()=>{
             const badge=document.querySelector('.site-header .seller-header-access');
             const brand=document.querySelector('.site-header .brand');
+            const selector=document.querySelector('.site-header .seller-marketplace-menu');
             const nav=document.querySelector('.site-header .site-nav');
             const box=badge?.getBoundingClientRect();
             const brandBox=brand.getBoundingClientRect();
+            const selectorBox=selector?.getBoundingClientRect();
             const navBox=nav.getBoundingClientRect();
             return {
               exists:!!badge,text:badge?.textContent.trim(),
               badgeLeft:box?.left,badgeRight:box?.right,badgeTop:box?.top,
               brandRight:brandBox.right,brandTop:brandBox.top,navTop:navBox.top,
+              selectorLeft:selectorBox?.left,selectorRight:selectorBox?.right,selectorTop:selectorBox?.top,
+              selectorPresent:!!selector,selectorWidth:selectorBox?.width,
               lowerBadge:!!document.querySelector('main .trial-strip'),
               viewport:window.innerWidth
             };
@@ -356,8 +371,13 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           assert.ok(accessBadge.text.includes('Пробный доступ'),
             'Real seller trial state must be shown in header');
           assert.equal(accessBadge.lowerBadge,false,'Do not duplicate trial badge below the shop name');
-          assert.ok(accessBadge.badgeLeft>=accessBadge.brandRight-2,
-            'Trial badge should be right of the logo: '+JSON.stringify(accessBadge));
+          assert.ok(accessBadge.selectorPresent,'Selected seller store must appear in header');
+          assert.ok(accessBadge.selectorLeft>=accessBadge.brandRight-2,
+            'Marketplace selector should follow logo: '+JSON.stringify(accessBadge));
+          assert.ok(accessBadge.badgeLeft>=accessBadge.selectorRight-2,
+            'Trial badge should follow marketplace selector: '+JSON.stringify(accessBadge));
+          assert.ok(Math.abs(accessBadge.selectorTop-accessBadge.brandTop)<=8,
+            'Marketplace and brand must align: '+JSON.stringify(accessBadge));
           assert.ok(Math.abs(accessBadge.badgeTop-accessBadge.brandTop)<=8,
             'Trial badge should align with brand: '+JSON.stringify(accessBadge));
           assert.ok(accessBadge.badgeRight<=width-6,
@@ -366,6 +386,10 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
             assert.ok(Math.abs(accessBadge.badgeTop-accessBadge.navTop)<=8,
               'Desktop seller header should be one row: '+JSON.stringify(accessBadge));
           }
+          await page.click('details.seller-marketplace-menu > summary');
+          assert.ok(await page.$('details.seller-marketplace-menu[open]'));
+          await page.screenshot({path:snapshotDir+'/marketplace-selector-'+width+'.png'});
+          await page.click('details.seller-marketplace-menu > summary');
           const filterToolbar=await page.evaluate(()=>{
             const chipBar=document.querySelector('.wb-filter-chips');
             const links=document.querySelector('.wb-quick-links');
