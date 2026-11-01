@@ -4,6 +4,19 @@
 {% if onboarding_required %}
   {% include "guard/onboarding_modal.html" %}
 {% else %}
+{% if promotion_selection %}
+<section class="promo-inventory-context" aria-label="Подборка товаров акции">
+  <div class="promo-inventory-copy">
+    <span class="promo-inventory-kicker">{% if promotion_selection.scope == 'candidates' %}Подходят для вступления · ещё не участвуют{% else %}Участвуют в акции{% endif %}</span>
+    <strong>{{ promotion_selection.name }}</strong>
+    <span>{{ shown_count }} из {{ promotion_selection.source_count }} товаров WB найдено в вашем каталоге. Здесь можно настроить пределы скидок, но не вступить в акцию автоматически.</span>
+    {% if promotion_selection.missing_count %}<span class="promo-inventory-warning">Не найдены среди активных товаров: {{ promotion_selection.missing_count }}</span>{% endif %}
+  </div>
+  <nav class="promo-inventory-links" aria-label="Навигация выборки">
+    <a href="{% url 'promotion_audit' %}">К акциям</a><a href="{% url 'dashboard' %}">Все товары</a>
+  </nav>
+</section>
+{% endif %}
 {% if wb_read_only %}<p class="notice" role="status">WB подключён в режиме чтения. Предельные скидки можно настроить, но NoSale не изменяет цены и скидки в WB. Если тем же магазином управляет Solo, не запускайте вторую защиту одновременно.</p>{% endif %}
 <div class="compact-context">
   <div class="wb-dashboard-header">
@@ -33,7 +46,7 @@
       <label class="toggle compact-switch"><input type="checkbox" name="enabled" aria-label="Защита скидок" {% if account.enabled %}checked{% endif %} {% if not trial_status.active or token_readonly or wb_read_only %}disabled{% endif %} onchange="if(this.checked && {{ account.default_allowed_discount }}===0){if(!confirm('Внимание: лимит 0%. NoSale будет убирать скидки в Wildberries. Продолжить?')){this.checked=false;return;}this.form.elements.confirm_zero_discount.value='1';}this.form.submit()"><span class="toggle-track"></span></label>
     </form>
   </div>
-  <a class="summary-cell {% if filter_name == 'all' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=all&amp;sort={{ sort_name }}"><span class="summary-label">Товаров</span><strong>{{ count }}</strong></a>
+  <a class="summary-cell {% if filter_name == 'all' and not promotion_selection %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=all&amp;sort={{ sort_name }}"><span class="summary-label">Товаров</span><strong>{{ count }}</strong></a>
   <a class="summary-cell {% if filter_name == 'corrected' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=corrected&amp;sort={{ sort_name }}"><span class="summary-label">Исправлено</span><strong>{{ corrected_card_count }}</strong></a>
   <a class="summary-cell {% if filter_name == 'over_limit' %}summary-selected{% endif %}" href="{% url 'dashboard' %}?filter=over_limit&amp;sort={{ sort_name }}"><span class="summary-label">Выше лимита</span><strong>{{ over_limit_count }}</strong></a>
   <div class="summary-cell summary-cell--limit">
@@ -53,12 +66,13 @@
 <section class="card">
   <div class="section-head">
     <div>
-      <h2>Товары{% if filter_name != 'all' %} <span class="inventory-filter-total">{{ shown_count }}</span>{% endif %}</h2>
-      {% if filter_name != 'all' %}<p class="filter-banner">{{ filter_label }} · {{ shown_count }} из {{ count }}</p>{% endif %}
+      <h2>{% if promotion_selection %}Товары акции{% else %}Товары{% endif %}{% if promotion_selection or filter_name != 'all' %} <span class="inventory-filter-total">{{ shown_count }}</span>{% endif %}</h2>
+      {% if not promotion_selection and filter_name != 'all' %}<p class="filter-banner">{{ filter_label }} · {{ shown_count }} из {{ count }}</p>{% endif %}
     </div>
     <div class="actions inventory-actions">
       <form method="get" action="{% url 'dashboard' %}" class="inventory-sort-form">
         <input type="hidden" name="filter" value="{{ filter_name }}">
+        {% if promotion_selection %}<input type="hidden" name="promotion" value="{{ promotion_selection.id }}"><input type="hidden" name="scope" value="{{ promotion_selection.scope }}">{% endif %}
         <label for="inventory-sort">Сортировка</label>
         <select id="inventory-sort" name="sort" aria-label="Сортировка товаров" onchange="this.form.requestSubmit()">
           <option value="default" {% if sort_name == 'default' %}selected{% endif %}>По умолчанию</option>
@@ -78,6 +92,15 @@
     <article class="product-card">
       <div class="product-image">{% if product.photo_url %}<img src="{{ product.photo_url }}" alt="{{ product.title|default:product.vendor_code }}">{% else %}<span>WB</span>{% endif %}</div>
       <div class="product-card-head"><div><h3>{{ product.title|default:product.vendor_code|default:'Товар Wildberries' }}</h3><p>Арт. {{ product.vendor_code|default:'—' }} · <a href="https://www.wildberries.ru/catalog/{{ product.nm_id }}/detail.aspx" target="_blank" rel="noopener noreferrer" title="Открыть карточку товара на Wildberries">WB {{ product.nm_id }} ↗</a></p></div><button class="info-button" type="button" title="История товара" data-history-url="{% url 'product_history_data' product.nm_id %}">i</button></div>
+      {% if promotion_selection and product.promo_evidence %}
+      <div class="promo-inventory-price">
+        <span>Цена по условиям WB</span>
+        {% if product.promo_evidence.current and product.promo_evidence.planned %}
+        <strong>{{ product.promo_evidence.current }} ₽ → {{ product.promo_evidence.planned }} ₽</strong>
+        {% if product.promo_evidence.decrease %}<span class="promo-inventory-warning">Цена для акции ниже текущей</span>{% endif %}
+        {% else %}<span>Плановая цена WB неизвестна</span>{% endif %}
+      </div>
+      {% endif %}
       <div class="product-metrics product-metrics--prices">
         <div><span>Цена со скидкой</span><strong class="price-main">{% if product.discounted_price %}{{ product.discounted_price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
         <div><span>Цена до скидки</span><strong class="price-secondary">{% if product.price %}{{ product.price }} {{ product.currency }}{% else %}—{% endif %}</strong></div>
@@ -86,6 +109,7 @@
       <form method="post" action="{% url 'product_rule' product.nm_id %}" class="product-rule">{% csrf_token %}
         <input type="hidden" name="dashboard_filter" value="{{ filter_name }}">
         <input type="hidden" name="dashboard_sort" value="{{ sort_name }}">
+        {% if promotion_selection %}<input type="hidden" name="promotion_id" value="{{ promotion_selection.id }}"><input type="hidden" name="promotion_scope" value="{{ promotion_selection.scope }}">{% endif %}
         <div class="product-discount-row">
           <div class="wb-discount-pill {% if product.current_discount > product.allowed_discount %}bad{% else %}good{% endif %}" aria-label="Скидка Wildberries">{{ product.current_discount }}%</div>
           <label class="toggle mini-toggle"><input type="checkbox" name="no_discount" {% if product.allowed_discount_override == 0 %}checked{% endif %} onchange="this.form.submit()"><span class="toggle-track" aria-hidden="true"></span><span>Без скидки</span></label>
@@ -102,7 +126,7 @@
       {% if product.nm_id in pending_product_ids %}<p class="card-sync">Правило сохранено. Отправка в WB ожидает следующую проверку.</p>
       {% elif product.current_discount > product.allowed_discount %}<p class="card-warning">Сейчас выше вашего предела {{ product.allowed_discount }}%</p>{% endif %}
     </article>
-  {% empty %}<p class="muted">{% if filter_name != 'all' %}По этому фильтру товаров нет. <a href="{% url 'dashboard' %}?filter=all&amp;sort={{ sort_name }}">Показать все</a>.{% else %}Товары появятся после первой проверки.{% endif %}</p>{% endfor %}</div>
+  {% empty %}<p class="muted">{% if promotion_selection %}В активном каталоге нет товаров из этой выборки. <a href="{% url 'promotion_audit' %}">К акциям</a>.{% elif filter_name != 'all' %}По этому фильтру товаров нет. <a href="{% url 'dashboard' %}?filter=all&amp;sort={{ sort_name }}">Показать все</a>.{% else %}Товары появятся после первой проверки.{% endif %}</p>{% endfor %}</div>
   {% if filter_name == 'all' and count > 500 %}<p class="muted">Показаны первые 500 товаров из {{ count }}.</p>{% endif %}
 </section>
 <dialog class="history-modal" id="product-history-modal"><div class="modal-head"><div><h2 id="history-title">История товара</h2><p class="muted" id="history-subtitle"></p></div><button class="modal-close" type="button" aria-label="Закрыть">×</button></div><div class="history-list" id="history-list"></div></dialog>
