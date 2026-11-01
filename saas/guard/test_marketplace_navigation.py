@@ -89,7 +89,7 @@ class MarketplaceNavigationTests(TestCase):
                 )
                 self.assertNotIn('class="compact-context">\n  <span class="trial-strip"', html)
         self.assertContains(self.client.get(reverse("dashboard")),
-                            "seller-workspace-panels.css?v=20261101f")
+                            "seller-workspace-panels.css?v=20261101h")
 
     def test_expired_trial_badge_stays_in_header_and_is_short_on_mobile(self):
         grant = AccessGrant.objects.get(user=self.seller)
@@ -118,7 +118,7 @@ class MarketplaceNavigationTests(TestCase):
             '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
         )
         self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
-        self.assertContains(page, "seller-workspace-panels.css?v=20261101f")
+        self.assertContains(page, "seller-workspace-panels.css?v=20261101h")
 
     def test_header_switches_real_wb_store_without_exposing_other_tenants(self):
         first = self.client.get(reverse("dashboard"))
@@ -167,7 +167,7 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(home, 'href="/promotions/"', count=1)
         self.assertNotContains(home, 'href="/finance/"')
         calendar = self.client.get(reverse("promotion_audit"))
-        self.assertContains(calendar, 'Календарь Wildberries')
+        self.assertContains(calendar, '<h1>Акции</h1>')
         self.assertContains(calendar, 'Календарь WB')
         self.assertNotContains(calendar, 'Что дальше')
 
@@ -263,7 +263,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101f")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101h")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))
@@ -288,7 +288,7 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(config, "compact-settings-grid")
         self.assertContains(config, "compact-prefs-card")
         self.assertContains(self.client.get(reverse("stores")), "workspace-store-row")
-        self.assertContains(self.client.get(reverse("promotion_audit")), "Обновить календарь")
+        self.assertContains(self.client.get(reverse("promotion_audit")), "Обновить WB")
         self.assertContains(self.client.get(reverse("subscription")), "workspace-tariff-cards")
         self.assertContains(self.client.get(reverse("history")), "workspace-panel-grid")
 

@@ -21,7 +21,15 @@ django.setup()
 from django.conf import settings
 from django.core.management import call_command
 from billing.models import AccessGrant
-from guard.models import GuardAccount, Product
+from guard.models import GuardAccount, Product, PromotionSnapshot
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.http import JsonResponse
+from django.urls import path, clear_url_caches
+from django.utils import timezone
+from datetime import timedelta
+from guard.stores import selected_store
+import portal.urls
 from guard.monitor import run_due_checks
 from guard.wb import WBApiError
 
@@ -83,6 +91,59 @@ class SyntheticWBClient:
 
     def get_upload_state(self, upload_id):
         raise AssertionError("E2E fixture must not reconcile WB writes")
+
+
+@login_required
+@require_POST
+def seed_promotion_snapshot(request):
+    """Isolated test-only seller fixture; never registered in production URLs."""
+    account = selected_store(request)
+    own = list(Product.objects.filter(account=account, active=True))
+    if len(own) != 2 or account.marketplace != "wb":
+        return JsonResponse({"error": "synthetic catalog not ready"}, status=409)
+    now = timezone.now()
+    PromotionSnapshot.objects.update_or_create(account=account, defaults={
+        "promotions": [
+            {
+                "id": 711, "name": "Синтетическая автоакция WB", "type": "auto",
+                "starts_at": (now-timedelta(days=1)).isoformat(),
+                "ends_at": (now+timedelta(days=8)).isoformat(),
+                "seller_counts": {"inPromoActionTotal": 1, "exceptionProductsCount": 0},
+                "participation": None, "risk": "unknown", "funding": "unknown",
+            },
+            {
+                "id": 712, "name": "Синтетическая обычная акция WB", "type": "regular",
+                "starts_at": (now+timedelta(days=1)).isoformat(),
+                "ends_at": (now+timedelta(days=6)).isoformat(),
+                "seller_counts": {"inPromoActionTotal": 1},
+                "participation": {
+                    "inspected": 1, "matched_count": 1, "matched_decreases": 1,
+                    "matched": [{
+                        "nm_id": 79001, "title": "Browser fixture item A", "vendor_code": "BROWSER-01",
+                        "current": "900.00", "planned": "750.00", "decrease": True,
+                        "current_discount": 25, "allowed_discount": 13,
+                    }],
+                },
+                "risk": "price_drop", "funding": "unknown",
+            },
+            {
+                "id": 713, "name": "Синтетическая акция без подтверждения", "type": "auto",
+                "starts_at": (now+timedelta(days=3)).isoformat(),
+                "ends_at": (now+timedelta(days=9)).isoformat(),
+                "participation": None, "seller_counts": None,
+                "risk": "unknown", "funding": "unknown",
+            },
+        ],
+        "partial": True,
+        "fetched_at": now,
+        "next_refresh_at": now+timedelta(minutes=65),
+    })
+    return JsonResponse({"ok": True, "campaigns": 3})
+
+
+# Test-only route exists solely in this ephemeral, no-egress fixture process.
+portal.urls.urlpatterns.insert(0, path("__e2e/seed-promotions/", seed_promotion_snapshot))
+clear_url_caches()
 
 
 def serve():

@@ -301,6 +301,31 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.equal(await page.$('main details'),null,'History days and events should be visible by default');
     await waitText('Проверок: 1');
     step('successful_wb_check_is_recorded_in_history');
+    await goto('/settings/');
+    const csrfForPromoFixture=await page.$eval('input[name="csrfmiddlewaretoken"]',el=>el.value);
+    const seeded=await page.evaluate(async csrf => {
+      const response=await fetch('/__e2e/seed-promotions/',{
+        method:'POST',credentials:'same-origin',
+        headers:{'X-CSRFToken':csrf,'Content-Type':'application/x-www-form-urlencoded'},
+        body:'seed=synthetic'
+      });
+      return {status:response.status,json:await response.json()};
+    },csrfForPromoFixture);
+    assert.equal(seeded.status,200,'Isolated promo fixture must be seeded: '+JSON.stringify(seeded));
+    assert.equal(seeded.json.campaigns,3);
+    await goto('/promotions/');
+    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),3);
+    assert.ok(await page.$('.promo-audit-filters a[href*="filter=price_drop"]'));
+    assert.ok(await page.$('.promo-audit-filters a[href*="filter=unknown"]'));
+    await goto('/promotions/?filter=price_drop');
+    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),1);
+    await waitText('Плановая цена ниже');
+    await waitText('Browser fixture item A');
+    await goto('/promotions/?filter=unknown');
+    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),1);
+    await waitText('Синтетическая акция без подтверждения');
+    await goto('/promotions/');
+    step('real_campaign_filters_and_seller_product_evidence');
     const workspaceRoutes=['/','/settings/','/notifications/','/promotions/','/history/','/stores/','/billing/'];
     for(const width of [1920,390]){
       await page.setViewport({width,height:900,deviceScaleFactor:1,isMobile:width<640,hasTouch:width<640});
@@ -354,6 +379,16 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         if(route==='/promotions/') {
           assert.ok(await page.$('.compact-page-head'),'Campaigns need a compact heading');
           assert.equal(await page.$('.page-hero'),null,'No empty campaign landing hero');
+          assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),3);
+          assert.equal(await page.$('main details'),null,'Promotion evidence must be visible without disclosure clicks');
+          assert.ok(await page.$('.promo-audit-filters'));
+          assert.ok(await page.$('.promo-audit-card .promo-audit-products'));
+          const campaignCells=await page.evaluate(() => ({
+            gridWidth:document.querySelector('.promo-audit-grid').getBoundingClientRect().width,
+            cardWidths:[...document.querySelectorAll('.promo-audit-card')].map(el=>el.getBoundingClientRect().width),
+            maxOverflow:Math.max(...[...document.querySelectorAll('.promo-audit-card')].map(el=>el.scrollWidth-el.clientWidth))
+          }));
+          assert.ok(campaignCells.maxOverflow<=2,'Campaign card must not overflow at '+width);
         }
         if(route==='/') {
           const accessBadge=await page.evaluate(()=>{
