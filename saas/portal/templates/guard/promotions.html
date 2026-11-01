@@ -5,60 +5,115 @@
   <div>
     <h1>Акции</h1>
     {% if snapshot and snapshot.fetched_at %}
-      <span class="compact-page-count">{{ promotions|length }} в календаре WB · {{ snapshot.fetched_at|date:"d.m H:i" }}</span>
+      <span class="compact-page-count">{{ promotion_total }} в календаре WB · данные от {{ snapshot.fetched_at|date:"d.m H:i" }}</span>
     {% endif %}
   </div>
   <form action="{% url 'promotion_audit' %}" method="post">
     {% csrf_token %}<input type="hidden" name="action" value="refresh">
-    <button class="secondary" type="submit" {% if not can_refresh %}disabled{% endif %}>Обновить календарь</button>
+    <button class="secondary" type="submit" {% if not can_refresh %}disabled{% endif %}>Обновить WB</button>
   </form>
 </header>
+
 {% if snapshot and snapshot.last_error %}
   <p class="compact-feedback" role="alert">{{ snapshot.last_error }}</p>
 {% endif %}
 {% if not wb_network_enabled %}
-  <p class="compact-feedback" role="status">Чтение API Wildberries сейчас отключено.</p>
+  <p class="compact-feedback" role="status">Чтение API Wildberries сейчас отключено. Показана последняя сохранённая проверка.</p>
 {% endif %}
-{% if promotions %}
-  <p class="compact-inline-note">Календарь Wildberries: участие ваших товаров и источник финансирования скидок не подтверждены. Ни одна акция автоматически не подключается.</p>
-  <div class="compact-promo-grid" aria-label="Календарь Wildberries">
-  {% for item in promotions %}
-    <article class="compact-promo-card">
-      <div class="compact-promo-top">
-        <span class="compact-promo-type">{% if item.type == "auto" %}Автоакция{% elif item.type == "regular" %}Обычная{% else %}Акция WB{% endif %}</span>
-        {% if item.risk == "price_drop" %}
-          <span class="compact-promo-risk">Возможно снижение цены</span>
-        {% elif item.risk == "no_drop_observed" %}
-          <span class="compact-promo-neutral">Снижения в выборке нет</span>
+{% if promotion_total %}
+<div class="promo-audit-status-line">
+  <span><strong>{{ catalog_total }}</strong> товаров магазина</span>
+  <span><strong>{{ catalog_over_limit }}</strong> сейчас выше лимита</span>
+  <span><strong>{{ promotion_counts.participating }}</strong> акций с подтверждённым участием</span>
+  <span class="promo-audit-uncertainty">Финансирование WB и прибыль не определены</span>
+</div>
+<nav class="promo-audit-filters" aria-label="Фильтры акций Wildberries">
+  {% for chip in promotion_chips %}
+    <a class="wb-filter-chip {% if promotion_filter == chip.key %}is-active{% endif %}"
+      href="{% url 'promotion_audit' %}?filter={{ chip.key }}"
+      {% if promotion_filter == chip.key %}aria-current="page"{% endif %}>
+      {{ chip.label }} <span class="wb-filter-count">{{ chip.count }}</span>
+    </a>
+  {% endfor %}
+</nav>
+<div class="compact-promo-grid promo-audit-grid" aria-label="Акции Wildberries">
+{% for item in promotion_cards %}
+  <article class="compact-promo-card promo-audit-card">
+    <header class="compact-promo-top">
+      <span class="compact-promo-type">{{ item.display_type }}</span>
+      <span class="promo-audit-period promo-audit-period--{{ item.period }}">{{ item.period_label }}</span>
+    </header>
+    <h2>{{ item.name }}</h2>
+    {% if item.starts_at or item.ends_at %}
+      <p class="compact-promo-date">
+        {% if item.starts_at %}{{ item.starts_at|slice:"8:10" }}.{{ item.starts_at|slice:"5:7" }}{% else %}—{% endif %}
+        —
+        {% if item.ends_at %}{{ item.ends_at|slice:"8:10" }}.{{ item.ends_at|slice:"5:7" }}{% else %}—{% endif %}
+      </p>
+    {% endif %}
+
+    <div class="promo-audit-facts">
+      {% if item.aggregate_known %}
+        <p><strong>{{ item.aggregate_count }}</strong> товаров продавца в акции по данным WB
+          <span class="promo-audit-source">Данные WB об участии{% if item.details_at %} · {{ item.details_at|date:"d.m H:i" }}{% endif %}</span></p>
+      {% elif item.matched_count %}
+        <p><strong>{{ item.matched_count }}</strong> товаров сопоставлено с вашим каталогом</p>
+      {% else %}
+        <p class="promo-audit-no-evidence">Участие товаров не подтверждено</p>
+      {% endif %}
+
+      {% if item.has_price_drop %}
+        <p class="promo-audit-risk">Плановая цена ниже текущей у {{ item.participation.matched_decreases }} товар(ов)</p>
+      {% elif item.matched_count and item.risk == "no_drop_observed" %}
+        <p class="promo-audit-neutral">У сопоставленных товаров снижения не выявлено</p>
+      {% elif item.type == "auto" %}
+        <p class="promo-audit-muted">Состав товаров автоакции этим API не раскрывается</p>
+      {% elif not item.has_evidence %}
+        <p class="promo-audit-muted">Нет подтверждённых данных для оценки цен</p>
+      {% endif %}
+      <p class="promo-audit-funding">За чей счёт скидка: <strong>неизвестно</strong></p>
+    </div>
+
+    {% if item.matched_products %}
+      <div class="promo-audit-products">
+        <h3>Ваши товары в выборке ({{ item.matched_count }}){% if item.participants_at %} · {{ item.participants_at|date:"d.m H:i" }}{% endif %}</h3>
+        {% for good in item.matched_products %}
+          <div class="promo-audit-product">
+            <div class="promo-audit-product-title">
+              <a href="https://www.wildberries.ru/catalog/{{ good.nm_id }}/detail.aspx"
+                target="_blank" rel="noopener noreferrer">{{ good.title }}</a>
+              <span class="promo-audit-product-id">WB {{ good.nm_id }}</span>
+            </div>
+            <div class="promo-audit-product-prices">
+              {% if good.current and good.planned %}
+                <span>{{ good.current }} ₽ → <strong>{{ good.planned }} ₽</strong></span>
+                {% if good.decrease %}<span class="promo-audit-risk">Цена ниже</span>{% endif %}
+              {% else %}<span class="promo-audit-muted">WB не передал обе цены</span>{% endif %}
+            </div>
+          </div>
+        {% endfor %}
+        {% if item.participation.possibly_incomplete %}
+          <p class="promo-audit-muted">Получена только первая выборка до 100 товаров. Возможны дополнительные участники.</p>
         {% endif %}
       </div>
-      <h2>{{ item.name }}</h2>
-      {% if item.starts_at or item.ends_at %}
-        <p class="compact-promo-date">
-          {% if item.starts_at %}{{ item.starts_at|slice:"8:10" }}.{{ item.starts_at|slice:"5:7" }}{% else %}—{% endif %}
-          —
-          {% if item.ends_at %}{{ item.ends_at|slice:"8:10" }}.{{ item.ends_at|slice:"5:7" }}{% else %}—{% endif %}
-        </p>
-      {% endif %}
-      {% if item.participation %}
-        <div class="compact-promo-details">
-          Проверено товаров: {{ item.participation.inspected }}{% if item.participation.possibly_incomplete %} (часть){% endif %}
-          {% if item.participation.price_decreases %}
-            · С плановым снижением цены: {{ item.participation.price_decreases }}
-          {% endif %}
-          {% if item.participation.missing_prices %} · Без цен: {{ item.participation.missing_prices }}{% endif %}
-          {% for example in item.participation.examples %}
-            <p>WB {{ example.nm_id|default:"—" }}: {{ example.current }} ₽ → {{ example.planned }} ₽</p>
-          {% endfor %}
-        </div>
-      {% endif %}
-    </article>
-  {% endfor %}
-  </div>
+    {% endif %}
+    {% if item.aggregate_known and item.type == "auto" %}
+      <p class="promo-audit-muted promo-audit-footnote">Число участников — агрегат WB, не список конкретных артикулов.</p>
+    {% endif %}
+  </article>
+{% empty %}
+  <p class="compact-empty promo-audit-no-results">Нет акций в выбранной категории. <a href="{% url 'promotion_audit' %}?filter=all">Показать все</a>.</p>
+{% endfor %}
+</div>
+<p class="compact-bottom-note promo-audit-disclaimer">
+  Календарь и цены — снимок WB, не гарантия актуальности или прибыли.
+  Для базового токена WB ограничивает чтение календаря одним запросом в час: сведения об участии могут оставаться неизвестными.
+  NoSale не добавляет и не исключает товары из акций.
+</p>
 {% else %}
-  <p class="compact-empty">{% if snapshot and snapshot.fetched_at %}В последней выборке календаря WB акций нет.{% else %}Календарь ещё не загружен. Нажмите «Обновить календарь».{% endif %}</p>
+  <p class="compact-empty">{% if snapshot and snapshot.fetched_at %}В последней выборке WB акций нет.{% else %}Календарь ещё не загружен. Нажмите «Обновить WB».{% endif %}</p>
 {% endif %}
 {% if snapshot and snapshot.next_refresh_at and not can_refresh %}
-  <p class="compact-bottom-note">Следующее обновление не раньше {{ snapshot.next_refresh_at|date:"d.m H:i" }} (лимит WB API).</p>
+  <p class="compact-bottom-note">Следующее обновление не раньше {{ snapshot.next_refresh_at|date:"d.m H:i" }} — лимиты WB API.</p>
 {% endif %}
 {% endblock %}

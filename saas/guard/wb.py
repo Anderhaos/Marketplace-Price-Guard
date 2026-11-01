@@ -144,6 +144,18 @@ class WBClient:
             "limit": max(1, min(40, int(limit))), "offset": 0,
         })
 
+    def get_promotion_details(self, promotion_ids):
+        """Read-only seller-specific aggregated campaign facts, 1..100 IDs per call."""
+        ids = [int(value) for value in promotion_ids]
+        if not 1 <= len(ids) <= 100 or len(ids) != len(set(ids)) or any(value < 1 for value in ids):
+            raise ValueError("Expected 1 to 100 distinct positive campaign IDs")
+        # A list of tuples produces repeated promotionIDs keys, not a comma
+        # string or an encoded Python array; required by the official WB API.
+        return self._request_to(
+            self.PROMOTIONS_BASE_URL, "GET", "/api/v1/calendar/promotions/details",
+            params=[("promotionIDs", value) for value in ids],
+        )
+
     def get_promotion_participants(self, promotion_id, *, limit=100):
         """Participating goods in an ordinary promotion (not auto-promos)."""
         return self._request_to(self.PROMOTIONS_BASE_URL, "GET",

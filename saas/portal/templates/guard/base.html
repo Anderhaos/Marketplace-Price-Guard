@@ -345,7 +345,7 @@
   </style>
   {% if user.is_authenticated and not onboarding_required %}
     <link rel="stylesheet" href="/static/seller-dashboard-grid.css?v=20261031b">
-    <link rel="stylesheet" href="/static/seller-workspace-panels.css?v=20261101f">
+    <link rel="stylesheet" href="/static/seller-workspace-panels.css?v=20261101g">
   {% endif %}
 </head>
 <body class="{% if not user.is_authenticated %}public-visitor{% endif %}{% if user.is_authenticated and not onboarding_required %} marketplace-wb seller-workspace-page{% endif %}{% if user.is_authenticated and not onboarding_required and request.path == '/' %} seller-dashboard-page{% endif %}">
