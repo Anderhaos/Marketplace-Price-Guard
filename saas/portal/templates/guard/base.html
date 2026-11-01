@@ -345,7 +345,7 @@
   </style>
   {% if user.is_authenticated and not onboarding_required %}
     <link rel="stylesheet" href="/static/seller-dashboard-grid.css?v=20261031b">
-    <link rel="stylesheet" href="/static/seller-workspace-panels.css?v=20261101d">
+    <link rel="stylesheet" href="/static/seller-workspace-panels.css?v=20261101e">
   {% endif %}
 </head>
 <body class="{% if not user.is_authenticated %}public-visitor{% endif %}{% if user.is_authenticated and not onboarding_required %} marketplace-wb seller-workspace-page{% endif %}{% if user.is_authenticated and not onboarding_required and request.path == '/' %} seller-dashboard-page{% endif %}">
@@ -353,9 +353,41 @@
     <div class="shell header-inner">
       <a class="brand" href="{% url 'dashboard' %}">
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 30 30" fill="none"><path d="M5 20 14 10l10 5" stroke="currentColor" stroke-width="2"/><circle cx="5" cy="20" r="3" fill="currentColor"/><circle cx="14" cy="10" r="3" fill="currentColor"/><circle cx="24" cy="15" r="3" fill="currentColor"/></svg></span>
-        <span>NoSale</span><span class="brand-divider"></span><span class="brand-product">{% if user.is_authenticated and not onboarding_required %}кабинет продавца{% else %}контроль цен{% endif %}</span>
+        <span>NoSale</span>{% if not user.is_authenticated or onboarding_required %}<span class="brand-divider"></span><span class="brand-product">контроль цен</span>{% endif %}
       </a>
       {% if user.is_authenticated and not onboarding_required %}
+        <details class="seller-marketplace-menu">
+          <summary aria-label="Выбор маркетплейса">
+            <span class="seller-marketplace-name">{% if seller_header_store_name %}{{ seller_header_store_name }}{% else %}Магазин WB{% endif %}</span>
+            <span class="seller-marketplace-label">· Wildberries</span>
+            <span class="seller-marketplace-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="seller-marketplace-options" aria-label="Доступные маркетплейсы">
+            <div class="seller-marketplace-option is-selected">
+              <span class="marketplace-choice-symbol wb-symbol" aria-hidden="true">W</span>
+              <span class="seller-marketplace-option-text"><strong>Wildberries</strong><small>Подключён</small></span>
+              <span class="seller-marketplace-selected-check" aria-hidden="true">✓</span>
+            </div>
+            <div class="seller-marketplace-option is-disabled" aria-disabled="true" title="Интеграция Ozon пока не реализована">
+              <span class="marketplace-choice-symbol ozon-symbol" aria-hidden="true">O</span>
+              <span class="seller-marketplace-option-text"><strong>Ozon</strong><small>Пока недоступен</small></span>
+            </div>
+            {% if seller_header_wb_stores|length > 1 %}
+              <div class="seller-marketplace-option-heading">Магазины Wildberries</div>
+              {% for store in seller_header_wb_stores %}
+                {% if store.id == seller_header_store_id %}
+                  <div class="seller-marketplace-store is-selected"><strong>{{ store.name }}</strong><small>Текущий</small></div>
+                {% else %}
+                  <form method="post" action="{% url 'select_store' store.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="seller-marketplace-store" title="Переключиться на магазин Wildberries"><strong>{{ store.name }}</strong><small>Открыть магазин</small></button>
+                  </form>
+                {% endif %}
+              {% endfor %}
+              <a class="seller-marketplace-manage" href="{% url 'stores' %}">Управление магазинами</a>
+            {% endif %}
+          </div>
+        </details>
         {% if seller_header_access.active %}
           <span class="trial-strip seller-header-access">
             {% if seller_header_access.access_source == "trial" %}Пробный доступ{% else %}Доступ активен{% endif %} · {{ seller_header_access.days_left }} дн.<span class="seller-header-access__until"> до {{ seller_header_access.expires_at|date:"d.m.Y" }}</span>
@@ -379,7 +411,6 @@
           <details class="seller-more-menu">
             <summary aria-label="Открыть дополнительные разделы">Ещё <span aria-hidden="true">⌄</span></summary>
             <div class="seller-more-options">
-              {% if seller_has_other_stores %}<a href="{% url 'stores' %}"><strong>Магазины</strong><small>Переключение подключённых магазинов</small></a>{% endif %}
               <a href="{% url 'subscription' %}"><strong>Тариф и подписка</strong><small>Standard / Smart и срок доступа</small></a>
               {% if 'activity_history' in seller_capabilities %}<a href="{% url 'history' %}"><strong>История проверок</strong><small>Изменения и результаты мониторинга</small></a>{% endif %}
               {% if 'store_advice' in seller_capabilities %}<a href="{% url 'store_advisor' %}"><strong>Рекомендации</strong><small>Аналитика по магазину</small></a>{% endif %}
@@ -415,8 +446,8 @@
       }, 5000 + index * 350);
     });
     // Keep the extra navigation inside the viewport when its trigger wraps on phones.
-    document.querySelectorAll('details.seller-more-menu').forEach((menu) => {
-      const options = menu.querySelector('.seller-more-options');
+    document.querySelectorAll('details.seller-more-menu, details.seller-marketplace-menu').forEach((menu) => {
+      const options = menu.querySelector('.seller-more-options, .seller-marketplace-options');
       if (!options) return;
       const align = () => {
         options.style.transform = '';

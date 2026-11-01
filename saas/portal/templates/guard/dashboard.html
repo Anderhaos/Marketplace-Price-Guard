@@ -7,7 +7,6 @@
 {% if wb_read_only %}<p class="notice" role="status">WB подключён в режиме чтения. Предельные скидки можно настроить, но NoSale не изменяет цены и скидки в WB. Если тем же магазином управляет Solo, не запускайте вторую защиту одновременно.</p>{% endif %}
 <div class="compact-context">
   <div class="wb-dashboard-header">
-    <div class="wb-dashboard-store"><strong>{{ account.name }}</strong> <span class="muted">· Wildberries</span>{% if has_other_stores %} <a class="compact-link" href="{% url 'stores' %}">Сменить магазин</a>{% endif %}</div>
     <nav class="wb-filter-chips" aria-label="Фильтры текущего списка товаров">
       {% for chip in filter_chips %}
         <a class="wb-filter-chip {% if filter_name == chip.key %}is-active{% endif %}"

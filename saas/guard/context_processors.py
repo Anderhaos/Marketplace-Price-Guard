@@ -31,13 +31,18 @@ def notification_count(request):
 
     # Use the seller's OWN selected store. Never leak another account's
     # campaigns or show empty / operator-disabled feature screens.
-    store_ids = list(GuardAccount.objects.filter(user=request.user).values_list("pk", flat=True))
+    seller_stores = list(
+        GuardAccount.objects.filter(user=request.user, marketplace="wb")
+        .order_by("id").values("id", "name")
+    )
+    store_ids = [store["id"] for store in seller_stores]
     selected = request.session.get(SESSION_KEY)
     try:
         selected = int(selected)
     except (ValueError, TypeError):
         selected = None
     store_id = selected if selected in store_ids else (store_ids[0] if store_ids else None)
+    active_store = next((store for store in seller_stores if store["id"] == store_id), None)
     has_promotions = False
     finance_visible = False
     if store_id is not None:
@@ -59,6 +64,9 @@ def notification_count(request):
     header_access = access_snapshot(request.user.pk)
     return {
         "seller_header_access": header_access,
+        "seller_header_store_name": active_store["name"] if active_store else None,
+        "seller_header_store_id": store_id,
+        "seller_header_wb_stores": seller_stores,
         "unread_notification_count": count + digests,
         "seller_capabilities": capabilities,
         "seller_has_other_stores": len(store_ids) > 1,

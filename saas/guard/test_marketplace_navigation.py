@@ -51,7 +51,13 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(response, 'class="nav-primary nav-notifications ')
         self.assertContains(response, 'class="nav-notification-count">0</span>')
         self.assertNotContains(response, '<strong>Уведомления')
-        self.assertNotContains(response, 'aria-label="Выбор маркетплейса"')
+        self.assertContains(response, 'aria-label="Выбор маркетплейса"')
+        self.assertContains(response, 'class="seller-marketplace-menu"')
+        self.assertContains(response, '<strong>Ozon</strong>')
+        self.assertContains(response, "Пока недоступен")
+        self.assertContains(response, 'aria-disabled="true"')
+        self.assertNotContains(response, "кабинет продавца")
+        self.assertNotContains(response, 'class="wb-dashboard-store"')
         self.assertNotContains(response, 'data-theme-preview=')
         self.assertNotContains(response, 'id="theme-preview-banner"')
         self.assertNotContains(response, 'marketplace-previews.js')
@@ -83,7 +89,7 @@ class MarketplaceNavigationTests(TestCase):
                 )
                 self.assertNotIn('class="compact-context">\n  <span class="trial-strip"', html)
         self.assertContains(self.client.get(reverse("dashboard")),
-                            "seller-workspace-panels.css?v=20261101d")
+                            "seller-workspace-panels.css?v=20261101e")
 
     def test_expired_trial_badge_stays_in_header_and_is_short_on_mobile(self):
         grant = AccessGrant.objects.get(user=self.seller)
@@ -112,17 +118,34 @@ class MarketplaceNavigationTests(TestCase):
             '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
         )
         self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
-        self.assertContains(page, "seller-workspace-panels.css?v=20261101d")
+        self.assertContains(page, "seller-workspace-panels.css?v=20261101e")
 
-    def test_switch_store_link_only_when_a_second_shop_exists(self):
-        self.assertNotContains(self.client.get(reverse("dashboard")), "Сменить магазин")
-        GuardAccount.objects.create(
+    def test_header_switches_real_wb_store_without_exposing_other_tenants(self):
+        first = self.client.get(reverse("dashboard"))
+        self.assertContains(first, '<span class="seller-marketplace-name">Primary WB</span>')
+        self.assertNotContains(first, 'href="/stores/"')
+        other = GuardAccount.objects.create(
             user=self.seller, marketplace="wb", name="Second WB",
             initial_sync_completed_at=timezone.now(), token_ciphertext="opaque2",
         )
-        response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, "Сменить магазин")
-        self.assertContains(response, 'href="/stores/"')
+        page = self.client.get(reverse("dashboard"))
+        self.assertContains(page, 'action="/stores/select/%s/"' % other.id)
+        self.assertContains(page, 'href="/stores/"')
+        response = self.client.post(reverse("select_store", args=[other.pk]))
+        self.assertEqual(response.status_code, 302)
+        selected = self.client.get(reverse("dashboard"))
+        self.assertContains(selected, '<span class="seller-marketplace-name">Second WB</span>')
+        self.assertContains(selected, 'class="seller-marketplace-store is-selected"')
+        self.assertNotContains(selected, '<span class="seller-marketplace-name">Owner WB</span>')
+        self.assertNotContains(selected, 'action="/stores/select/%s/"' % self.owner_shop.id)
+        # Ozon is a status-only disabled option, not a fake WB-data switch.
+        self.assertContains(selected, '<strong>Ozon</strong>')
+        self.assertNotContains(selected, 'href="/ozon/"')
+        self.assertNotContains(selected, 'action="/ozon/"')
+        self.assertEqual(
+            self.client.post(reverse("select_store", args=[self.owner_shop.pk])).status_code,
+            404,
+        )
 
     @override_settings(NOSALE_WB_FINANCE_ENABLED=False)
     def test_navigation_only_exposes_available_data_for_selected_store(self):
@@ -157,7 +180,7 @@ class MarketplaceNavigationTests(TestCase):
         session.save()
         second_home = self.client.get(reverse("dashboard"))
         self.assertNotContains(second_home, 'href="/promotions/"')
-        self.assertContains(second_home, "<strong>Магазины</strong>")
+        self.assertContains(second_home, 'class="seller-marketplace-option-heading"')
         self.assertContains(second_home, 'href="/stores/"')
         session = self.client.session
         session["mpno_selected_store_id"] = self.shop.pk
@@ -181,7 +204,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101d")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101e")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))
