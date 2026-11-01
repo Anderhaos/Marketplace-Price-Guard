@@ -17,15 +17,15 @@
   </div>
 </section>
 <section class="card workspace-section">
-  <details class="connection-add">
-    <summary>Подключить ещё один кабинет Wildberries</summary>
+  <div class="connection-add">
+    <h2>Подключить ещё один кабинет Wildberries</h2>
     <p class="muted">Этот шаг нужен только если у вас <strong>другой кабинет продавца WB</strong>. Если товары уже отображаются — ничего добавлять не надо. Новому подключению потребуется собственный разрешённый API-токен.</p>
     <form method="post">{% csrf_token %}{{ form.non_field_errors }}
       <div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
       <button type="submit">Добавить отдельный кабинет WB</button>
     </form>
     <p class="field-help">Создание подключения не обращается к WB и не копирует токены существующих магазинов.</p>
-  </details>
+  </div>
 </section>
 </div>
 {% endblock %}

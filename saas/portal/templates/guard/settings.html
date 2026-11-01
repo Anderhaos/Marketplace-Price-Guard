@@ -13,21 +13,21 @@
         <span class="muted">{{ account.token_hint }}</span>
       </div>
       {% if token_permissions %}
-      <details class="compact-disclosure">
-        <summary>Права токена · {{ token_permissions.token_type_label }}</summary>
+      <div class="compact-settings-info">
+        <h3>Права токена · {{ token_permissions.token_type_label }}</h3>
         <div class="token-permissions">
           {% for category in token_permissions.categories %}<span class="scope-chip">{{ category }}</span>{% endfor %}
         </div>
         {% if token_permissions.token_type == 'base' %}
           <p class="field-help">Базовый токен имеет более низкие лимиты WB; исправления могут выполняться с задержкой. Для облачного сервиса предпочтителен сервисный токен с правами «Чтение и запись» и категориями «Цены и скидки», «Контент».</p>
         {% endif %}
-      </details>
+      </div>
       {% endif %}
     {% else %}
       <p class="muted">Магазин не подключён.</p>
     {% endif %}
-    <details class="compact-disclosure" {% if token_form.errors %}open{% endif %}>
-      <summary>{% if account.token_hint %}Заменить API-токен{% else %}Подключить API-токен{% endif %}</summary>
+    <div class="compact-settings-info compact-token-action">
+      <h3>{% if account.token_hint %}Заменить API-токен{% else %}Подключить API-токен{% endif %}</h3>
       <form method="post" class="compact-settings-form">
         {% csrf_token %}<input type="hidden" name="action" value="token">
         {{ token_form.non_field_errors }}
@@ -35,15 +35,13 @@
         <p class="field-help">Новый токен заменит предыдущий только после успешной проверки.</p>
         <button type="submit">Проверить и сохранить</button>
       </form>
-    </details>
+    </div>
     {% if seller_has_other_stores %}
       <a class="compact-setting-link" href="{% url 'stores' %}">Переключить магазин</a>
     {% else %}
-      <details class="compact-disclosure">
-        <summary>Добавить ещё магазин</summary>
-        <p class="field-help">Если у вас есть второй кабинет WB, подключите его отдельно.</p>
-        <a class="button secondary" href="{% url 'stores' %}">Добавить магазин</a>
-      </details>
+      <div class="compact-settings-info compact-add-store-action">
+        <a class="button secondary" href="{% url 'stores' %}">Добавить ещё магазин</a>
+      </div>
     {% endif %}
   </section>
 
@@ -85,8 +83,8 @@
       <button type="submit" class="secondary">Отключить финансовый доступ</button>
     </form>
   {% elif finance_ui_enabled %}
-    <details class="compact-disclosure">
-      <summary>Подключить финансовые отчёты</summary>
+    <div class="compact-settings-info">
+      <h3>Подключить финансовые отчёты</h3>
       <p class="field-help">Для финансов нужен отдельный сервисный токен WB с категорией «Финансы».</p>
       <form method="post" action="{% url 'finance_audit' %}" autocomplete="off">
         {% csrf_token %}<input type="hidden" name="action" value="connect">
@@ -94,7 +92,7 @@
         <label><input type="checkbox" name="finance_consent" value="yes" required> Согласен предоставить доступ к финансовым отчётам на чтение.</label>
         <p><button type="submit">Подключить</button></p>
       </form>
-    </details>
+    </div>
   {% endif %}
 </section>
 {% endif %}

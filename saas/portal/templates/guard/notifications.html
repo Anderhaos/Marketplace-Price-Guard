@@ -15,13 +15,14 @@
   <section aria-label="Отчёты и рекомендации" class="compact-feed">
     <div class="compact-feed-grid">
     {% for summary in digest_messages %}
-      <details class="workspace-message compact-feed-item">
-        <summary>
-          <span class="workspace-message-title">{{ summary.title }}</span>
+      <article class="workspace-message compact-feed-item">
+        <div class="workspace-message-heading">
+          <h2 class="workspace-message-title">{{ summary.title }}</h2>
           {% if not summary.read_at %}<span class="scope-chip">Новое</span>{% endif %}
-        </summary>
+        </div>
         <div class="workspace-message-body">{{ summary.body }}</div>
-      </details>
+        <time class="workspace-message-time" datetime="{{ summary.created_at|date:'c' }}">{{ summary.created_at|date:"d.m.Y H:i" }}</time>
+      </article>
     {% endfor %}
     </div>
   </section>
@@ -45,12 +46,12 @@
         <time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time>
         <p>{{ event.account.name }} · {{ event.message }}</p>
         {% if event.details.changes %}
-        <details class="workspace-event-products">
-          <summary>Товары ({{ event.details.changes|length }})</summary>
+        <div class="workspace-event-products">
+          <strong>Товары ({{ event.details.changes|length }})</strong>
           <ul>{% for item in event.details.changes %}
             <li>WB {{ item.nm_id }} · {{ item.before }}% → {{ item.after }}%</li>
           {% endfor %}</ul>
-        </details>
+        </div>
         {% endif %}
       </article>
     {% endfor %}
