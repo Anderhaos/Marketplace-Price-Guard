@@ -22,6 +22,7 @@ from django.conf import settings
 from django.core.management import call_command
 from billing.models import AccessGrant
 from guard.models import GuardAccount, Product, PromotionSnapshot
+from push.models import PushMessage
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
@@ -150,7 +151,14 @@ def seed_promotion_snapshot(request):
         "fetched_at": now,
         "next_refresh_at": now+timedelta(minutes=65),
     })
-    return JsonResponse({"ok": True, "campaigns": 6})
+    for index in range(6):
+        PushMessage.objects.get_or_create(
+            user=account.user, kind="digest",
+            title=f"Synthetic seller report {index + 1}",
+            defaults={"body": f"Read-only confirmed fixture report {index + 1}.",
+                      "created_at": now},
+        )
+    return JsonResponse({"ok": True, "campaigns": 6, "reports": 6})
 
 
 # Test-only route exists solely in this ephemeral, no-egress fixture process.

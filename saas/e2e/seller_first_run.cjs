@@ -313,6 +313,10 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     },csrfForPromoFixture);
     assert.equal(seeded.status,200,'Isolated promo fixture must be seeded: '+JSON.stringify(seeded));
     assert.equal(seeded.json.campaigns,6);
+    assert.equal(seeded.json.reports,6);
+    await goto('/notifications/');
+    assert.equal(await page.$$eval('.balanced-feed-grid .workspace-message',els=>els.length),6);
+    await waitText('Synthetic seller report 6');
     await goto('/promotions/');
     assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),6);
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=price_drop"]'));
@@ -375,6 +379,29 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         }
         if(route==='/notifications/' || route==='/history/' || route==='/settings/' || route==='/stores/'){
           assert.equal(await page.$('main details'),null,'No informational accordions on '+route+' at '+width);
+        }
+        if(route==='/notifications/'){
+          const reportLayout=await page.evaluate(()=>{
+            const grid=document.querySelector('.balanced-feed-grid');
+            const bounds=grid.getBoundingClientRect();
+            const cards=[...grid.querySelectorAll('.workspace-message')];
+            const boxes=cards.map(card=>card.getBoundingClientRect());
+            const tops=[...new Set(boxes.map(box=>Math.round(box.top)))];
+            const rows=tops.map(top=>boxes.filter(box=>Math.abs(box.top-top)<2));
+            return {
+              count:cards.length,
+              rowCounts:rows.map(row=>row.length),
+              fill:rows.every(row=>
+                Math.abs(Math.min(...row.map(box=>box.left))-bounds.left)<3 &&
+                Math.abs(Math.max(...row.map(box=>box.right))-bounds.right)<3),
+              overflow:cards.some(card=>card.scrollWidth>card.clientWidth+2)
+            };
+          });
+          assert.equal(reportLayout.count,6,'Six synthetic reports expected');
+          assert.ok(reportLayout.fill,'Orphan report row: '+JSON.stringify(reportLayout));
+          assert.equal(reportLayout.overflow,false,'Overflow in report cards');
+          if(width===1920)assert.deepEqual(reportLayout.rowCounts,[3,3]);
+          if(width===390)assert.deepEqual(reportLayout.rowCounts,[1,1,1,1,1,1]);
         }
         if(route==='/promotions/') {
           assert.ok(await page.$('.compact-page-head'),'Campaigns need a compact heading');

@@ -89,7 +89,7 @@ class MarketplaceNavigationTests(TestCase):
                 )
                 self.assertNotIn('class="compact-context">\n  <span class="trial-strip"', html)
         self.assertContains(self.client.get(reverse("dashboard")),
-                            "seller-workspace-panels.css?v=20261101i")
+                            "seller-workspace-panels.css?v=20261101j")
 
     def test_expired_trial_badge_stays_in_header_and_is_short_on_mobile(self):
         grant = AccessGrant.objects.get(user=self.seller)
@@ -118,7 +118,7 @@ class MarketplaceNavigationTests(TestCase):
             '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
         )
         self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
-        self.assertContains(page, "seller-workspace-panels.css?v=20261101i")
+        self.assertContains(page, "seller-workspace-panels.css?v=20261101j")
 
     def test_header_switches_real_wb_store_without_exposing_other_tenants(self):
         first = self.client.get(reverse("dashboard"))
@@ -196,7 +196,7 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(report, "<h2", count=1)
         self.assertContains(report, "Товаров под контролем: 41")
         self.assertContains(report, "workspace-message-body")
-        self.assertContains(report, '<article class="workspace-message compact-feed-item">')
+        self.assertContains(report, '<article class="workspace-message compact-feed-item balanced-feed-item balanced-span-12">')
         self.assertNotContains(report, '<details class="workspace-message')
         self.assertNotContains(report, '<summary>')
 
@@ -246,6 +246,35 @@ class MarketplaceNavigationTests(TestCase):
         self.assertNotIn("<details", stores_main)
         self.assertNotIn("<summary", stores_main)
 
+    def test_balanced_notification_report_rows_preserve_visible_content(self):
+        for index in range(6):
+            PushMessage.objects.create(
+                user=self.seller, kind="digest",
+                title=f"Test report {index + 1}",
+                body=f"Visible content {index + 1}",
+            )
+        page = self.client.get(reverse("notifications"))
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual([span for _, span in page.context["digest_grid"]], [4] * 6)
+        self.assertContains(page, "balanced-span-4", count=6)
+        for index in range(6):
+            self.assertContains(page, f"Visible content {index + 1}")
+        self.assertNotContains(page, '<details class="workspace-message')
+
+    def test_balanced_notification_events_preserve_tenant_boundary(self):
+        for index in range(5):
+            GuardEvent.objects.create(
+                account=self.shop, kind="error",
+                message=f"Seller-only event {index + 1}",
+            )
+        response = self.client.get(reverse("notifications"))
+        self.assertEqual([span for _, span in response.context["event_grid"]],
+                         [4, 4, 4, 6, 6])
+        self.assertContains(response, "balanced-span-4", count=3)
+        self.assertContains(response, "balanced-span-6", count=2)
+        for index in range(5):
+            self.assertContains(response, f"Seller-only event {index + 1}")
+
     def test_notifications_show_actual_messages_in_compact_grid(self):
         PushMessage.objects.create(user=self.seller, kind="digest", title="Отчёт QA",
                                    body="Без изменений")
@@ -263,7 +292,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101i")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101j")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))

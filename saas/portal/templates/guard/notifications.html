@@ -13,9 +13,9 @@
 <div class="compact-inbox workspace-columns--inbox">
   {% if digest_messages %}
   <section aria-label="Отчёты и рекомендации" class="compact-feed">
-    <div class="compact-feed-grid">
-    {% for summary in digest_messages %}
-      <article class="workspace-message compact-feed-item">
+    <div class="compact-feed-grid balanced-feed-grid">
+    {% for summary, span in digest_grid %}
+      <article class="workspace-message compact-feed-item balanced-feed-item balanced-span-{{ span }}">
         <div class="workspace-message-heading">
           <h2 class="workspace-message-title">{{ summary.title }}</h2>
           {% if not summary.read_at %}<span class="scope-chip">Новое</span>{% endif %}
@@ -31,9 +31,9 @@
   {% if events %}
   <section class="compact-events" aria-label="Важные события">
     <h2>Важные события <span class="compact-page-count">{{ events|length }}</span></h2>
-    <div class="compact-feed-grid">
-    {% for event in events %}
-      <article class="workspace-event">
+    <div class="compact-feed-grid balanced-feed-grid">
+    {% for event, span in event_grid %}
+      <article class="workspace-event balanced-feed-item balanced-span-{{ span }}">
         <div class="workspace-event-top">
           <strong>
             {% if event.kind == "confirmed" %}Исправление подтверждено
