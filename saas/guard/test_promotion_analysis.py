@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from billing.models import AccessGrant
 from .models import GuardAccount, Product, PromotionSnapshot
-from .promotion_presentation import build_promotion_presentation
+from .promotion_presentation import _balanced_grid_spans, build_promotion_presentation
 from .promotions import inspect_promotions, inspect_basic_promotion_step
 
 
@@ -236,6 +236,38 @@ class PromotionEvidenceTests(SimpleTestCase):
         self.assertFalse(item["is_unverified"])
         self.assertFalse(item["has_participation"])
 
+    def test_twelve_column_grid_has_no_orphan_last_row(self):
+        expected = {
+            0: [], 1: [12], 2: [6, 6], 3: [4, 4, 4],
+            4: [3] * 4, 5: [4] * 3 + [6] * 2,
+            6: [4] * 6, 7: [3] * 4 + [4] * 3,
+            8: [3] * 8, 9: [4] * 9,
+            10: [3] * 4 + [4] * 6,
+            11: [3] * 8 + [4] * 3,
+            12: [3] * 12,
+        }
+        for number, spans in expected.items():
+            with self.subTest(number=number):
+                self.assertEqual(_balanced_grid_spans(number), spans)
+                presentation = build_promotion_presentation(
+                    [{"id": idx, "name": f"Campaign {idx}", "type": "auto"}
+                     for idx in range(number)],
+                )
+                self.assertEqual(
+                    [card["grid_span"] for card in presentation["promotion_cards"]],
+                    spans,
+                )
+
+    def test_filter_rebalances_only_visible_cards(self):
+        rows = [
+            {"id": idx, "type": "auto" if idx < 6 else "regular"}
+            for idx in range(8)
+        ]
+        all_cards = build_promotion_presentation(rows)["promotion_cards"]
+        self.assertEqual([x["grid_span"] for x in all_cards], [3] * 8)
+        filtered = build_promotion_presentation(rows, selected_filter="auto")
+        self.assertEqual([x["grid_span"] for x in filtered["promotion_cards"]], [4] * 6)
+
     def test_bounded_details_and_product_lists(self):
         api = Mock()
         api.get_promotions_calendar.return_value = calendar(
@@ -312,6 +344,23 @@ class PromotionReadOnlyPortalTests(TestCase):
         self.assertContains(empty, "Нет акций в выбранной категории")
         main = empty.content.decode().split("<main", 1)[1].split("</main>", 1)[0]
         self.assertNotIn("<details", main)
+
+    def test_six_campaigns_render_as_two_full_three_card_rows(self):
+        PromotionSnapshot.objects.create(
+            account=self.shop,
+            fetched_at=timezone.now(),
+            promotions=[
+                {"id": idx + 100, "name": f"Акция {idx + 1}", "type": "auto"}
+                for idx in range(6)
+            ],
+        )
+        response = self.client.get(reverse("promotion_audit"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'promo-audit-span-4', count=6)
+        self.assertEqual(
+            [item["grid_span"] for item in response.context["promotion_cards"]],
+            [4] * 6,
+        )
 
     def test_legacy_calendar_is_readable_without_mutating_snapshot(self):
         snap = PromotionSnapshot.objects.create(
