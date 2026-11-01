@@ -8,7 +8,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
-from django.http import FileResponse, HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -29,7 +29,7 @@ from billing.models import OwnerAISettings
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
 from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
-from .models import AssistantMessage, GuardAccount, GuardEvent, Product, Upload, FinanceSnapshot
+from .models import AssistantMessage, GuardAccount, GuardEvent, Product, Upload, FinanceSnapshot, PromotionSnapshot
 from .stores import selected_store, SESSION_KEY
 from .grid_layout import _balanced_grid_spans
 from push.models import NotificationPreference, PushMessage, PushSubscription
@@ -214,8 +214,49 @@ def _dashboard_redirect(request):
         params["filter"] = filter_name
     if sort_name != "default":
         params["sort"] = sort_name
+    # Preserve the campaign cohort when an individual rule is saved.
+    promo = request.POST.get("promotion_id", "")
+    scope = request.POST.get("promotion_scope", "")
+    if promo.isascii() and promo.isdecimal() and len(promo) <= 18 and scope in ("candidates", "participants"):
+        params.update(promotion=promo, scope=scope)
     base = reverse("dashboard")
     return redirect(base + ("?" + urlencode(params) if params else ""))
+
+
+def _promotion_inventory_selection(account, request):
+    """Only items in the selected seller's saved WB snapshot. No network reads."""
+    promo, scope = request.GET.get("promotion"), request.GET.get("scope")
+    if promo is None and scope is None:
+        return None
+    if (not promo or not promo.isascii() or not promo.isdecimal()
+            or len(promo) > 18 or scope not in ("candidates", "participants")
+            or account.marketplace != "wb"
+            or not has_plan_capability(request.user.pk, "promotion_audit")):
+        raise Http404("Акция недоступна")
+    snapshot = PromotionSnapshot.objects.filter(account=account).first()
+    rows = snapshot.promotions if snapshot and isinstance(snapshot.promotions, list) else []
+    item = next((row for row in rows if isinstance(row, dict)
+                 and str(row.get("id")) == str(int(promo))), None)
+    if not item or (scope == "candidates" and item.get("type") != "regular"):
+        raise Http404("Список товаров не подтверждён")
+    evidence = item.get("candidates" if scope == "candidates" else "participation")
+    matched = evidence.get("matched") if isinstance(evidence, dict) else None
+    if not isinstance(matched, list):
+        raise Http404("WB не предоставил артикулы")
+    goods = {}
+    for entry in matched[:100]:
+        if not isinstance(entry, dict):
+            continue
+        nm_id = entry.get("nm_id")
+        if isinstance(nm_id, int) and not isinstance(nm_id, bool) and 0 < nm_id < 2**63:
+            goods[nm_id] = entry
+    if not goods:
+        raise Http404("Нет сопоставленных товаров")
+    return {
+        "id": str(int(promo)), "scope": scope,
+        "name": str(item.get("name") or "Акция WB")[:160],
+        "goods": goods, "source_count": len(goods),
+    }
 
 
 def _corrected_nm_ids(account):
@@ -480,9 +521,17 @@ def dashboard(request):
         key: len(_filter_active_products(active_products, key, corrected_ids, pending_product_ids))
         for key in _DASHBOARD_FILTERS
     }
-    filtered_products = _filter_active_products(
-        active_products, filter_name, corrected_ids, pending_product_ids,
-    )
+    promotion_selection = _promotion_inventory_selection(account, request)
+    if promotion_selection:
+        filtered_products = [product for product in active_products
+                             if product.nm_id in promotion_selection["goods"]]
+        for product in filtered_products:
+            product.promo_evidence = promotion_selection["goods"][product.nm_id]
+        promotion_selection["missing_count"] = promotion_selection["source_count"] - len(filtered_products)
+    else:
+        filtered_products = _filter_active_products(
+            active_products, filter_name, corrected_ids, pending_product_ids,
+        )
     products = _sort_dashboard_products(filtered_products, sort_name)[:500]
     corrected_count = Upload.objects.filter(account=account, status="success").aggregate(total=Sum("corrected_count"))["total"] or 0
     over_limit_count = filter_counts["over_limit"]
@@ -508,7 +557,7 @@ def dashboard(request):
         "has_other_stores": GuardAccount.objects.filter(user=request.user).exclude(pk=account.pk).exists(),
         "data_checked_at": data_checked_at, "token_readonly": token_readonly,
         "shown_count": len(filtered_products), "filter_name": filter_name, "filter_label": filter_labels[filter_name],
-        "sort_name": sort_name, "filter_chips": filter_chips,
+        "sort_name": sort_name, "filter_chips": filter_chips, "promotion_selection": promotion_selection,
         "corrected_count": corrected_count, "corrected_card_count": filter_counts["corrected"],
         "over_limit_count": over_limit_count,
         "pending_product_ids": pending_product_ids,

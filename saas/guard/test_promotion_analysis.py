@@ -434,10 +434,13 @@ class PromotionReadOnlyPortalTests(TestCase):
         with patch("guard.promotions_views.WBClient") as wb:
             response = self.client.get(reverse("promotion_audit") + "?filter=price_drop")
             self.assertEqual(response.status_code, 200)
-            self.assertContains(response, "Наш крем")
-            self.assertContains(response, "750.00")
+            self.assertContains(response, "Открыть товары (1) и настроить")
             self.assertContains(response, "Плановая цена ниже")
             self.assertContains(response, "товаров участвуют по данным WB")
+            inventory = self.client.get(reverse("dashboard") + "?promotion=71&scope=participants")
+            self.assertContains(inventory, "Наш крем")
+            self.assertContains(inventory, "750.00")
+            self.assertEqual([p.nm_id for p in inventory.context["products"]], [555])
             self.assertNotContains(response, "Секрет чужой акции")
             self.assertNotContains(response, "Чужой товар")
             self.assertEqual(response.context["catalog_total"], 1)
@@ -465,6 +468,81 @@ class PromotionReadOnlyPortalTests(TestCase):
             [item["grid_span"] for item in response.context["promotion_cards"]],
             [4] * 6,
         )
+
+
+    def test_candidate_cohort_contains_only_current_shop_items(self):
+        Product.objects.create(account=self.shop, nm_id=556, title="Другой крем")
+        PromotionSnapshot.objects.create(
+            account=self.shop, fetched_at=timezone.now(),
+            promotions=[{"id": 71, "type": "regular", "name": "Подборка 11.11",
+                         "seller_counts": {"inPromoActionTotal": 0},
+                         "candidates": {"matched": [
+                             {"nm_id": 555, "title": "Наш крем", "current": "900.00",
+                              "planned": "750.00", "decrease": True},
+                             {"nm_id": 999, "title": "Чужой товар", "planned": "1.00"},
+                             {"nm_id": 777, "title": "Нет в каталоге"},
+                         ], "matched_decreases": 1}}],
+        )
+        campaigns = self.client.get(reverse("promotion_audit"))
+        self.assertContains(campaigns, "Открыть товары (3) и настроить")
+        self.assertContains(campaigns, "?promotion=71&amp;scope=candidates")
+        url = reverse("dashboard") + "?promotion=71&scope=candidates"
+        with patch("guard.views.WBClient") as wb:
+            page = self.client.get(url)
+            self.assertEqual(page.status_code, 200)
+            self.assertContains(page, "Подборка 11.11")
+            self.assertContains(page, "Наш крем")
+            self.assertContains(page, "750.00")
+            self.assertContains(page, "Не найдены среди активных товаров: 2")
+            self.assertNotContains(page, "Другой крем")
+            self.assertNotContains(page, "Чужой товар")
+            self.assertEqual([p.nm_id for p in page.context["products"]], [555])
+            sorted_page = self.client.get(url + "&sort=discount")
+            self.assertEqual([p.nm_id for p in sorted_page.context["products"]], [555])
+            wb.assert_not_called()
+
+    def test_saving_rule_keeps_campaign_selection_and_never_enrolls(self):
+        PromotionSnapshot.objects.create(account=self.shop, promotions=[{
+            "id": 71, "type": "regular", "name": "Подборка",
+            "candidates": {"matched": [{"nm_id": 555, "current": "900.00",
+                                        "planned": "750.00"}]},
+        }])
+        with patch("guard.views._check_now") as write_call:
+            response = self.client.post(reverse("product_rule", args=[555]), {
+                "allowed_discount": "12", "dashboard_filter": "all",
+                "dashboard_sort": "discount", "promotion_id": "71",
+                "promotion_scope": "candidates",
+            })
+            write_call.assert_not_called()
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("promotion=71", response.url)
+        self.assertIn("scope=candidates", response.url)
+        self.assertEqual(Product.objects.get(account=self.shop, nm_id=555).allowed_discount_override, 12)
+        page = self.client.get(response.url)
+        self.assertEqual([p.nm_id for p in page.context["products"]], [555])
+
+    def test_unknown_foreign_and_auto_campaigns_have_no_sku_selector(self):
+        PromotionSnapshot.objects.create(account=self.shop, promotions=[{
+            "id": 71, "type": "auto", "name": "Автоакция без SKU",
+            "seller_counts": {"inPromoActionTotal": 12},
+        }])
+        PromotionSnapshot.objects.create(account=self.other, promotions=[{
+            "id": 777, "type": "regular", "name": "Чужая акция",
+            "candidates": {"matched": [{"nm_id": 999}]},
+        }])
+        base = reverse("dashboard")
+        for query in (
+            "?promotion=777&scope=candidates",
+            "?promotion=71&scope=candidates",
+            "?promotion=71&scope=participants",
+            "?promotion=71x&scope=candidates",
+            "?promotion=71&scope=unknown",
+            "?scope=candidates",
+        ):
+            with self.subTest(query=query):
+                self.assertEqual(self.client.get(base + query).status_code, 404)
+        self.assertNotContains(self.client.get(reverse("promotion_audit")),
+                               "promo-action-manage-link")
 
     def test_legacy_calendar_is_readable_without_mutating_snapshot(self):
         snap = PromotionSnapshot.objects.create(
