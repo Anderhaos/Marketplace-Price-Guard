@@ -318,20 +318,31 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.equal(await page.$$eval('.balanced-feed-grid .workspace-message',els=>els.length),6);
     await waitText('Synthetic seller report 6');
     await goto('/promotions/');
-    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),6);
-    assert.equal(await page.$$eval('.promo-audit-grid .promo-audit-card',els=>els.length),3);
-    assert.equal(await page.$$eval('.promo-action-quiet-row',els=>els.length),3);
-    await waitText('Можно добавить в акцию');
+    assert.equal(await page.$eval('.promo-action-line',els=>els.length),3);
+    assert.equal(await page.$eval('.promo-action-quiet-row',els=>els.length),3);
+    await waitText('Открыть товары (1) и настроить');
     await waitText('Подтверждённые условия синтетической акции');
+    const candidateLink=await page.$eval('.promo-action-manage-link[href*="scope=candidates"]',
+      el=>el.getAttribute('href'));
+    await goto(candidateLink);
     await waitText('Browser fixture item B');
+    assert.equal(await page.$eval('.products-grid .product-card',els=>els.length),1,
+      'Only saved campaign candidates from the selected shop');
+    assert.equal(await page.$eval('input[name="promotion_id"]',el=>el.value),'714');
+    assert.ok(await page.$('.promo-inventory-price'));
+    await goto('/promotions/');
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=price_drop"]'));
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=unknown"]'));
     await goto('/promotions/?filter=price_drop');
-    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),1);
+    assert.equal(await page.$eval('.promo-action-line',els=>els.length),1);
     await waitText('Плановая цена ниже');
+    const participantLink=await page.$eval('.promo-action-manage-link[href*="scope=participants"]',
+      el=>el.getAttribute('href'));
+    await goto(participantLink);
     await waitText('Browser fixture item A');
+    assert.equal(await page.$eval('.products-grid .product-card',els=>els.length),1);
     await goto('/promotions/?filter=unknown');
-    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),1);
+    assert.equal(await page.$eval('.promo-action-quiet-row',els=>els.length),1);
     await waitText('Синтетическая акция без подтверждения');
     await goto('/promotions/');
     step('real_campaign_filters_and_seller_product_evidence');
@@ -410,40 +421,26 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         }
         if(route==='/promotions/') {
           assert.ok(await page.$('.compact-page-head'),'Campaigns need a compact heading');
-          assert.equal(await page.$('.page-hero'),null,'No empty campaign landing hero');
-          assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),6);
-          assert.equal(await page.$('main details'),null,'Promotion evidence must be visible without disclosure clicks');
-          assert.ok(await page.$('.promo-audit-filters'));
-          assert.ok(await page.$('.promo-audit-card .promo-audit-products'));
+          assert.equal(await page.$('.page-hero'),null);
+          assert.equal(await page.$$eval('.promo-action-line',els=>els.length),3);
           assert.equal(await page.$$eval('.promo-action-quiet-row',els=>els.length),3);
-          const campaignCells=await page.evaluate(() => {
-            const grid=document.querySelector('.promo-audit-grid');
-            const bounds=grid.getBoundingClientRect();
-            const cards=[...grid.querySelectorAll('.promo-audit-card')];
-            const boxes=cards.map(el=>el.getBoundingClientRect());
-            const yRows=[...new Set(boxes.map(box=>Math.round(box.top)))];
-            const rows=yRows.map(y=>boxes.filter(box=>Math.abs(box.top-y)<2));
+          assert.equal(await page.$('main details'),null,'Important campaign facts must be visible');
+          const layout=await page.evaluate(() => {
+            const list=document.querySelector('.promo-action-list');
+            const rows=[...document.querySelectorAll('.promo-action-line,.promo-action-quiet-row')];
+            const b=list.getBoundingClientRect();
             return {
-              display:getComputedStyle(grid).display,
-              gridLeft:bounds.left,gridRight:bounds.right,gridWidth:bounds.width,
-              rowCounts:rows.map(row=>row.length),
-              rowsFillWidth:rows.every(row =>
-                Math.abs(Math.min(...row.map(box=>box.left))-bounds.left)<3 &&
-                Math.abs(Math.max(...row.map(box=>box.right))-bounds.right)<3),
-              cardWidths:boxes.map(box=>box.width),
-              maxOverflow:Math.max(...cards.map(el=>el.scrollWidth-el.clientWidth))
+              listDisplay:getComputedStyle(list).display,
+              outside:rows.some(el=>el.getBoundingClientRect().right>b.right+2),
+              overflow:rows.some(el=>el.scrollWidth>el.clientWidth+2),
+              quietHeights:rows.filter(el=>el.classList.contains('promo-action-quiet-row')).map(el=>el.getBoundingClientRect().height),
+              mainHeights:rows.filter(el=>el.classList.contains('promo-action-line')).map(el=>el.getBoundingClientRect().height),
             };
           });
-          assert.equal(campaignCells.display,'grid','Campaigns require CSS Grid');
-          assert.ok(campaignCells.maxOverflow<=2,'Campaign card overflow at '+width);
-          assert.ok(campaignCells.rowsFillWidth,'Orphan/empty card row at '+width+': '+JSON.stringify(campaignCells));
-          if(width===1920){
-            assert.deepEqual(campaignCells.rowCounts,[3],
-              'Three actionable promotions must fill one balanced row');
-          }else if(width===390){
-            assert.deepEqual(campaignCells.rowCounts,[1,1,1],
-              'Mobile actionable promotions must stack in one full-width column');
-          }
+          assert.equal(layout.listDisplay,'grid');
+          assert.ok(!layout.outside && !layout.overflow,'Campaign overflow at '+width+': '+JSON.stringify(layout));
+          assert.ok(layout.quietHeights.every(h=>h<120),'Empty campaign rows must be compact '+JSON.stringify(layout));
+          assert.ok(layout.mainHeights.every(h=>h<540),'No stretched campaign cards '+JSON.stringify(layout));
         }
         if(route==='/') {
           const accessBadge=await page.evaluate(()=>{
