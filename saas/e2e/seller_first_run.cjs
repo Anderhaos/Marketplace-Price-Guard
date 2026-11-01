@@ -312,9 +312,9 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       return {status:response.status,json:await response.json()};
     },csrfForPromoFixture);
     assert.equal(seeded.status,200,'Isolated promo fixture must be seeded: '+JSON.stringify(seeded));
-    assert.equal(seeded.json.campaigns,3);
+    assert.equal(seeded.json.campaigns,6);
     await goto('/promotions/');
-    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),3);
+    assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),6);
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=price_drop"]'));
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=unknown"]'));
     await goto('/promotions/?filter=price_drop');
@@ -379,16 +379,38 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         if(route==='/promotions/') {
           assert.ok(await page.$('.compact-page-head'),'Campaigns need a compact heading');
           assert.equal(await page.$('.page-hero'),null,'No empty campaign landing hero');
-          assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),3);
+          assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),6);
           assert.equal(await page.$('main details'),null,'Promotion evidence must be visible without disclosure clicks');
           assert.ok(await page.$('.promo-audit-filters'));
           assert.ok(await page.$('.promo-audit-card .promo-audit-products'));
-          const campaignCells=await page.evaluate(() => ({
-            gridWidth:document.querySelector('.promo-audit-grid').getBoundingClientRect().width,
-            cardWidths:[...document.querySelectorAll('.promo-audit-card')].map(el=>el.getBoundingClientRect().width),
-            maxOverflow:Math.max(...[...document.querySelectorAll('.promo-audit-card')].map(el=>el.scrollWidth-el.clientWidth))
-          }));
-          assert.ok(campaignCells.maxOverflow<=2,'Campaign card must not overflow at '+width);
+          const campaignCells=await page.evaluate(() => {
+            const grid=document.querySelector('.promo-audit-grid');
+            const bounds=grid.getBoundingClientRect();
+            const cards=[...grid.querySelectorAll('.promo-audit-card')];
+            const boxes=cards.map(el=>el.getBoundingClientRect());
+            const yRows=[...new Set(boxes.map(box=>Math.round(box.top)))];
+            const rows=yRows.map(y=>boxes.filter(box=>Math.abs(box.top-y)<2));
+            return {
+              display:getComputedStyle(grid).display,
+              gridLeft:bounds.left,gridRight:bounds.right,gridWidth:bounds.width,
+              rowCounts:rows.map(row=>row.length),
+              rowsFillWidth:rows.every(row =>
+                Math.abs(Math.min(...row.map(box=>box.left))-bounds.left)<3 &&
+                Math.abs(Math.max(...row.map(box=>box.right))-bounds.right)<3),
+              cardWidths:boxes.map(box=>box.width),
+              maxOverflow:Math.max(...cards.map(el=>el.scrollWidth-el.clientWidth))
+            };
+          });
+          assert.equal(campaignCells.display,'grid','Campaigns require CSS Grid');
+          assert.ok(campaignCells.maxOverflow<=2,'Campaign card overflow at '+width);
+          assert.ok(campaignCells.rowsFillWidth,'Orphan/empty card row at '+width+': '+JSON.stringify(campaignCells));
+          if(width===1920){
+            assert.deepEqual(campaignCells.rowCounts,[3,3],
+              'Six campaigns must be two balanced rows of three cards');
+          }else if(width===390){
+            assert.deepEqual(campaignCells.rowCounts,[1,1,1,1,1,1],
+              'Mobile campaigns must stack in one full-width column');
+          }
         }
         if(route==='/') {
           const accessBadge=await page.evaluate(()=>{

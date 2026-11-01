@@ -41,6 +41,25 @@ def _status(row, now):
     return "unknown_date", "Даты неизвестны"
 
 
+def _balanced_grid_spans(item_count):
+    """Twelve-column rows of 2–4 equal cards, without a stranded last card.
+
+    Six cards become three per row, eight cards four per row; a partial
+    final row expands to the complete container width. CSS handles tablet
+    (two columns) and phone (one column) independently.
+    """
+    if item_count <= 0:
+        return []
+    rows = (item_count + 3) // 4
+    base, extra = divmod(item_count, rows)
+    spans_by_count = {1: 12, 2: 6, 3: 4, 4: 3}
+    spans = []
+    for row in range(rows):
+        columns = base + (1 if row < extra else 0)
+        spans.extend([spans_by_count[columns]] * columns)
+    return spans
+
+
 def build_promotion_presentation(rows, *, selected_filter="all", at=None):
     """Filter real facts; never infer campaign participation from catalog discounts."""
     now = at or timezone.now()
@@ -99,6 +118,8 @@ def build_promotion_presentation(rows, *, selected_filter="all", at=None):
         if key == "all" or counts[key] > 0 or key == selected_filter
     ]
     visible = [item for item in result if matches(item, selected_filter)]
+    for item, span in zip(visible, _balanced_grid_spans(len(visible))):
+        item["grid_span"] = span
     # Keep source order by default: WB calendar relevance reflects upcoming campaigns.
     return {
         "promotion_cards": visible,

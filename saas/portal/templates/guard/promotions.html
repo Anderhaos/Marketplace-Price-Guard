@@ -38,7 +38,7 @@
 </nav>
 <div class="compact-promo-grid promo-audit-grid" aria-label="Акции Wildberries">
 {% for item in promotion_cards %}
-  <article class="compact-promo-card promo-audit-card">
+  <article class="compact-promo-card promo-audit-card promo-audit-span-{{ item.grid_span }}">
     <header class="compact-promo-top">
       <span class="compact-promo-type">{{ item.display_type }}</span>
       <span class="promo-audit-period promo-audit-period--{{ item.period }}">{{ item.period_label }}</span>
