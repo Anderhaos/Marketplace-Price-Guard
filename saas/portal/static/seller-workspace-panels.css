@@ -756,3 +756,28 @@ body.seller-dashboard-page .wb-dashboard-header .wb-quick-links{grid-column:2;mi
 .seller-workspace-page .promo-audit-card h2{font-size:15px}
 .seller-workspace-page .promo-audit-facts p{font-size:12px}
 .seller-workspace-page .promo-audit-product-title a{font-size:12px}
+
+/* Shared 12-column, balanced read-only card layout for notification reports
+   and important events; the rows fill the same shell as product and promo UI. */
+.seller-workspace-page .compact-feed-grid.balanced-feed-grid{
+ display:grid;grid-template-columns:repeat(12,minmax(0,1fr));
+ gap:12px;align-items:stretch;
+}
+.seller-workspace-page .balanced-feed-grid > .balanced-feed-item{
+ min-width:0;grid-column:span 3;height:100%;
+}
+.seller-workspace-page .balanced-feed-grid > .balanced-span-3{grid-column:span 3}
+.seller-workspace-page .balanced-feed-grid > .balanced-span-4{grid-column:span 4}
+.seller-workspace-page .balanced-feed-grid > .balanced-span-6{grid-column:span 6}
+.seller-workspace-page .balanced-feed-grid > .balanced-span-12{grid-column:span 12}
+.seller-workspace-page .balanced-feed-grid > .workspace-message,
+.seller-workspace-page .balanced-feed-grid > .workspace-event{
+ display:flex;flex-direction:column;
+}
+@media(max-width:1100px){
+ .seller-workspace-page .balanced-feed-grid > .balanced-feed-item{grid-column:span 6}
+ .seller-workspace-page .balanced-feed-grid > .balanced-feed-item:last-child:nth-child(odd){grid-column:span 12}
+}
+@media(max-width:680px){
+ .seller-workspace-page .balanced-feed-grid > .balanced-feed-item{grid-column:span 12}
+}

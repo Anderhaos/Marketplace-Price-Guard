@@ -4,6 +4,8 @@ from datetime import timezone as dt_timezone
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from .grid_layout import _balanced_grid_spans
+
 FILTER_LABELS = (
     ("all", "Все"),
     ("active", "Идут"),
@@ -39,25 +41,6 @@ def _status(row, now):
     if start and end and start <= now <= end:
         return "active", "Идёт"
     return "unknown_date", "Даты неизвестны"
-
-
-def _balanced_grid_spans(item_count):
-    """Twelve-column rows of 2–4 equal cards, without a stranded last card.
-
-    Six cards become three per row, eight cards four per row; a partial
-    final row expands to the complete container width. CSS handles tablet
-    (two columns) and phone (one column) independently.
-    """
-    if item_count <= 0:
-        return []
-    rows = (item_count + 3) // 4
-    base, extra = divmod(item_count, rows)
-    spans_by_count = {1: 12, 2: 6, 3: 4, 4: 3}
-    spans = []
-    for row in range(rows):
-        columns = base + (1 if row < extra else 0)
-        spans.extend([spans_by_count[columns]] * columns)
-    return spans
 
 
 def build_promotion_presentation(rows, *, selected_filter="all", at=None):
