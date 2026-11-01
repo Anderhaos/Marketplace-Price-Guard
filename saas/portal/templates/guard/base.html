@@ -345,7 +345,7 @@
   </style>
   {% if user.is_authenticated and not onboarding_required %}
     <link rel="stylesheet" href="/static/seller-dashboard-grid.css?v=20261031b">
-    <link rel="stylesheet" href="/static/seller-workspace-panels.css?v=20261101c">
+    <link rel="stylesheet" href="/static/seller-workspace-panels.css?v=20261101d">
   {% endif %}
 </head>
 <body class="{% if not user.is_authenticated %}public-visitor{% endif %}{% if user.is_authenticated and not onboarding_required %} marketplace-wb seller-workspace-page{% endif %}{% if user.is_authenticated and not onboarding_required and request.path == '/' %} seller-dashboard-page{% endif %}">
@@ -355,6 +355,15 @@
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 30 30" fill="none"><path d="M5 20 14 10l10 5" stroke="currentColor" stroke-width="2"/><circle cx="5" cy="20" r="3" fill="currentColor"/><circle cx="14" cy="10" r="3" fill="currentColor"/><circle cx="24" cy="15" r="3" fill="currentColor"/></svg></span>
         <span>NoSale</span><span class="brand-divider"></span><span class="brand-product">{% if user.is_authenticated and not onboarding_required %}кабинет продавца{% else %}контроль цен{% endif %}</span>
       </a>
+      {% if user.is_authenticated and not onboarding_required %}
+        {% if seller_header_access.active %}
+          <span class="trial-strip seller-header-access">
+            {% if seller_header_access.access_source == "trial" %}Пробный доступ{% else %}Доступ активен{% endif %} · {{ seller_header_access.days_left }} дн.<span class="seller-header-access__until"> до {{ seller_header_access.expires_at|date:"d.m.Y" }}</span>
+          </span>
+        {% elif seller_header_access.trial_expired %}
+          <span class="trial-strip trial-strip--expired seller-header-access">Пробный период завершён<span class="seller-header-access__until"> · мониторинг приостановлен</span></span>
+        {% endif %}
+      {% endif %}
       <nav class="site-nav" aria-label="Основная навигация">
         {% if user.is_authenticated %}
           {% if not onboarding_required %}
