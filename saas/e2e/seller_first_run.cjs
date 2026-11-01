@@ -318,15 +318,15 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.equal(await page.$$eval('.balanced-feed-grid .workspace-message',els=>els.length),6);
     await waitText('Synthetic seller report 6');
     await goto('/promotions/');
-    assert.equal(await page.$eval('.promo-action-line',els=>els.length),3);
-    assert.equal(await page.$eval('.promo-action-quiet-row',els=>els.length),3);
+    assert.equal(await page.$$eval('.promo-action-line',els=>els.length),3);
+    assert.equal(await page.$$eval('.promo-action-quiet-row',els=>els.length),3);
     await waitText('Открыть товары (1) и настроить');
     await waitText('Подтверждённые условия синтетической акции');
     const candidateLink=await page.$eval('.promo-action-manage-link[href*="scope=candidates"]',
       el=>el.getAttribute('href'));
     await goto(candidateLink);
     await waitText('Browser fixture item B');
-    assert.equal(await page.$eval('.products-grid .product-card',els=>els.length),1,
+    assert.equal(await page.$$eval('.products-grid .product-card',els=>els.length),1,
       'Only saved campaign candidates from the selected shop');
     assert.equal(await page.$eval('input[name="promotion_id"]',el=>el.value),'714');
     assert.ok(await page.$('.promo-inventory-price'));
@@ -334,15 +334,15 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=price_drop"]'));
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=unknown"]'));
     await goto('/promotions/?filter=price_drop');
-    assert.equal(await page.$eval('.promo-action-line',els=>els.length),1);
+    assert.equal(await page.$$eval('.promo-action-line',els=>els.length),1);
     await waitText('Плановая цена ниже');
     const participantLink=await page.$eval('.promo-action-manage-link[href*="scope=participants"]',
       el=>el.getAttribute('href'));
     await goto(participantLink);
     await waitText('Browser fixture item A');
-    assert.equal(await page.$eval('.products-grid .product-card',els=>els.length),1);
+    assert.equal(await page.$$eval('.products-grid .product-card',els=>els.length),1);
     await goto('/promotions/?filter=unknown');
-    assert.equal(await page.$eval('.promo-action-quiet-row',els=>els.length),1);
+    assert.equal(await page.$$eval('.promo-action-quiet-row',els=>els.length),1);
     await waitText('Синтетическая акция без подтверждения');
     await goto('/promotions/');
     step('real_campaign_filters_and_seller_product_evidence');
