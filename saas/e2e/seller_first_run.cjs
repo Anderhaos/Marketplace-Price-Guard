@@ -285,15 +285,20 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(subscriptionText.toLowerCase().includes('standard'),'trial should have Standard capabilities');
     step('trial_granted_on_first_import');
     await goto('/settings/');
+    assert.equal(await page.$('main details'),null,'Seller settings must show all sections without accordion clicks');
+    assert.ok(await page.$('.compact-settings-info .compact-settings-form'),
+      'Token action must be visible without clicking a disclosure');
     await page.waitForSelector('form[action="/push/preferences/"]');
     assert.ok(await page.$('#notification-settings'),'Notifications settings section missing');
     step('seller_settings_access');
     await goto('/notifications/');
+    assert.equal(await page.$('main details'),null,'Notification reports must not be hidden behind disclosures');
     assert.equal(await page.$('#notification-settings'),null);
     await waitText('Пока нет уведомлений.');
     step('routine_sync_does_not_spam_important_notifications');
     await page.screenshot({path:snapshotDir+'/03-notifications.png'});
     await goto('/history/');
+    assert.equal(await page.$('main details'),null,'History days and events should be visible by default');
     await waitText('Проверок: 1');
     step('successful_wb_check_is_recorded_in_history');
     const workspaceRoutes=['/','/settings/','/notifications/','/promotions/','/history/','/stores/','/billing/'];
@@ -342,6 +347,9 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
             const targetTracks=route==='/notifications/'?1:(width>1160?3:1);
             assert.equal(tracks,targetTracks,'Panels must adapt to viewport '+width+' '+route);
           }
+        }
+        if(route==='/notifications/' || route==='/history/' || route==='/settings/' || route==='/stores/'){
+          assert.equal(await page.$('main details'),null,'No informational accordions on '+route+' at '+width);
         }
         if(route==='/promotions/') {
           assert.ok(await page.$('.compact-page-head'),'Campaigns need a compact heading');

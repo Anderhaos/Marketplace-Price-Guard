@@ -8,43 +8,40 @@
 <div class="workspace-panel-grid workspace-panel-grid--auto">
 {% for day in days %}
 <section class="card workspace-day">
-  <details {% if forloop.first %}open{% endif %}>
-    <summary class="workspace-day-summary"><strong>{{ day.date|date:"d E Y" }}</strong>
-      <span class="muted" style="font-size:13px;font-weight:400;margin-left:8px">
-        Проверок: {{ day.checks }} · Подтверждено товаров: {{ day.confirmed }} · Ошибок: {{ day.errors }}
-      </span>
-    </summary>
-    {% for event in day.events %}
-    <details class="workspace-history-event">
-      <summary style="cursor:pointer">
-        <strong>{% if event.kind == "confirmed" %}Исправление подтверждено WB
-          {% elif event.kind == "submitted" %}Исправление отправлено в WB
-          {% elif event.kind == "upload_error" %}WB не подтвердил исправление
-          {% elif event.kind == "discount_changed" %}Обнаружено изменение скидки
-          {% elif event.kind == "price_changed" %}Обнаружено изменение цены
-          {% elif event.kind == "rule" %}Изменено правило скидки
-          {% elif event.kind == "error" %}Ошибка проверки
-          {% else %}{{ event.kind }}{% endif %}</strong>
-        <span class="muted" style="font-size:12px;margin-left:7px">{{ event.created_at|date:"H:i" }}</span>
-        {% if event.details.changes %}<span class="muted"> · {{ event.details.changes|length }} товаров</span>{% endif %}
-      </summary>
-      <p class="muted" style="margin-top:12px">{{ event.message }}</p>
-      {% if event.details.changes %}
-      <div class="table-wrap">
-        <table style="min-width:500px">
-          <thead><tr><th>Товар / артикул</th><th>До</th><th>Запрошено</th></tr></thead>
-          <tbody>{% for item in event.details.changes %}
-            <tr><td>{{ item.vendor_code|default:item.nm_id }}<span class="cell-note">WB: {{ item.nm_id }}</span></td>
-                <td>{{ item.before }}%</td><td>{{ item.after }}%</td></tr>
-          {% endfor %}</tbody>
-        </table>
-      </div>
-      {% endif %}
-    </details>
-    {% empty %}
-      <p class="muted" style="margin-top:14px">Только проверки, без изменений.</p>
-    {% endfor %}
-  </details>
+  <header class="workspace-day-summary">
+    <h2>{{ day.date|date:"d E Y" }}</h2>
+    <span class="muted">Проверок: {{ day.checks }} · Подтверждено товаров: {{ day.confirmed }} · Ошибок: {{ day.errors }}</span>
+  </header>
+  {% for event in day.events %}
+  <article class="workspace-history-event">
+    <div class="workspace-history-event-heading">
+      <strong>{% if event.kind == "confirmed" %}Исправление подтверждено WB
+        {% elif event.kind == "submitted" %}Исправление отправлено в WB
+        {% elif event.kind == "upload_error" %}WB не подтвердил исправление
+        {% elif event.kind == "discount_changed" %}Обнаружено изменение скидки
+        {% elif event.kind == "price_changed" %}Обнаружено изменение цены
+        {% elif event.kind == "rule" %}Изменено правило скидки
+        {% elif event.kind == "error" %}Ошибка проверки
+        {% else %}{{ event.kind }}{% endif %}</strong>
+      <time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"H:i" }}</time>
+      {% if event.details.changes %}<span class="muted">{{ event.details.changes|length }} товаров</span>{% endif %}
+    </div>
+    <p class="muted">{{ event.message }}</p>
+    {% if event.details.changes %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Товар / артикул</th><th>До</th><th>Запрошено</th></tr></thead>
+        <tbody>{% for item in event.details.changes %}
+          <tr><td>{{ item.vendor_code|default:item.nm_id }}<span class="cell-note">WB: {{ item.nm_id }}</span></td>
+              <td>{{ item.before }}%</td><td>{{ item.after }}%</td></tr>
+        {% endfor %}</tbody>
+      </table>
+    </div>
+    {% endif %}
+  </article>
+  {% empty %}
+    <p class="muted workspace-day-empty">Только проверки, без изменений.</p>
+  {% endfor %}
 </section>
 {% empty %}
 <section class="card"><p class="muted">Журнал пока пуст.</p></section>

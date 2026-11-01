@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from billing.models import AccessGrant
 from billing.trial import trial_source_ref
-from .models import GuardAccount, Product, PromotionSnapshot, FinanceSnapshot
+from .models import GuardAccount, Product, PromotionSnapshot, FinanceSnapshot, GuardEvent
 from push.models import NotificationPreference, PushMessage
 
 
@@ -89,7 +89,7 @@ class MarketplaceNavigationTests(TestCase):
                 )
                 self.assertNotIn('class="compact-context">\n  <span class="trial-strip"', html)
         self.assertContains(self.client.get(reverse("dashboard")),
-                            "seller-workspace-panels.css?v=20261101e")
+                            "seller-workspace-panels.css?v=20261101f")
 
     def test_expired_trial_badge_stays_in_header_and_is_short_on_mobile(self):
         grant = AccessGrant.objects.get(user=self.seller)
@@ -118,7 +118,7 @@ class MarketplaceNavigationTests(TestCase):
             '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
         )
         self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
-        self.assertContains(page, "seller-workspace-panels.css?v=20261101e")
+        self.assertContains(page, "seller-workspace-panels.css?v=20261101f")
 
     def test_header_switches_real_wb_store_without_exposing_other_tenants(self):
         first = self.client.get(reverse("dashboard"))
@@ -187,6 +187,65 @@ class MarketplaceNavigationTests(TestCase):
         session.save()
         self.assertContains(self.client.get(reverse("dashboard")), 'href="/promotions/"')
 
+    def test_report_body_is_visible_without_accordion_or_click(self):
+        PushMessage.objects.create(
+            user=self.seller, kind="digest", title="NoSale — отчёт за 31.10",
+            body="Товаров под контролем: 41; проверок: 10; исправлений: 2; ошибок: 0.",
+        )
+        report = self.client.get(reverse("notifications"))
+        self.assertContains(report, "<h2", count=1)
+        self.assertContains(report, "Товаров под контролем: 41")
+        self.assertContains(report, "workspace-message-body")
+        self.assertContains(report, '<article class="workspace-message compact-feed-item">')
+        self.assertNotContains(report, '<details class="workspace-message')
+        self.assertNotContains(report, '<summary>')
+
+    def test_event_changes_are_visible_immediately_without_expansion(self):
+        GuardEvent.objects.create(
+            account=self.shop, kind="confirmed", message="Исправлено два товара",
+            nm_id=12345678,
+            details={"changes": [
+                {"nm_id": 12345678, "before": 19, "after": 13},
+                {"nm_id": 34567890, "before": 28, "after": 13},
+            ]},
+        )
+        response = self.client.get(reverse("notifications"))
+        self.assertContains(response, "Исправлено два товара")
+        self.assertContains(response, "WB 12345678")
+        self.assertContains(response, "WB 34567890")
+        self.assertContains(response, "Товары (2)")
+        self.assertNotContains(response, '<details class="workspace-event-products')
+        self.assertNotContains(response, '<summary>')
+
+    def test_history_day_and_events_have_no_nested_disclosures(self):
+        GuardEvent.objects.create(
+            account=self.shop, kind="rule", nm_id=12345678,
+            message="Лимит изменён для товара",
+            details={"changes": [{"nm_id": 12345678, "before": 15, "after": 13}]},
+        )
+        history = self.client.get(reverse("history"))
+        self.assertContains(history, "Лимит изменён для товара")
+        self.assertContains(history, "Изменено правило скидки")
+        self.assertContains(history, '<article class="workspace-history-event">')
+        history_main = history.content.decode().split("<main", 1)[1].split("</main>", 1)[0]
+        self.assertNotIn("<details", history_main)
+        self.assertNotIn("<summary", history_main)
+
+    def test_settings_permissions_and_forms_are_visible_without_disclosures(self):
+        settings = self.client.get(reverse("settings"))
+        self.assertContains(settings, "Подключить API-токен")
+        self.assertContains(settings, "Добавить ещё магазин")
+        self.assertContains(settings, "Проверки")
+        settings_main = settings.content.decode().split("<main", 1)[1].split("</main>", 1)[0]
+        self.assertNotIn("<details", settings_main)
+        self.assertNotIn("<summary", settings_main)
+        stores = self.client.get(reverse("stores"))
+        self.assertContains(stores, "Подключить ещё один кабинет Wildberries")
+        self.assertContains(stores, 'class="connection-add"')
+        stores_main = stores.content.decode().split("<main", 1)[1].split("</main>", 1)[0]
+        self.assertNotIn("<details", stores_main)
+        self.assertNotIn("<summary", stores_main)
+
     def test_notifications_show_actual_messages_in_compact_grid(self):
         PushMessage.objects.create(user=self.seller, kind="digest", title="Отчёт QA",
                                    body="Без изменений")
@@ -204,7 +263,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101e")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261101f")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))
