@@ -133,12 +133,24 @@ def seed_promotion_snapshot(request):
                 "participation": None, "seller_counts": None,
                 "risk": "unknown", "funding": "unknown",
             },
+            *[
+                {
+                    "id": campaign_id,
+                    "name": f"Синтетическая автоакция {campaign_id}",
+                    "type": "auto",
+                    "starts_at": (now-timedelta(days=1)).isoformat(),
+                    "ends_at": (now+timedelta(days=6)).isoformat(),
+                    "seller_counts": {"inPromoActionTotal": 0},
+                    "participation": None, "risk": "unknown", "funding": "unknown",
+                }
+                for campaign_id in (714, 715, 716)
+            ],
         ],
         "partial": True,
         "fetched_at": now,
         "next_refresh_at": now+timedelta(minutes=65),
     })
-    return JsonResponse({"ok": True, "campaigns": 3})
+    return JsonResponse({"ok": True, "campaigns": 6})
 
 
 # Test-only route exists solely in this ephemeral, no-egress fixture process.
