@@ -899,3 +899,75 @@ body.seller-dashboard-page .wb-dashboard-header .wb-quick-links{grid-column:2;mi
  }
  .seller-workspace-page .promo-action-quiet-state{grid-column:auto}
 }
+
+
+/* #106: Compact campaign summaries — do not stretch to the tallest product list. */
+.seller-workspace-page .promo-action-list{display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
+.seller-workspace-page .promo-action-list > .promo-action-line{
+ display:grid;grid-template-columns:minmax(0,1.5fr) minmax(250px,.72fr);
+ gap:10px 24px;align-items:start;min-width:0;min-height:0;height:auto;
+ padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+}
+.seller-workspace-page .promo-action-line-main,
+.seller-workspace-page .promo-action-line-aside{
+ min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:8px;
+}
+.seller-workspace-page .promo-action-line-aside{
+ border-left:1px solid var(--line);padding-left:20px;align-self:stretch;
+}
+.seller-workspace-page .promo-action-line-badges{
+ display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;
+}
+.seller-workspace-page .promo-action-line .promo-action-title{margin:0;font-size:15px}
+.seller-workspace-page .promo-action-line .promo-action-description{margin:0;font-size:12px;line-height:1.5;max-width:85ch}
+.seller-workspace-page .promo-action-line .promo-action-main-fact{margin:0;padding:0;border:0;gap:9px}
+.seller-workspace-page .promo-action-line .promo-action-main-fact strong{font-size:24px}
+.seller-workspace-page .promo-action-line .promo-action-ranking{
+ display:flex;align-items:baseline;flex-wrap:wrap;gap:5px 12px;padding-top:5px;width:100%;
+}
+.seller-workspace-page .promo-action-line .promo-action-ranking strong{font-size:11px}
+.seller-workspace-page .promo-action-line .promo-action-ranking span{font-size:11px;line-height:1.4;color:var(--muted)}
+.seller-workspace-page .promo-action-manage-link{
+ display:inline-flex;gap:8px;align-items:center;justify-content:center;
+ max-width:100%;min-height:38px;padding:8px 12px;
+ color:var(--text);font-size:12px;font-weight:700;text-decoration:none;
+ background:rgba(169,88,224,.12);border:1px solid rgba(169,88,224,.48);
+ border-radius:9px;overflow-wrap:anywhere;
+}
+.seller-workspace-page .promo-action-manage-link:hover,
+.seller-workspace-page .promo-action-manage-link:focus-visible{
+ border-color:var(--accent-strong);background:rgba(169,88,224,.22);
+}
+.seller-workspace-page .promo-action-source{margin-top:auto;color:var(--muted);font-size:10px}
+.seller-workspace-page .promo-action-quiet-list > .promo-action-quiet-row{min-height:0;height:auto;padding:10px 14px}
+body.seller-dashboard-page .promo-inventory-context{
+ display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;
+ gap:13px 25px;padding:13px 17px;margin:5px 0 12px;
+ border:1px solid rgba(169,88,224,.45);background:var(--panel);border-radius:12px;
+}
+body.seller-dashboard-page .promo-inventory-copy{
+ display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 400px;
+ font-size:12px;color:var(--muted);line-height:1.5;
+}
+body.seller-dashboard-page .promo-inventory-copy strong{color:var(--text);font-size:15px;overflow-wrap:anywhere}
+body.seller-dashboard-page .promo-inventory-kicker{color:var(--accent-strong);font-size:11px;font-weight:700}
+body.seller-dashboard-page .promo-inventory-links{display:flex;gap:8px;flex-wrap:wrap}
+body.seller-dashboard-page .promo-inventory-links a{
+ color:var(--text);border:1px solid var(--line);border-radius:8px;
+ padding:9px 12px;text-decoration:none;font-size:12px;font-weight:650;
+}
+body.seller-dashboard-page .promo-inventory-warning{color:var(--bad)}
+body.seller-dashboard-page .promo-inventory-price{
+ display:flex;flex-direction:column;gap:4px;border-block:1px solid var(--line);
+ padding:9px 0;font-size:11px;color:var(--muted);
+}
+body.seller-dashboard-page .promo-inventory-price strong{color:var(--text);font-size:13px;font-variant-numeric:tabular-nums}
+@media(max-width:860px){
+ .seller-workspace-page .promo-action-list > .promo-action-line{grid-template-columns:minmax(0,1fr);gap:10px}
+ .seller-workspace-page .promo-action-line-aside{border-left:0;border-top:1px solid var(--line);padding:10px 0 0}
+}
+@media(max-width:680px){
+ .seller-workspace-page .promo-action-list > .promo-action-line{padding:12px;gap:9px}
+ .seller-workspace-page .promo-action-quiet-list > .promo-action-quiet-row{padding:10px 12px}
+ body.seller-dashboard-page .promo-inventory-context{padding:12px}
+}
