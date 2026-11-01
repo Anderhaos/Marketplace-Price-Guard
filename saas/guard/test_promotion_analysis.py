@@ -94,6 +94,109 @@ class PromotionEvidenceTests(SimpleTestCase):
         self.assertEqual(row["participation"]["matched_count"], 0)
         self.assertIn("не подтверждено", row["explanation"])
 
+    def test_official_wb_id_and_campaign_conditions_are_preserved(self):
+        api = Mock()
+        api.get_promotions_calendar.return_value = calendar(
+            {"id": 415, "type": "regular", "name": "Обычная акция"},
+        )
+        api.get_promotion_details.return_value = detail_rows({
+            "id": 415, "inPromoActionTotal": 1, "inPromoActionLeftovers": 1,
+            "description": "  Дополнительное продвижение \n по правилам WB  ",
+            "advantages": ["Баннер", "Плашка", "<unsafe>"],
+            "ranging": [{"condition": "productsInPromotion",
+                         "participationRate": 20, "boost": 7}],
+        })
+        api.get_promotion_participants.return_value = participants({
+            "id": 111, "inAction": True, "price": 900, "planPrice": 700,
+            "discount": 10, "planDiscount": 30,
+        })
+        own = {111: SimpleNamespace(
+            title="Наш товар", vendor_code="ABC", current_discount=10,
+            allowed_discount=13,
+        )}
+        result = inspect_promotions(api, token_type="service", store_products=own)
+        row = result["promotions"][0]
+        self.assertEqual(row["participation"]["matched"][0]["nm_id"], 111)
+        self.assertEqual(row["participation"]["matched"][0]["planned"], "700.00")
+        self.assertEqual(row["participation"]["matched"][0]["plan_discount"], 30)
+        self.assertEqual(row["risk"], "price_drop")
+        self.assertEqual(row["seller_counts"]["inPromoActionLeftovers"], 1)
+        self.assertEqual(row["seller_counts"]["details_v2"], 1)
+        self.assertEqual(row["seller_counts"]["description"],
+                         "Дополнительное продвижение по правилам WB")
+        self.assertIn("Баннер", row["seller_counts"]["advantages"])
+        self.assertEqual(row["seller_counts"]["ranging"][0]["boost"], 7)
+        presentation = build_promotion_presentation(result["promotions"])
+        card = presentation["promotion_focus"][0]
+        self.assertEqual(card["participating_stock"], 1)
+        self.assertEqual(card["rank_levels"][0]["participation_rate"], 20)
+        self.assertEqual(card["campaign_description"],
+                         "Дополнительное продвижение по правилам WB")
+
+    def test_eligible_goods_are_not_misreported_as_participating(self):
+        api = Mock()
+        api.get_promotions_calendar.return_value = calendar({
+            "id": 420, "type": "regular", "name": "Вступить можно",
+        })
+        api.get_promotion_details.return_value = detail_rows({
+            "id": 420, "inPromoActionTotal": 0,
+            "notInPromoActionTotal": 1,
+        })
+        api.get_promotion_participants.return_value = participants({
+            "id": 222, "inAction": False, "price": 1000,
+            "planPrice": 800, "planDiscount": 20,
+        })
+        own = {222: SimpleNamespace(
+            title="Крем для продажи", vendor_code="ABC",
+            current_discount=5, allowed_discount=15,
+        )}
+        row = inspect_promotions(
+            api, token_type="service", store_products=own,
+        )["promotions"][0]
+        api.get_promotion_participants.assert_called_once_with(
+            420, limit=100, in_action=False,
+        )
+        self.assertIsNone(row["participation"])
+        self.assertEqual(row["risk"], "unknown")
+        self.assertEqual(row["candidates"]["matched_count"], 1)
+        self.assertEqual(row["candidates"]["matched"][0]["nm_id"], 222)
+        self.assertEqual(row["candidates"]["matched"][0]["planned"], "800.00")
+        card = build_promotion_presentation([row])["promotion_focus"][0]
+        self.assertFalse(card["has_participation"])
+        self.assertEqual(card["candidate_count"], 1)
+        self.assertEqual(card["candidate_products"][0]["title"], "Крем для продажи")
+        self.assertEqual(
+            build_promotion_presentation([row])["promotion_counts"]["participating"], 0,
+        )
+
+    def test_basic_token_reads_one_eligible_catalogue_request_only(self):
+        now = datetime(2026, 11, 1, 12, tzinfo=dt_timezone.utc)
+        api = Mock()
+        api.get_promotion_participants.return_value = participants({
+            "id": 202, "inAction": False, "price": 800, "planPrice": 700,
+        })
+        cached = [{
+            "id": 100, "type": "regular", "name": "Обычная акция",
+            "seller_counts": {"details_v2": 1, "inPromoActionTotal": 0},
+            "details_checked_at": now.isoformat(),
+        }]
+        own = {202: SimpleNamespace(
+            title="Товар", vendor_code="V", current_discount=0,
+            allowed_discount=13,
+        )}
+        result = inspect_basic_promotion_step(
+            api, cached_promotions=cached, calendar_fetched_at=now,
+            store_products=own, at=now + timedelta(minutes=70),
+        )
+        self.assertEqual(result["phase"], "candidates")
+        self.assertIsNone(result["promotions"][0].get("participation"))
+        self.assertEqual(result["promotions"][0]["candidates"]["matched_count"], 1)
+        api.get_promotion_participants.assert_called_once_with(
+            100, limit=100, in_action=False,
+        )
+        api.get_promotions_calendar.assert_not_called()
+        api.get_promotion_details.assert_not_called()
+
     def test_basic_token_progressively_checks_totals_then_one_regular_promotion(self):
         now = datetime(2026, 11, 1, 9, tzinfo=dt_timezone.utc)
         api = Mock()
@@ -334,7 +437,7 @@ class PromotionReadOnlyPortalTests(TestCase):
             self.assertContains(response, "Наш крем")
             self.assertContains(response, "750.00")
             self.assertContains(response, "Плановая цена ниже")
-            self.assertContains(response, "товаров продавца")
+            self.assertContains(response, "товаров участвуют по данным WB")
             self.assertNotContains(response, "Секрет чужой акции")
             self.assertNotContains(response, "Чужой товар")
             self.assertEqual(response.context["catalog_total"], 1)
@@ -356,7 +459,8 @@ class PromotionReadOnlyPortalTests(TestCase):
         )
         response = self.client.get(reverse("promotion_audit"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'promo-audit-span-4', count=6)
+        self.assertContains(response, 'promo-action-quiet-row', count=6)
+        self.assertNotContains(response, 'promo-action-main-fact')
         self.assertEqual(
             [item["grid_span"] for item in response.context["promotion_cards"]],
             [4] * 6,
@@ -375,7 +479,7 @@ class PromotionReadOnlyPortalTests(TestCase):
         response = self.client.get(reverse("promotion_audit"))
         self.assertContains(response, "WB календарь")
         self.assertContains(response, "не подтверждено")
-        self.assertContains(response, "неизвестно")
+        self.assertContains(response, "не подтверждены")
         self.assertNotContains(response, "Выгодно")
         snap.refresh_from_db()
         self.assertEqual(snap.promotions, before)

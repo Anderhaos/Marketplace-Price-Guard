@@ -319,6 +319,11 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await waitText('Synthetic seller report 6');
     await goto('/promotions/');
     assert.equal(await page.$$eval('.promo-audit-card',els=>els.length),6);
+    assert.equal(await page.$$eval('.promo-audit-grid .promo-audit-card',els=>els.length),3);
+    assert.equal(await page.$$eval('.promo-action-quiet-row',els=>els.length),3);
+    await waitText('Можно добавить в акцию');
+    await waitText('Подтверждённые условия синтетической акции');
+    await waitText('Browser fixture item B');
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=price_drop"]'));
     assert.ok(await page.$('.promo-audit-filters a[href*="filter=unknown"]'));
     await goto('/promotions/?filter=price_drop');
@@ -410,6 +415,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           assert.equal(await page.$('main details'),null,'Promotion evidence must be visible without disclosure clicks');
           assert.ok(await page.$('.promo-audit-filters'));
           assert.ok(await page.$('.promo-audit-card .promo-audit-products'));
+          assert.equal(await page.$$eval('.promo-action-quiet-row',els=>els.length),3);
           const campaignCells=await page.evaluate(() => {
             const grid=document.querySelector('.promo-audit-grid');
             const bounds=grid.getBoundingClientRect();
@@ -432,11 +438,11 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           assert.ok(campaignCells.maxOverflow<=2,'Campaign card overflow at '+width);
           assert.ok(campaignCells.rowsFillWidth,'Orphan/empty card row at '+width+': '+JSON.stringify(campaignCells));
           if(width===1920){
-            assert.deepEqual(campaignCells.rowCounts,[3,3],
-              'Six campaigns must be two balanced rows of three cards');
+            assert.deepEqual(campaignCells.rowCounts,[3],
+              'Three actionable promotions must fill one balanced row');
           }else if(width===390){
-            assert.deepEqual(campaignCells.rowCounts,[1,1,1,1,1,1],
-              'Mobile campaigns must stack in one full-width column');
+            assert.deepEqual(campaignCells.rowCounts,[1,1,1],
+              'Mobile actionable promotions must stack in one full-width column');
           }
         }
         if(route==='/') {

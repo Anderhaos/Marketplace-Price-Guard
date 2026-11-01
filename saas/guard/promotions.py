@@ -1,7 +1,8 @@
 """Strictly read-only, rate-bounded Wildberries seller promotion evidence.
 
 Source: official WB Marketing/Promotion calendar API. A basic token can use
-ONE calendar request per hour; never make detail/participant calls for it.
+ONE shared calendar-category request per hour; details and goods are fetched
+progressively in separate rate-limited, user-triggered reads.
 Auto campaigns expose aggregate counts (when details are accessible), but
 never individual goods through the nomenclatures endpoint. Funding and
 profitability are not available from these endpoints. All unknown is unknown.
@@ -67,18 +68,50 @@ def _promotion_details(client, ids):
             number = _integer(row.get(key))
             if number is not None:
                 counts[key] = number
+        # Full WB details are actionable even if the finance category is
+        # unavailable. Only bounded, documented, public campaign metadata.
+        counts["details_v2"] = 1
+        description = row.get("description")
+        if isinstance(description, str):
+            description = " ".join(description.split())
+            if description:
+                counts["description"] = description[:900]
+        benefits = row.get("advantages")
+        if isinstance(benefits, list):
+            counts["advantages"] = [
+                item.strip()[:80] for item in benefits[:6]
+                if isinstance(item, str) and item.strip()
+            ]
+        ranking = row.get("ranging")
+        if isinstance(ranking, list):
+            levels = []
+            for level in ranking[:8]:
+                if not isinstance(level, dict):
+                    continue
+                kind = level.get("condition")
+                threshold = _integer(level.get("participationRate"))
+                boost = _integer(level.get("boost"))
+                if (kind in ("productsInPromotion", "calculateProducts", "allProducts")
+                        and threshold is not None and threshold <= 100
+                        and boost is not None and boost <= 100):
+                    levels.append({
+                        "condition": kind, "participation_rate": threshold,
+                        "boost": boost,
+                    })
+            counts["ranging"] = levels
         mapped[promo_id] = counts
     return mapped
 
 
-def _participation(client, promotion_id, store_products=None):
+def _participation(client, promotion_id, store_products=None, *, in_action=True):
     """Up to 100 participating rows; only ID-matched catalog goods are yours.
 
     Do not use an ordinary promotion's global price deltas as proof of an
     effect on the selected shop. A row matched to one of the shop's active
     nmIDs is stronger evidence, although the price is still a snapshot.
     """
-    goods = _rows(client.get_promotion_participants(promotion_id, limit=100), "nomenclatures")
+    request_kw = {"limit": 100} if in_action else {"limit": 100, "in_action": False}
+    goods = _rows(client.get_promotion_participants(promotion_id, **request_kw), "nomenclatures")
     products = store_products or {}
     decreases = 0
     neutral = 0
@@ -86,7 +119,12 @@ def _participation(client, promotion_id, store_products=None):
     matched = []
     raw_samples = []
     for row in goods:
-        nm_id = _integer(row.get("nmID"))
+        if row.get("inAction") is not None and row["inAction"] != in_action:
+            # Avoid treating an ineligible or unconfirmed row as participation.
+            continue
+        # The documented WB calendar response uses 'id', not 'nmID'.
+        # Keep nmID compatibility for historical cached/test fixtures.
+        nm_id = _integer(row.get("id", row.get("nmID")))
         current, planned = _number(row.get("price")), _number(row.get("planPrice"))
         if current is None or planned is None or current == 0:
             missing += 1
@@ -112,6 +150,8 @@ def _participation(client, promotion_id, store_products=None):
                              and planned is not None and planned < current),
             "current_discount": int(item.current_discount),
             "allowed_discount": int(item.allowed_discount),
+            "wb_discount": _integer(row.get("discount")),
+            "plan_discount": _integer(row.get("planDiscount")),
         })
     matched.sort(key=lambda row: (not row["decrease"], row["title"].casefold(), row["nm_id"]))
     return {
@@ -124,6 +164,7 @@ def _participation(client, promotion_id, store_products=None):
         "matched": matched[:100],
         "matched_count": len(matched),
         "matched_decreases": sum(1 for row in matched if row["decrease"]),
+        "mode": "participating" if in_action else "eligible",
     }
 
 
@@ -182,12 +223,25 @@ def inspect_promotions(client, *, token_type=None, at=None, store_products=None)
             if row["type"] != "regular" or inspected_details >= 3:
                 continue
             inspected_details += 1
+            eligible = (
+                store_products is not None
+                and isinstance(row.get("seller_counts"), dict)
+                and row["seller_counts"].get("inPromoActionTotal") == 0
+            )
             try:
-                p = _participation(client, row["id"], store_products=store_products)
+                p = _participation(
+                    client, row["id"], store_products=store_products, in_action=False,
+                ) if eligible else _participation(
+                    client, row["id"], store_products=store_products,
+                )
             except WBApiError as exc:
                 row["explanation"] = "WB не предоставил состав акции; данных для оценки нет."
                 if exc.status == 429:
                     break
+                continue
+            if eligible:
+                row["candidates"] = p
+                row["candidates_checked_at"] = now.isoformat()
                 continue
             row["participation"] = p
             if p["matched_decreases"]:
@@ -284,6 +338,7 @@ def inspect_basic_promotion_step(client, *, cached_promotions, calendar_fetched_
             for marker, fields in (
                 ("details_checked_at", ("seller_counts",)),
                 ("participants_checked_at", ("participation", "risk", "explanation")),
+                ("candidates_checked_at", ("candidates",)),
             ):
                 if _recent_timestamp(old.get(marker), now):
                     new[marker] = old[marker]
@@ -293,7 +348,12 @@ def inspect_basic_promotion_step(client, *, cached_promotions, calendar_fetched_
         return fresh
 
     ids = [row["id"] for row in cached if _integer(row.get("id"))]
-    if ids and any(not _recent_timestamp(row.get("details_checked_at"), now) for row in cached):
+    if ids and any(
+        not _recent_timestamp(row.get("details_checked_at"), now)
+        or not isinstance(row.get("seller_counts"), dict)
+        or row["seller_counts"].get("details_v2") != 1
+        for row in cached
+    ):
         details = _promotion_details(client, ids)
         for row in cached:
             row["seller_counts"] = details.get(row["id"])
@@ -305,9 +365,25 @@ def inspect_basic_promotion_step(client, *, cached_promotions, calendar_fetched_
         }
 
     for row in cached:
-        if row.get("type") != "regular" or _recent_timestamp(row.get("participants_checked_at"), now):
+        if (row.get("type") != "regular"
+                or _recent_timestamp(row.get("participants_checked_at"), now)
+                or _recent_timestamp(row.get("candidates_checked_at"), now)):
             continue
-        p = _participation(client, row["id"], store_products=store_products)
+        eligible = (
+            store_products is not None and isinstance(row.get("seller_counts"), dict)
+            and row["seller_counts"].get("inPromoActionTotal") == 0
+        )
+        p = _participation(
+            client, row["id"], store_products=store_products, in_action=False,
+        ) if eligible else _participation(client, row["id"], store_products=store_products)
+        if eligible:
+            row["candidates"] = p
+            row["candidates_checked_at"] = now.isoformat()
+            return {
+                "promotions": cached, "partial": True, "phase": "candidates",
+                "fetched_at": calendar_fetched_at.isoformat(),
+                "inspection_count": 1, "details_requests": 0,
+            }
         row["participation"] = p
         row["participants_checked_at"] = now.isoformat()
         if p["matched_decreases"]:

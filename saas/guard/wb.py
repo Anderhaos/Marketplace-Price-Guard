@@ -156,11 +156,11 @@ class WBClient:
             params=[("promotionIDs", value) for value in ids],
         )
 
-    def get_promotion_participants(self, promotion_id, *, limit=100):
+    def get_promotion_participants(self, promotion_id, *, limit=100, in_action=True):
         """Participating goods in an ordinary promotion (not auto-promos)."""
         return self._request_to(self.PROMOTIONS_BASE_URL, "GET",
                                 "/api/v1/calendar/promotions/nomenclatures", params={
-            "promotionID": int(promotion_id), "inAction": "true",
+            "promotionID": int(promotion_id), "inAction": "true" if in_action else "false",
             "limit": max(1, min(100, int(limit))), "offset": 0,
         })
 
