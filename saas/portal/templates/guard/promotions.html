@@ -107,8 +107,8 @@
         {% else %}
         <span class="promo-action-subfact">{% if item.type == "auto" %}WB API не раскрывает артикулы автоакции{% else %}Список артикулов не подтверждён WB{% endif %}</span>
         {% endif %}
-        {% if item.candidate_products %}
-          <span class="promo-audit-risk">Плановая цена ниже текущей у части доступных товаров. Проверьте выборку перед вступлением.</span>
+        {% if item.candidates.matched_decreases %}
+          <span class="promo-audit-risk">Плановая цена ниже текущей у {{ item.candidates.matched_decreases }} доступных товаров. Проверьте выборку перед вступлением.</span>
         {% elif item.has_price_drop %}
           <span class="promo-audit-risk">Плановая цена ниже текущей у {{ item.participation.matched_decreases }} участвующих товаров</span>
         {% endif %}
