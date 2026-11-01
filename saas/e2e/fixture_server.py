@@ -109,7 +109,12 @@ def seed_promotion_snapshot(request):
                 "id": 711, "name": "Синтетическая автоакция WB", "type": "auto",
                 "starts_at": (now-timedelta(days=1)).isoformat(),
                 "ends_at": (now+timedelta(days=8)).isoformat(),
-                "seller_counts": {"inPromoActionTotal": 1, "exceptionProductsCount": 0},
+                "seller_counts": {"inPromoActionTotal": 1, "inPromoActionLeftovers": 1,
+                                  "exceptionProductsCount": 0,
+                                  "description": "Подтверждённые условия синтетической акции",
+                                  "advantages": ["Плашка WB", "Баннер WB"],
+                                  "ranging": [{"condition": "productsInPromotion",
+                                               "participation_rate": 20, "boost": 7}]},
                 "participation": None, "risk": "unknown", "funding": "unknown",
             },
             {
@@ -138,11 +143,17 @@ def seed_promotion_snapshot(request):
                 {
                     "id": campaign_id,
                     "name": f"Синтетическая автоакция {campaign_id}",
-                    "type": "auto",
+                    "type": "regular" if campaign_id == 714 else "auto",
                     "starts_at": (now-timedelta(days=1)).isoformat(),
                     "ends_at": (now+timedelta(days=6)).isoformat(),
                     "seller_counts": {"inPromoActionTotal": 0},
                     "participation": None, "risk": "unknown", "funding": "unknown",
+                    "candidates": {
+                        "matched": [{"nm_id": 79002, "title": "Browser fixture item B",
+                                     "current": "800.00", "planned": "700.00",
+                                     "decrease": True}],
+                        "matched_count": 1, "possibly_incomplete": False,
+                    } if campaign_id == 714 else None,
                 }
                 for campaign_id in (714, 715, 716)
             ],

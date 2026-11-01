@@ -61,9 +61,43 @@ def build_promotion_presentation(rows, *, selected_filter="all", at=None):
         seller_total = seller_total if isinstance(seller_total, int) and seller_total >= 0 else None
         matched = p.get("matched") if isinstance(p.get("matched"), list) else []
         item["matched_products"] = matched
+        candidates = item.get("candidates") if isinstance(item.get("candidates"), dict) else {}
+        item["candidate_products"] = (
+            [product for product in candidates.get("matched", []) if isinstance(product, dict)]
+            if isinstance(candidates.get("matched"), list) else []
+        )
+        item["candidate_count"] = len(item["candidate_products"])
+        item["candidates_at"] = _safe_date(item.get("candidates_checked_at"))
+        item["priced_count"] = sum(
+            1 for product in matched
+            if isinstance(product, dict)
+            and product.get("current") is not None and product.get("planned") is not None
+        )
         item["matched_count"] = len(matched)
         item["aggregate_count"] = seller_total
         item["aggregate_known"] = seller_total is not None
+        item["participating_stock"] = counts.get("inPromoActionLeftovers")
+        item["eligible_stock"] = counts.get("notInPromoActionLeftovers")
+        item["excluded_count"] = counts.get("exceptionProductsCount")
+        item["participation_percentage"] = counts.get("participationPercentage")
+        item["campaign_description"] = counts.get("description") if isinstance(counts.get("description"), str) else ""
+        item["campaign_benefits"] = counts.get("advantages") if isinstance(counts.get("advantages"), list) else []
+        levels = counts.get("ranging") if isinstance(counts.get("ranging"), list) else []
+        labels = {
+            "productsInPromotion": "Товары в акции",
+            "calculateProducts": "Товары, подходящие для акции",
+            "allProducts": "Все товары продавца",
+        }
+        item["rank_levels"] = [
+            {"label": labels[level["condition"]],
+             "participation_rate": level["participation_rate"],
+             "boost": level["boost"]}
+            for level in levels[:8]
+            if (isinstance(level, dict)
+                and level.get("condition") in labels
+                and isinstance(level.get("participation_rate"), int)
+                and isinstance(level.get("boost"), int))
+        ]
         item["details_at"] = _safe_date(item.get("details_checked_at"))
         item["participants_at"] = _safe_date(item.get("participants_checked_at"))
         item["has_price_drop"] = any(
@@ -74,6 +108,7 @@ def build_promotion_presentation(rows, *, selected_filter="all", at=None):
         )
         item["has_evidence"] = seller_total is not None or bool(matched)
         item["is_unverified"] = not item["has_evidence"]
+        item["is_priority"] = item["has_participation"] or item["candidate_count"] > 0
         item["display_type"] = (
             "Автоакция" if item.get("type") == "auto"
             else "Обычная" if item.get("type") == "regular" else "Акция WB"
@@ -103,9 +138,40 @@ def build_promotion_presentation(rows, *, selected_filter="all", at=None):
     visible = [item for item in result if matches(item, selected_filter)]
     for item, span in zip(visible, _balanced_grid_spans(len(visible))):
         item["grid_span"] = span
-    # Keep source order by default: WB calendar relevance reflects upcoming campaigns.
+    # Rank campaigns with actual shop participation or opt-in eligible SKUs
+    # above unselected WB promotions; don't confuse eligible with joined.
+    focus = [item for item in visible if item["is_priority"]]
+    focus.sort(key=lambda item: (
+        not item["has_price_drop"],
+        not item["has_participation"],
+        -(item["aggregate_count"] or 0),
+        item.get("starts_at") or "",
+    ))
+    for item, span in zip(focus, _balanced_grid_spans(len(focus))):
+        item["grid_span"] = span
+    other = [item for item in visible if not item["is_priority"]]
+    other.sort(key=lambda item: (
+        0 if item["period"] == "active" else 1 if item["period"] == "upcoming" else 2,
+        item.get("starts_at") or "",
+    ))
+    participation_events = sum(
+        item["aggregate_count"] for item in result
+        if isinstance(item["aggregate_count"], int) and item["aggregate_count"] > 0
+    )
+    all_matched = [
+        product for item in result for product in item["matched_products"]
+        if isinstance(product, dict)
+    ]
     return {
         "promotion_cards": visible,
+        "promotion_focus": focus,
+        "promotion_other": other,
+        "promotion_active_count": counts["active"],
+        "promotion_participating_count": counts["participating"],
+        "promotion_participation_events": participation_events,
+        "promotion_priced_count": sum(item["priced_count"] for item in result),
+        "promotion_price_decreases": sum(item["has_price_drop"] for item in result),
+        "promotion_candidate_total": sum(item["candidate_count"] for item in result),
         "promotion_chips": chips,
         "promotion_filter": selected_filter,
         "promotion_counts": counts,
