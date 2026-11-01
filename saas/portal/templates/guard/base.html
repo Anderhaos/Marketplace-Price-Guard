@@ -446,8 +446,8 @@
       }, 5000 + index * 350);
     });
     // Keep the extra navigation inside the viewport when its trigger wraps on phones.
-    document.querySelectorAll('details.seller-more-menu').forEach((menu) => {
-      const options = menu.querySelector('.seller-more-options');
+    document.querySelectorAll('details.seller-more-menu, details.seller-marketplace-menu').forEach((menu) => {
+      const options = menu.querySelector('.seller-more-options, .seller-marketplace-options');
       if (!options) return;
       const align = () => {
         options.style.transform = '';
