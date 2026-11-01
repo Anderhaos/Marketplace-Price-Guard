@@ -729,9 +729,29 @@ body.seller-dashboard-page .wb-dashboard-header .wb-quick-links{grid-column:2;mi
 }
 
 
-/* Fill the available width even when a campaign filter returns only 1–3 cards. */
+/* Shared, deterministic 12-column content grid.
+   Unlike auto-fit, a six-card result cannot become a 5 + 1 orphan row. */
 .seller-workspace-page .compact-promo-grid.promo-audit-grid{
- grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));
+ display:grid;
+ grid-template-columns:repeat(12,minmax(0,1fr));
+ gap:12px;
+ align-items:stretch;
+}
+.seller-workspace-page .promo-audit-grid > .promo-audit-card{
+ min-width:0;
+ grid-column:span 3;
+ height:100%;
+}
+.seller-workspace-page .promo-audit-grid > .promo-audit-span-3{grid-column:span 3}
+.seller-workspace-page .promo-audit-grid > .promo-audit-span-4{grid-column:span 4}
+.seller-workspace-page .promo-audit-grid > .promo-audit-span-6{grid-column:span 6}
+.seller-workspace-page .promo-audit-grid > .promo-audit-span-12{grid-column:span 12}
+@media(max-width:1100px){
+ .seller-workspace-page .promo-audit-grid > .promo-audit-card{grid-column:span 6}
+ .seller-workspace-page .promo-audit-grid > .promo-audit-card:last-child:nth-child(odd){grid-column:span 12}
+}
+@media(max-width:680px){
+ .seller-workspace-page .promo-audit-grid > .promo-audit-card{grid-column:span 12}
 }
 .seller-workspace-page .promo-audit-card h2{font-size:15px}
 .seller-workspace-page .promo-audit-facts p{font-size:12px}
