@@ -57,104 +57,63 @@
 <section class="promo-action-section" aria-labelledby="promo-action-involved">
   <div class="promo-action-section-heading">
     <h2 id="promo-action-involved">Ваши акции и товары</h2>
-    <span class="muted">{{ promotion_focus|length }} · подтверждённое участие или доступные товары для вступления</span>
+    <span class="muted">{{ promotion_focus|length }} · подтверждённое участие или возможность вступления</span>
   </div>
-  <div class="compact-promo-grid promo-audit-grid" aria-label="Акции с участием или доступными товарами">
+  <div class="promo-action-list" aria-label="Акции магазина">
     {% for item in promotion_focus %}
-    <article class="compact-promo-card promo-audit-card promo-audit-span-{{ item.grid_span }}">
-      <header class="compact-promo-top">
-        <span class="compact-promo-type">{{ item.display_type }}</span>
-        <span class="promo-audit-period promo-audit-period--{{ item.period }}">{{ item.period_label }}</span>
-      </header>
-      <h3 class="promo-action-title">{{ item.name }}</h3>
-      {% if item.starts_at or item.ends_at %}
-      <p class="compact-promo-date">
-        {{ item.starts_at|slice:"8:10" }}.{{ item.starts_at|slice:"5:7" }} — {{ item.ends_at|slice:"8:10" }}.{{ item.ends_at|slice:"5:7" }}
-      </p>
-      {% endif %}
-      {% if item.has_participation %}
+    <article class="promo-audit-card promo-action-line">
+      <div class="promo-action-line-main">
+        <div class="promo-action-line-badges">
+          <span class="compact-promo-type">{{ item.display_type }}</span>
+          <span class="promo-audit-period promo-audit-period--{{ item.period }}">{{ item.period_label }}</span>
+          {% if item.starts_at and item.ends_at %}
+          <span class="compact-promo-date">{{ item.starts_at|slice:"8:10" }}.{{ item.starts_at|slice:"5:7" }} — {{ item.ends_at|slice:"8:10" }}.{{ item.ends_at|slice:"5:7" }}</span>
+          {% endif %}
+        </div>
+        <h3 class="promo-action-title">{{ item.name }}</h3>
+        {% if item.campaign_description %}<p class="promo-action-description">{{ item.campaign_description|truncatechars:240 }}</p>{% endif %}
+        {% if item.campaign_benefits %}
+        <div class="promo-action-benefits" aria-label="Преимущества из описания WB">
+          {% for benefit in item.campaign_benefits|slice:":4" %}<span>{{ benefit }}</span>{% endfor %}
+        </div>
+        {% endif %}
+        {% if item.rank_levels %}
+        <div class="promo-action-ranking">
+          <strong>Условия продвижения WB</strong>
+          {% for level in item.rank_levels %}
+          <span>{{ level.label }}: от {{ level.participation_rate }}% → поиск +{{ level.boost }}%</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="promo-action-line-aside">
+        {% if item.has_participation %}
         <div class="promo-action-main-fact">
           <strong>{% if item.aggregate_known %}{{ item.aggregate_count }}{% else %}{{ item.matched_count }}{% endif %}</strong>
           <span>товаров участвуют по данным WB</span>
         </div>
-        {% if item.participating_stock != None %}
-        <p class="promo-action-subfact">{{ item.participating_stock }} из них с остатками</p>
-        {% endif %}
-        {% if item.participation_percentage != None %}
-        <p class="promo-action-subfact">Доля участия с учётом остатков: {{ item.participation_percentage }}%</p>
-        {% endif %}
-      {% else %}
+        {% if item.participating_stock != None %}<span class="promo-action-subfact">С остатками: {{ item.participating_stock }}</span>{% endif %}
+        {% if item.participation_percentage != None %}<span class="promo-action-subfact">Доля участия: {{ item.participation_percentage }}%</span>{% endif %}
+        {% else %}
         <div class="promo-action-main-fact">
-          <strong>{{ item.candidate_count }}</strong>
-          <span>товаров можно добавить в эту акцию, пока не участвуют</span>
+          <strong>{{ item.candidate_count }}</strong><span>товаров подходят, ещё не участвуют</span>
         </div>
-      {% endif %}
-      {% if item.campaign_description %}
-        <p class="promo-action-description">{{ item.campaign_description|truncatechars:360 }}</p>
-      {% endif %}
-      {% if item.campaign_benefits %}
-        <div class="promo-action-benefits" aria-label="Заявленные преимущества WB">
-          {% for benefit in item.campaign_benefits %}<span>{{ benefit }}</span>{% endfor %}
-        </div>
-      {% endif %}
-      {% if item.rank_levels %}
-      <div class="promo-action-ranking">
-        <strong>Условия продвижения WB</strong>
-        {% for level in item.rank_levels %}
-          <p>{{ level.label }}: от {{ level.participation_rate }}% → повышение в поиске {{ level.boost }}%</p>
-        {% endfor %}
-      </div>
-      {% endif %}
-      {% if item.excluded_count %}
-        <p class="promo-action-subfact">{{ item.excluded_count }} товаров исключены из автоакции до старта</p>
-      {% endif %}
-      {% if item.has_price_drop %}
-        <p class="promo-audit-risk">Плановая цена ниже текущей: {{ item.participation.matched_decreases }} товар(ов).</p>
-      {% endif %}
-      {% if item.matched_products %}
-      <div class="promo-audit-products">
-        <h4>Товары в акции ({{ item.matched_count }})</h4>
-        {% for good in item.matched_products %}
-        <div class="promo-audit-product">
-          <div class="promo-audit-product-title">
-            <a href="https://www.wildberries.ru/catalog/{{ good.nm_id }}/detail.aspx" target="_blank" rel="noopener noreferrer">{{ good.title }}</a>
-            <span class="promo-audit-product-id">WB {{ good.nm_id }}</span>
-          </div>
-          <div class="promo-audit-product-prices">
-            {% if good.current and good.planned %}
-            <span>{{ good.current }} ₽ → <strong>{{ good.planned }} ₽</strong></span>
-            {% if good.decrease %}<span class="promo-audit-risk">Плановая цена ниже</span>{% endif %}
-            {% else %}<span class="promo-audit-muted">Цена не передана WB</span>{% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
-      {% if item.candidate_products %}
-      <div class="promo-audit-products promo-action-candidates">
-        <h4>Можно добавить в акцию — не участвуют ({{ item.candidate_count }})</h4>
-        {% for good in item.candidate_products %}
-        <div class="promo-audit-product">
-          <div class="promo-audit-product-title">
-            <a href="https://www.wildberries.ru/catalog/{{ good.nm_id }}/detail.aspx" target="_blank" rel="noopener noreferrer">{{ good.title }}</a>
-            <span class="promo-audit-product-id">WB {{ good.nm_id }}</span>
-          </div>
-          <div class="promo-audit-product-prices">
-            {% if good.current and good.planned %}
-            <span>{{ good.current }} ₽ → <strong>{{ good.planned }} ₽</strong></span>
-            {% if good.decrease %}<span class="promo-audit-risk">Цена для вступления ниже</span>{% endif %}
-            {% else %}<span class="promo-audit-muted">Цена не передана WB</span>{% endif %}
-          </div>
-        </div>
-        {% endfor %}
-        {% if item.candidates.possibly_incomplete %}<p class="promo-audit-muted">Список WB частичный, до 100 товаров.</p>{% endif %}
-      </div>
-      {% endif %}
-      <div class="promo-action-footer">
-        <span>{% if item.details_at %}Сведения WB от {{ item.details_at|date:"d.m H:i" }}{% else %}По сохранённому календарю{% endif %}</span>
-        {% if item.type == "auto" %}
-          <span>WB API не отдаёт артикулы автоакции</span>
         {% endif %}
+        {% if item.candidate_count %}
+        <a class="promo-action-manage-link" href="{% url 'dashboard' %}?promotion={{ item.id }}&amp;scope=candidates">Открыть товары ({{ item.candidate_count }}) и настроить <span aria-hidden="true">→</span></a>
+        {% if item.candidates.possibly_incomplete %}<span class="promo-audit-muted">Выборка WB может быть неполной (до 100 товаров)</span>{% endif %}
+        {% elif item.matched_count %}
+        <a class="promo-action-manage-link" href="{% url 'dashboard' %}?promotion={{ item.id }}&amp;scope=participants">Открыть товары ({{ item.matched_count }}) и настроить <span aria-hidden="true">→</span></a>
+        {% else %}
+        <span class="promo-action-subfact">{% if item.type == "auto" %}WB API не раскрывает артикулы автоакции{% else %}Список артикулов не подтверждён WB{% endif %}</span>
+        {% endif %}
+        {% if item.candidate_products %}
+          <span class="promo-audit-risk">Плановая цена ниже текущей у части доступных товаров. Проверьте выборку перед вступлением.</span>
+        {% elif item.has_price_drop %}
+          <span class="promo-audit-risk">Плановая цена ниже текущей у {{ item.participation.matched_decreases }} участвующих товаров</span>
+        {% endif %}
+        {% if item.excluded_count %}<span class="promo-action-subfact">Исключено из акции: {{ item.excluded_count }}</span>{% endif %}
+        <span class="promo-action-source">{% if item.details_at %}Сведения WB от {{ item.details_at|date:"d.m H:i" }}{% else %}Сохранённый календарь WB{% endif %}</span>
       </div>
     </article>
     {% endfor %}
@@ -170,7 +129,7 @@
   </div>
   <div class="promo-action-quiet-list">
     {% for item in promotion_other %}
-    <article class="promo-audit-card promo-action-quiet-row">
+    <article class="promo-action-quiet-row">
       <div class="promo-action-quiet-title">
         <strong>{{ item.name }}</strong>
         <span class="promo-audit-period promo-audit-period--{{ item.period }}">{{ item.period_label }}</span>
