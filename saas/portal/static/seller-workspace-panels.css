@@ -727,3 +727,12 @@ body.seller-dashboard-page .wb-dashboard-header .wb-quick-links{grid-column:2;mi
  }
  .seller-workspace-page .promo-audit-product-prices{align-items:flex-start}
 }
+
+
+/* Fill the available width even when a campaign filter returns only 1–3 cards. */
+.seller-workspace-page .compact-promo-grid.promo-audit-grid{
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));
+}
+.seller-workspace-page .promo-audit-card h2{font-size:15px}
+.seller-workspace-page .promo-audit-facts p{font-size:12px}
+.seller-workspace-page .promo-audit-product-title a{font-size:12px}

@@ -54,7 +54,7 @@
 
     <div class="promo-audit-facts">
       {% if item.aggregate_known %}
-        <p><strong>{{ item.aggregate_count }}</strong> товаров продавца в акции по данным WB
+        <p>Участие по WB: <strong>{{ item.aggregate_count }} шт.</strong> товаров продавца
           <span class="promo-audit-source">Данные WB об участии{% if item.details_at %} · {{ item.details_at|date:"d.m H:i" }}{% endif %}</span></p>
       {% elif item.matched_count %}
         <p><strong>{{ item.matched_count }}</strong> товаров сопоставлено с вашим каталогом</p>
@@ -63,7 +63,7 @@
       {% endif %}
 
       {% if item.has_price_drop %}
-        <p class="promo-audit-risk">Плановая цена ниже текущей у {{ item.participation.matched_decreases }} товар(ов)</p>
+        <p class="promo-audit-risk">Плановая цена ниже текущей: {{ item.participation.matched_decreases }} шт.</p>
       {% elif item.matched_count and item.risk == "no_drop_observed" %}
         <p class="promo-audit-neutral">У сопоставленных товаров снижения не выявлено</p>
       {% elif item.type == "auto" %}

@@ -302,7 +302,7 @@ class PromotionReadOnlyPortalTests(TestCase):
             self.assertContains(response, "Наш крем")
             self.assertContains(response, "750.00")
             self.assertContains(response, "Плановая цена ниже")
-            self.assertContains(response, "товаров продавца в акции")
+            self.assertContains(response, "товаров продавца")
             self.assertNotContains(response, "Секрет чужой акции")
             self.assertNotContains(response, "Чужой товар")
             self.assertEqual(response.context["catalog_total"], 1)
