@@ -388,6 +388,12 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           }
           await page.click('details.seller-marketplace-menu > summary');
           assert.ok(await page.$('details.seller-marketplace-menu[open]'));
+          await page.waitForFunction(() => {
+            const panel=document.querySelector('details.seller-marketplace-menu[open] .seller-marketplace-options');
+            if(!panel) return false;
+            const box=panel.getBoundingClientRect();
+            return box.left>=8 && box.right<=window.innerWidth-8;
+          }, {timeout:2000});
           await page.screenshot({path:snapshotDir+'/marketplace-selector-'+width+'.png'});
           await page.click('details.seller-marketplace-menu > summary');
           const filterToolbar=await page.evaluate(()=>{
