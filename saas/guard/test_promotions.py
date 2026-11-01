@@ -145,7 +145,8 @@ class PromotionPortalTests(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertNotContains(response, "Только чужой магазин")
             self.assertContains(response, "<h1>Акции</h1>")
-            self.assertNotContains(response, "Мой WB")
+            self.assertContains(response, '<span class="seller-marketplace-name">Мой WB</span>')
+            self.assertNotContains(response, 'Магазин «Мой WB»')
             client.assert_not_called()
         self.assertEqual(PromotionSnapshot.objects.filter(account=self.account).count(), 0)
 
