@@ -1,8 +1,8 @@
-"""Public NoSale documents adapted from BeClients/MiniBook legal pages.
+"""Public legal documents for NoSale.
 
-The operator identity and contact are copied from the public live BeClients
-site-config (verified 2026-10-31), not inferred from unrelated seller records.
-When the legal operator changes, review ALL pages and bump the edition.
+The operating entity remains unchanged. NoSale uses its own public support
+address rather than another product's address. Verify that this mailbox can
+receive requests before enabling commercial sales.
 These pages do not enable acquiring or fiscalization.
 """
 from decimal import Decimal
@@ -20,12 +20,11 @@ LEGAL_OPERATOR = {
     "inn": "910222422100",
     "ogrnip": "326366800019445",
     "postal_address": "394029, Воронеж, Ленинградская ул., 136, а/я 27",
-    # Verified shared operator mailbox from https://beclients.ru/site-config.snapshot.json.
-    # Do not invent a dedicated @nosale mailbox without verifying delivery.
-    "email": "support@beclients.ru",
+    # Dedicated NoSale contact; mailbox delivery must be independently verified.
+    "email": "support@nosale.pro",
 }
-LEGAL_EDITION = "1.1"
-LEGAL_EDITION_DATE = "31.10.2026"
+LEGAL_EDITION = "1.2"
+LEGAL_EDITION_DATE = "03.11.2026"
 
 
 def _legal_context():
