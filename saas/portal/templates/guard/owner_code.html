@@ -15,8 +15,8 @@
       <span class="welcome-label">Системный доступ</span>
       <span class="welcome-stage">Код из письма</span>
     </div>
-    <h2 id="owner-code-title">Введите 4 цифры</h2>
-    <p class="welcome-explainer">Проверьте входящие письма и папку «Спам». Если не запрашивали вход, никому не сообщайте код.</p>
+    <h2 id="owner-code-title">Код из письма — не PIN</h2>
+    <p class="welcome-explainer">Ваш постоянный PIN уже проверен. Для входа владельца введите новый одноразовый код из письма на <strong>{{ request.user.email }}</strong>. Он действует 10 минут. PIN здесь не подходит. Проверьте папку «Спам», а если код истёк — запросите новый.</p>
     {% if error %}<p role="alert" class="welcome-form-errors">{{ error }}</p>{% endif %}
     <form method="post" class="welcome-form" novalidate>{% csrf_token %}
       {{ form.non_field_errors }}
