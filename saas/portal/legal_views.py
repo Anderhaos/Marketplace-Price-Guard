@@ -19,11 +19,10 @@ LEGAL_OPERATOR = {
     "full_name": "Балабанов Сергей Валерьевич",
     "inn": "910222422100",
     "ogrnip": "326366800019445",
-    "postal_address": "394029, Воронеж, Ленинградская ул., 136, а/я 27",
     # Dedicated NoSale contact; mailbox delivery must be independently verified.
     "email": "support@nosale.pro",
 }
-LEGAL_EDITION = "1.2"
+LEGAL_EDITION = "1.3"
 LEGAL_EDITION_DATE = "03.11.2026"
 
 
