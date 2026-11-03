@@ -1,7 +1,7 @@
-"""Public NoSale legal pages and revised three-day trial acceptance.
+"""Public NoSale legal pages, branded contact, and trial acceptance.
 
-The pages intentionally reuse verified BeClients operator identity while
-describing NoSale-specific software, not the BeClients booking product.
+The pages preserve the verified operator details while identifying NoSale
+as the service and publishing a NoSale-only support contact.
 """
 from datetime import timedelta
 
@@ -39,7 +39,9 @@ class PublicLegalPagesTests(TestCase):
                 self.assertContains(response, "Балабанов Сергей Валерьевич")
                 self.assertContains(response, "910222422100")
                 self.assertContains(response, "326366800019445")
-                self.assertContains(response, "support@beclients.ru")
+                self.assertContains(response, "support@nosale.pro")
+                self.assertNotContains(response, "beclients.ru")
+                self.assertNotContains(response, "Почта поддержки общая с другим сервисом")
                 self.assertContains(response, 'href="/offer/"')
                 self.assertContains(response, 'href="/privacy/"')
                 self.assertContains(response, 'href="/contacts/"')
@@ -99,8 +101,8 @@ class PublicLegalPagesTests(TestCase):
         self.assertTrue(created)
         self.assertEqual(grant.ends_at, start + timedelta(days=3))
 
-    def test_same_operator_identity_as_verified_beclients(self):
+    def test_operator_identity_preserved_with_nosale_contact(self):
         self.assertEqual(LEGAL_OPERATOR["full_name"], "Балабанов Сергей Валерьевич")
         self.assertEqual(LEGAL_OPERATOR["inn"], "910222422100")
         self.assertEqual(LEGAL_OPERATOR["ogrnip"], "326366800019445")
-        self.assertEqual(LEGAL_OPERATOR["email"], "support@beclients.ru")
+        self.assertEqual(LEGAL_OPERATOR["email"], "support@nosale.pro")
