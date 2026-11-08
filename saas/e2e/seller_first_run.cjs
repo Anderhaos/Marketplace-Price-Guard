@@ -629,13 +629,55 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(await page.$('form[action="/logout/"]'),'recovered account is not authenticated');
     await page.screenshot({path:snapshotDir+'/08-recovery-auto-login.png',fullPage:true});
     step('recovery_email_code_new_pin_auto_login');
+    // Expired trial: BeClients-style hard paywall that cannot be dismissed.
+    // This endpoint exists only inside the isolated test fixture.
+    const expiryCsrf=await page.$eval('input[name="csrfmiddlewaretoken"]',el=>el.value);
+    const expired=await page.evaluate(async csrf => {
+      const response=await fetch('/__e2e/expire-trial/',{
+        method:'POST',credentials:'same-origin',
+        headers:{'X-CSRFToken':csrf,'Content-Type':'application/x-www-form-urlencoded'},
+        body:'synthetic=1'
+      });
+      return response.ok;
+    },expiryCsrf);
+    assert.ok(expired,'synthetic trial expiry fixture failed');
+    await goto('/');
+    await page.waitForFunction(() => document.querySelector('#nosale-trial-end-dialog')?.matches(':modal'));
+    const paywall=await page.evaluate(() => {
+      const modal=document.querySelector('#nosale-trial-end-dialog');
+      return {
+        modal:modal.matches(':modal'),
+        text:modal.innerText,
+        close:!!modal.querySelector('[data-trial-end-close]'),
+        checkoutCount:modal.querySelectorAll('form[action="/billing/checkout/"]').length,
+        logoutCount:modal.querySelectorAll('form[action="/logout/"]').length,
+        disabledCount:modal.querySelectorAll('button[disabled]').length
+      };
+    });
+    assert.ok(paywall.modal && !paywall.close,'expired trial must be non-dismissible');
+    assert.ok(paywall.text.includes('599 ₽') && paywall.text.includes('990 ₽'),'owner tariff prices must be visible');
+    assert.ok(paywall.text.includes('Всё из Standard'),'Smart must show differences vs Standard');
+    assert.equal(paywall.checkoutCount,0,'disabled bank must never expose fake checkout');
+    assert.equal(paywall.disabledCount,2,'both plan payment buttons must be disabled until bank ready');
+    assert.equal(paywall.logoutCount,1,'paywall must allow logout');
+    await page.keyboard.press('Escape');
+    assert.ok(await page.$eval('#nosale-trial-end-dialog',el=>el.matches(':modal')),
+      'Escape must not dismiss the expired trial dialog');
+    await page.screenshot({path:snapshotDir+'/09-expired-trial-hard-paywall.png'});
+    await goto('/settings/');
+    assert.ok(await page.$eval('#nosale-trial-end-dialog',el=>el.matches(':modal')),
+      'seller must not bypass paywall by direct settings navigation');
+    await goto('/billing/');
+    assert.ok(await page.$eval('#nosale-trial-end-dialog',el=>el.matches(':modal')),
+      'seller must not bypass paywall via subscription page');
+    step('expired_trial_hard_paywall_prices_escape_and_navigation_blocked');
+    await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded'}),
+      page.click('.trial-end-dialog__logout')]);
+    assert.ok((await page.content()).includes('welcome-headline') ||
+      new URL(page.url()).pathname === '/login/','logout must work from hard paywall');
+    step('expired_trial_logout_remains_available');
     // Separate synthetic seller: 429 during first sync must NOT start trial
     // or open a fictional inventory dashboard.
-    await goto('/');
-    const secondLogout = await page.$('form[action="/logout/"]');
-    assert.ok(secondLogout,'logout must remain present on dashboard');
-    await Promise.all([page.waitForNavigation({waitUntil:'domcontentloaded'}),
-      page.$eval('form[action="/logout/"]',f=>f.submit())]);
     const secondEmail='seller-rate-limit-'+Date.now()+'@example.test';
     await goto('/login/');
     await page.type('input[name="email"]',secondEmail);
