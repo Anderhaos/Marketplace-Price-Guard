@@ -62,7 +62,6 @@
   </div>
 </section>
 {% if token_readonly %}<p class="data-age bad">Подключён токен без прав изменения скидок. Для защиты требуется «Чтение и запись». <a href="{% url 'settings' %}">Заменить</a></p>{% endif %}
-{% if trial_status.trial_expired %}<p class="notice">Бесплатный доступ закончился. Данные и настройки сохранены, фоновые проверки остановлены. <a href="{% url 'subscription' %}">Статус подписки</a>. Оплата станет доступна после подключения банка.</p>{% endif %}
 <section class="card">
   <div class="section-head">
     <div>
