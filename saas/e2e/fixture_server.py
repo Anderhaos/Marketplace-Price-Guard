@@ -20,7 +20,7 @@ django.setup()
 
 from django.conf import settings
 from django.core.management import call_command
-from billing.models import AccessGrant
+from billing.models import AccessGrant, OwnerTariffOffer
 from guard.models import GuardAccount, Product, PromotionSnapshot
 from push.models import PushMessage
 from django.contrib.auth.decorators import login_required
@@ -172,8 +172,27 @@ def seed_promotion_snapshot(request):
     return JsonResponse({"ok": True, "campaigns": 6, "reports": 6})
 
 
+@login_required
+@require_POST
+def expire_trial_for_paywall(request):
+    """Only synthetic browser acceptance: never registered on production URLs."""
+    trial = AccessGrant.objects.filter(user=request.user, source="trial").first()
+    if trial is None:
+        return JsonResponse({"error": "No trial grant"}, status=409)
+    trial.ends_at = timezone.now() - timedelta(minutes=1)
+    trial.save(update_fields=["ends_at"])
+    OwnerTariffOffer.objects.update_or_create(
+        slug="standard", defaults={"name": "Standard", "price_kopeks": 59900, "enabled": False},
+    )
+    OwnerTariffOffer.objects.update_or_create(
+        slug="smart", defaults={"name": "Smart", "price_kopeks": 99000, "enabled": False},
+    )
+    return JsonResponse({"ok": True})
+
+
 # Test-only route exists solely in this ephemeral, no-egress fixture process.
 portal.urls.urlpatterns.insert(0, path("__e2e/seed-promotions/", seed_promotion_snapshot))
+portal.urls.urlpatterns.insert(0, path("__e2e/expire-trial/", expire_trial_for_paywall))
 clear_url_caches()
 
 

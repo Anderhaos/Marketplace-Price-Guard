@@ -1,93 +1,97 @@
-{# Trial end gate: BeClients-style tariff dialog, adapted for NoSale's preserved read-only data. #}
+{# AccessGrant is server-authoritative. The modal is non-dismissible until access returns. #}
 <style>
-  .trial-end-dialog{box-sizing:border-box;width:min(640px,calc(100vw - 28px));max-width:640px;max-height:calc(100dvh - 32px);margin:auto;padding:0;border:1px solid rgba(183,113,235,.34);border-radius:20px;color:var(--text);background:#17121e;box-shadow:0 32px 100px rgba(0,0,0,.72);overflow-y:auto;overscroll-behavior:contain}
-  .trial-end-dialog::backdrop{background:rgba(3,2,8,.8);backdrop-filter:blur(5px)}
-  .trial-end-dialog__head{position:relative;padding:25px 25px 17px;text-align:center;border-bottom:1px solid var(--line)}
-  .trial-end-dialog__badge{display:inline-flex;gap:7px;align-items:center;justify-content:center;padding:5px 10px;margin-bottom:10px;border-radius:999px;border:1px solid rgba(255,141,128,.3);background:rgba(255,141,128,.08);color:var(--bad);font-size:11px;font-weight:700}
-  .trial-end-dialog__head h2{font-size:clamp(21px,3vw,26px);line-height:1.2;margin:0 18px 10px;letter-spacing:-.02em}
-  .trial-end-dialog__head p{max-width:51ch;margin:0 auto;color:var(--muted);font-size:13px;line-height:1.5}
-  .trial-end-dialog__close{position:absolute;top:14px;right:14px;display:grid;place-items:center;width:32px;min-height:32px;padding:0;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);font-size:20px;line-height:1}
-  .trial-end-dialog__body{padding:18px 24px 14px}
-  .trial-end-dialog__label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:750;margin-bottom:11px}
-  .trial-end-dialog__plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
-  .trial-end-dialog__plan{min-width:0;padding:16px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}
-  .trial-end-dialog__plan h3{margin:0;font-size:17px;font-weight:750;color:var(--text)}
-  .trial-end-dialog__plan ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:7px}
-  .trial-end-dialog__plan li{position:relative;padding-left:16px;font-size:12px;line-height:1.4;color:var(--muted)}
+  .trial-end-dialog{box-sizing:border-box;width:min(650px,calc(100vw - 22px));max-width:650px;max-height:calc(100dvh - 24px);margin:auto;padding:0;border:1px solid rgba(183,113,235,.35);border-radius:18px;color:var(--text);background:#17121e;box-shadow:0 32px 100px rgba(0,0,0,.75);overflow-y:auto;overscroll-behavior:contain}
+  .trial-end-dialog::backdrop{background:rgba(3,2,8,.87);backdrop-filter:blur(6px)}
+  .trial-end-dialog__header{padding:22px 24px 17px;border-bottom:1px solid var(--line);text-align:center}
+  .trial-end-dialog__status{display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;margin-bottom:10px;border-radius:99px;border:1px solid rgba(255,141,128,.29);background:rgba(255,141,128,.08);color:var(--bad);font-size:11px;font-weight:700}
+  .trial-end-dialog__header h2{margin:0 0 8px;font-size:clamp(22px,3.4vw,27px);line-height:1.2;letter-spacing:-.03em}
+  .trial-end-dialog__header p{font-size:12px;line-height:1.55;color:var(--muted);max-width:52ch;margin:0 auto}
+  .trial-end-dialog__content{padding:17px 20px 16px}
+  .trial-end-dialog__label{color:var(--muted);font-size:10px;font-weight:750;letter-spacing:.09em;text-transform:uppercase;margin:0 0 11px}
+  .trial-end-dialog__plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .trial-end-dialog__plan{display:flex;flex-direction:column;gap:11px;min-width:0;min-height:228px;padding:17px 15px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.025)}
+  .trial-end-dialog__plan--smart{border-color:rgba(185,106,240,.5);background:rgba(157,66,224,.075)}
+  .trial-end-dialog__plan-head{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .trial-end-dialog__plan h3{font-size:17px;margin:0}
+  .trial-end-dialog__smart-label{border-radius:999px;padding:3px 8px;background:rgba(178,105,234,.17);font-size:10px;font-weight:700;color:#dbafff}
+  .trial-end-dialog__price{margin:0;font-size:29px;line-height:1.05;font-weight:800;letter-spacing:-.035em;color:var(--text)}
+  .trial-end-dialog__price span{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:0}
+  .trial-end-dialog__plan ul{list-style:none;margin:0 0 5px;padding:0;display:grid;gap:7px}
+  .trial-end-dialog__plan li{position:relative;padding-left:16px;line-height:1.4;font-size:12px;color:#cbc3d0}
   .trial-end-dialog__plan li::before{content:"✓";position:absolute;left:0;color:var(--accent-strong)}
-  .trial-end-dialog__price{margin:10px 0 0;font-size:17px;font-weight:780;color:var(--text)}
-  .trial-end-dialog__price small{font-weight:500;font-size:11px;color:var(--muted)}
-  .trial-end-dialog__unavailable{display:block;margin-top:10px;color:var(--muted);font-size:11px}
-  .trial-end-dialog__plan form{margin:12px 0 0}
-  .trial-end-dialog__plan button{width:100%;min-height:34px}
-  .trial-end-dialog__note{font-size:12px;line-height:1.5;color:var(--muted);margin:15px 0 0}
-  .trial-end-dialog__actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:15px 24px 10px;border-top:1px solid var(--line)}
-  .trial-end-dialog__actions a,.trial-end-dialog__actions button{display:flex;align-items:center;justify-content:center;width:100%;min-height:40px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:12px;font-weight:700;text-align:center;text-decoration:none}
-  .trial-end-dialog__actions a{color:#fff;border-color:var(--accent-strong);background:var(--accent)}
-  .trial-end-dialog__actions a:hover{color:#fff;text-decoration:none;filter:brightness(1.13)}
-  .trial-end-dialog__actions button{background:rgba(255,255,255,.04);color:var(--text)}
-  .trial-end-dialog__logout{padding:0 24px 19px;text-align:center}
-  .trial-end-dialog__logout form{margin:0}
-  .trial-end-dialog__logout button{min-height:26px;padding:1px 10px;background:none;border:0;color:var(--muted);font-size:11px}
-  .trial-end-dialog__logout button:hover{color:var(--text)}
-  @media(max-width:520px){.trial-end-dialog{border-radius:16px}.trial-end-dialog__head{padding:23px 17px 16px}.trial-end-dialog__body{padding:15px}.trial-end-dialog__plans{grid-template-columns:1fr}.trial-end-dialog__plan{padding:12px 14px}.trial-end-dialog__plan ul{gap:4px}.trial-end-dialog__actions{padding:12px 15px 8px}.trial-end-dialog__logout{padding:0 15px 12px}}
+  .trial-end-dialog__plan form{margin:auto 0 0}
+  .trial-end-dialog__pay{width:100%;min-height:40px;padding:8px 12px;border-radius:9px;font-size:12px;font-weight:750}
+  .trial-end-dialog__pay:disabled{color:#a69aae;background:rgba(255,255,255,.06);border:1px solid var(--line);opacity:1;cursor:not-allowed}
+  .trial-end-dialog__pay:not(:disabled){color:#fff;background:var(--accent);border:1px solid var(--accent-strong)}
+  .trial-end-dialog__pay:not(:disabled):hover{filter:brightness(1.13)}
+  .trial-end-dialog__note{margin:13px 2px 0;font-size:12px;line-height:1.55;color:var(--muted);text-align:center}
+  .trial-end-dialog__footer{padding:13px 20px 19px;border-top:1px solid var(--line);text-align:center}
+  .trial-end-dialog__footer form{margin:0 0 11px}
+  .trial-end-dialog__logout{min-height:38px;width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:10px;color:var(--text);background:rgba(255,255,255,.05);font-size:12px;font-weight:700}
+  .trial-end-dialog__links{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;font-size:11px}
+  .trial-end-dialog__links a{color:var(--muted)}
+  .trial-end-dialog__links a:hover{color:var(--text)}
+  @media(max-width:540px){.trial-end-dialog{border-radius:14px}.trial-end-dialog__header{padding:18px 16px 14px}.trial-end-dialog__content{padding:14px}.trial-end-dialog__plans{grid-template-columns:1fr}.trial-end-dialog__plan{min-height:0;gap:9px;padding:13px}.trial-end-dialog__plan ul{gap:5px}.trial-end-dialog__price{font-size:26px}.trial-end-dialog__footer{padding:12px 14px 15px}}
 </style>
-<dialog id="nosale-trial-end-dialog" class="trial-end-dialog" aria-labelledby="nosale-trial-end-title" aria-describedby="nosale-trial-end-description" data-dismiss-key="nosale-trial-end-{{ user.pk }}-{{ seller_header_access.trial_ends_at|date:'U' }}">
-  <div class="trial-end-dialog__head">
-    <button type="button" class="trial-end-dialog__close" data-trial-end-close aria-label="Закрыть окно">×</button>
-    <span class="trial-end-dialog__badge">Мониторинг приостановлен</span>
+<dialog id="nosale-trial-end-dialog" class="trial-end-dialog" aria-labelledby="nosale-trial-end-title" aria-describedby="nosale-trial-end-description" aria-modal="true">
+  <div class="trial-end-dialog__header">
+    <span class="trial-end-dialog__status">Мониторинг приостановлен</span>
     <h2 id="nosale-trial-end-title">Пробный период завершён</h2>
-    <p id="nosale-trial-end-description">Автоматическая защита скидок остановлена. Ваши товары, правила и история сохранены — их можно просматривать без активной подписки.</p>
+    <p id="nosale-trial-end-description">Доступ к NoSale приостановлен до оформления подписки. Ваши товары, правила и история сохранены.</p>
   </div>
-  <div class="trial-end-dialog__body">
-    <p class="trial-end-dialog__label">Тарифы NoSale</p>
+  <div class="trial-end-dialog__content">
+    <p class="trial-end-dialog__label">Выберите тариф на месяц</p>
     <div class="trial-end-dialog__plans">
       {% for offer in seller_trial_offers %}
-        <section class="trial-end-dialog__plan" aria-label="Тариф {{ offer.name }}">
-          <h3>{{ offer.name }}</h3>
-          {% if offer.price_rub %}<p class="trial-end-dialog__price">{{ offer.price_rub|floatformat:0 }} ₽ <small>/ месяц</small></p>{% endif %}
-          {% if offer.feature_labels %}<ul>{% for label in offer.feature_labels|slice:":3" %}<li>{{ label }}</li>{% endfor %}</ul>{% endif %}
+        <section class="trial-end-dialog__plan {% if offer.slug == 'smart' %}trial-end-dialog__plan--smart{% endif %}" aria-label="Тариф {{ offer.name }}">
+          <div class="trial-end-dialog__plan-head">
+            <h3>{{ offer.name }}</h3>
+            {% if offer.slug == 'smart' %}<span class="trial-end-dialog__smart-label">Больше возможностей</span>{% endif %}
+          </div>
+          {% if offer.price_rub %}
+            <p class="trial-end-dialog__price">{{ offer.price_rub|floatformat:0 }} ₽ <span>/ месяц</span></p>
+          {% else %}
+            <p class="trial-end-dialog__price"><span>Цена пока не утверждена</span></p>
+          {% endif %}
+          <ul>{% for label in offer.modal_labels %}<li>{{ label }}</li>{% empty %}<li>Состав тарифа уточняется</li>{% endfor %}</ul>
           {% if offer.can_buy %}
-            <form method="post" action="{% url 'billing_checkout' %}" data-trial-end-navigate>
+            <form method="post" action="{% url 'billing_checkout' %}">
               {% csrf_token %}
               <input type="hidden" name="plan" value="{{ offer.slug }}">
-              <button type="submit">Выбрать {{ offer.name }}</button>
+              <button type="submit" class="trial-end-dialog__pay">Оплатить {{ offer.name }}{% if offer.price_rub %} — {{ offer.price_rub|floatformat:0 }} ₽{% endif %}</button>
             </form>
           {% else %}
-            <span class="trial-end-dialog__unavailable">Оплата пока недоступна</span>
+            <button type="button" class="trial-end-dialog__pay" disabled aria-disabled="true">Оплата пока недоступна</button>
           {% endif %}
         </section>
       {% endfor %}
     </div>
     {% if not seller_trial_payment_available %}
-      <p class="trial-end-dialog__note" role="status">Приём платежей ещё не подключён. Пока можно просматривать сохранённые данные и настройки. Новая подписка станет доступна после подключения оплаты.</p>
+      <p class="trial-end-dialog__note" role="status">Эквайринг и выдача чеков ещё не подключены. Указаны текущие цены тарифов, но платежи не принимаются. Для вопросов: <a href="mailto:support@nosale.pro">support@nosale.pro</a>.</p>
     {% else %}
-      <p class="trial-end-dialog__note">Оплата на месяц, без автоматических списаний.</p>
+      <p class="trial-end-dialog__note">Оплата через Точку, без автоматических списаний. Доступ откроется после подтверждения платежа банком.</p>
     {% endif %}
   </div>
-  <div class="trial-end-dialog__actions">
-    <a href="{% url 'subscription' %}" data-trial-end-navigate>Тарифы и подписка</a>
-    <button type="button" data-trial-end-close>Продолжить просмотр</button>
-  </div>
-  <div class="trial-end-dialog__logout">
-    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Выйти из аккаунта</button></form>
+  <div class="trial-end-dialog__footer">
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="trial-end-dialog__logout" type="submit">Выйти из аккаунта</button></form>
+    <div class="trial-end-dialog__links">
+      <a href="{% url 'public_offer' %}" target="_blank" rel="noopener noreferrer">Оферта</a>
+      <a href="{% url 'public_privacy' %}" target="_blank" rel="noopener noreferrer">Персональные данные</a>
+      <a href="mailto:support@nosale.pro">Поддержка</a>
+    </div>
   </div>
 </dialog>
 <script>
 (() => {
   const dialog = document.getElementById('nosale-trial-end-dialog');
   if (!dialog) return;
-  const key = dialog.dataset.dismissKey;
-  const remember = () => { try { window.sessionStorage.setItem(key, '1'); } catch (_) {} };
-  const close = () => { remember(); if (typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open'); };
-  dialog.querySelectorAll('[data-trial-end-close]').forEach(button => button.addEventListener('click', close));
-  dialog.addEventListener('cancel', () => remember());
-  dialog.querySelectorAll('[data-trial-end-navigate]').forEach(el => el.addEventListener(el.tagName === 'FORM' ? 'submit' : 'click', remember));
-  let dismissed = false;
-  try { dismissed = window.sessionStorage.getItem(key) === '1'; } catch (_) {}
-  if (!dismissed) {
-    if (typeof dialog.showModal === 'function') dialog.showModal();
-    else dialog.setAttribute('open', '');
-  }
+  // No close button, no dismissal persistence, no backdrop escape, no Escape.
+  // Each authenticated seller page re-evaluates active AccessGrant on the server.
+  dialog.addEventListener('cancel', event => event.preventDefault());
+  const open = () => {
+    if (!dialog.open && typeof dialog.showModal === 'function') dialog.showModal();
+  };
+  open();
+  window.addEventListener('pageshow', open);
 })();
 </script>
