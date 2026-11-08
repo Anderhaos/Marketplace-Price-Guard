@@ -98,7 +98,8 @@ class MarketplaceNavigationTests(TestCase):
         grant.ends_at = timezone.now() - timedelta(hours=1)
         grant.save(update_fields=["source", "source_ref", "ends_at"])
         page = self.client.get(reverse("notifications"))
-        self.assertContains(page, "Пробный период завершён", count=2)\n        self.assertContains(page, 'id="nosale-trial-end-dialog"')
+        self.assertContains(page, "Пробный период завершён", count=2)
+        self.assertContains(page, 'id="nosale-trial-end-dialog"')
         self.assertContains(page, 'class="trial-strip trial-strip--expired seller-header-access"')
         self.assertContains(page, 'class="seller-header-access__until"')
 
