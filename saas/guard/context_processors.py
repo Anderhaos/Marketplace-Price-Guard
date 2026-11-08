@@ -4,6 +4,7 @@ from .stores import SESSION_KEY
 from push.models import PushMessage
 from billing.access import capabilities_for_user
 from billing.trial import access_snapshot
+from billing.plans import tariff_offers
 
 
 IMPORTANT_EVENT_KINDS = ("confirmed", "upload_error", "error")
@@ -62,7 +63,11 @@ def notification_count(request):
             and settings.NOSALE_WB_FINANCE_ENABLED
         )
     header_access = access_snapshot(request.user.pk)
+    # Only expired accounts need the read-only tariff catalog for the dialog.
+    trial_offers = tariff_offers() if header_access["trial_expired"] else []
     return {
+        "seller_trial_offers": trial_offers,
+        "seller_trial_payment_available": any(offer["can_buy"] for offer in trial_offers),
         "seller_header_access": header_access,
         "seller_header_store_name": active_store["name"] if active_store else None,
         "seller_header_store_id": store_id,
