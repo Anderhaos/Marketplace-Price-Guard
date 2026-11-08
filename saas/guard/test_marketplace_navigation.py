@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from billing.models import AccessGrant
+from billing.models import AccessGrant, OwnerTariffOffer
 from billing.trial import trial_source_ref
 from .models import GuardAccount, Product, PromotionSnapshot, FinanceSnapshot, GuardEvent
 from push.models import NotificationPreference, PushMessage
@@ -103,26 +103,59 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(page, 'class="trial-strip trial-strip--expired seller-header-access"')
         self.assertContains(page, 'class="seller-header-access__until"')
 
-    def test_expired_trial_dialog_shows_tariffs_without_false_payment_link(self):
+    def test_expired_trial_dialog_blocks_all_pages_and_shows_owner_prices(self):
         trial = AccessGrant.objects.get(user=self.seller)
         trial.source = "trial"
         trial.source_ref = trial_source_ref(self.seller.pk)
         trial.ends_at = timezone.now() - timedelta(hours=1)
         trial.save(update_fields=["source", "source_ref", "ends_at"])
-        for page_name in ("dashboard", "settings", "notifications"):
+        OwnerTariffOffer.objects.create(
+            slug="standard", name="Standard", price_kopeks=59900, enabled=False,
+        )
+        OwnerTariffOffer.objects.create(
+            slug="smart", name="Smart", price_kopeks=99000, enabled=False,
+        )
+        for page_name in ("dashboard", "settings", "notifications", "subscription"):
             with self.subTest(page=page_name):
                 response = self.client.get(reverse(page_name))
                 self.assertContains(response, 'id="nosale-trial-end-dialog"')
-                self.assertContains(response, "Автоматическая защита скидок остановлена")
-                self.assertContains(response, "Тарифы NoSale")
+                self.assertContains(response, "Доступ к NoSale приостановлен")
                 self.assertContains(response, "Standard")
                 self.assertContains(response, "Smart")
-                self.assertContains(response, "Приём платежей ещё не подключён")
-                self.assertContains(response, "Продолжить просмотр")
-                self.assertContains(response, 'href="/billing/"')
-                self.assertNotContains(response, "Перейти к оплате Smart")
-        subscription = self.client.get(reverse("subscription"))
-        self.assertNotContains(subscription, 'id="nosale-trial-end-dialog"')
+                self.assertContains(response, "599 ₽")
+                self.assertContains(response, "990 ₽")
+                self.assertContains(response, "Всё из Standard")
+                self.assertContains(response, "Эквайринг и выдача чеков ещё не подключены")
+                self.assertContains(response, "Оплата пока недоступна")
+                self.assertContains(response, "Выйти из аккаунта")
+                self.assertContains(response, "event.preventDefault()")
+                self.assertContains(response, "dialog.showModal()")
+                self.assertNotContains(response, "Продолжить просмотр")
+                self.assertNotContains(response, 'data-trial-end-close')
+                self.assertNotContains(response, "sessionStorage")
+                self.assertNotContains(response, "Тарифы и подписка")
+                self.assertNotContains(response, "Оплатить Standard")
+
+    @override_settings(TOCHKA_BILLING_ENABLED=True)
+    def test_expired_trial_checkout_buttons_post_directly_to_bank_flow_when_ready(self):
+        trial = AccessGrant.objects.get(user=self.seller)
+        trial.source = "trial"
+        trial.source_ref = trial_source_ref(self.seller.pk)
+        trial.ends_at = timezone.now() - timedelta(hours=1)
+        trial.save(update_fields=["source", "source_ref", "ends_at"])
+        OwnerTariffOffer.objects.create(
+            slug="standard", name="Standard", price_kopeks=59900, enabled=True,
+        )
+        OwnerTariffOffer.objects.create(
+            slug="smart", name="Smart", price_kopeks=99000, enabled=True,
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "Оплатить Standard — 599 ₽")
+        self.assertContains(response, "Оплатить Smart — 990 ₽")
+        self.assertContains(response, 'action="/billing/checkout/"', count=2)
+        self.assertContains(response, 'name="plan" value="standard"')
+        self.assertContains(response, 'name="plan" value="smart"')
+        self.assertNotContains(response, "Продолжить просмотр")
 
     def test_expired_trial_dialog_hidden_when_paid_access_active(self):
         trial = AccessGrant.objects.get(user=self.seller)
