@@ -98,9 +98,47 @@ class MarketplaceNavigationTests(TestCase):
         grant.ends_at = timezone.now() - timedelta(hours=1)
         grant.save(update_fields=["source", "source_ref", "ends_at"])
         page = self.client.get(reverse("notifications"))
-        self.assertContains(page, "Пробный период завершён", count=1)
+        self.assertContains(page, "Пробный период завершён", count=2)
+        self.assertContains(page, 'id="nosale-trial-end-dialog"')
         self.assertContains(page, 'class="trial-strip trial-strip--expired seller-header-access"')
         self.assertContains(page, 'class="seller-header-access__until"')
+
+    def test_expired_trial_dialog_shows_tariffs_without_false_payment_link(self):
+        trial = AccessGrant.objects.get(user=self.seller)
+        trial.source = "trial"
+        trial.source_ref = trial_source_ref(self.seller.pk)
+        trial.ends_at = timezone.now() - timedelta(hours=1)
+        trial.save(update_fields=["source", "source_ref", "ends_at"])
+        for page_name in ("dashboard", "settings", "notifications"):
+            with self.subTest(page=page_name):
+                response = self.client.get(reverse(page_name))
+                self.assertContains(response, 'id="nosale-trial-end-dialog"')
+                self.assertContains(response, "Автоматическая защита скидок остановлена")
+                self.assertContains(response, "Тарифы NoSale")
+                self.assertContains(response, "Standard")
+                self.assertContains(response, "Smart")
+                self.assertContains(response, "Приём платежей ещё не подключён")
+                self.assertContains(response, "Продолжить просмотр")
+                self.assertContains(response, 'href="/billing/"')
+                self.assertNotContains(response, "Перейти к оплате Smart")
+        subscription = self.client.get(reverse("subscription"))
+        self.assertNotContains(subscription, 'id="nosale-trial-end-dialog"')
+
+    def test_expired_trial_dialog_hidden_when_paid_access_active(self):
+        trial = AccessGrant.objects.get(user=self.seller)
+        trial.source = "trial"
+        trial.source_ref = trial_source_ref(self.seller.pk)
+        trial.ends_at = timezone.now() - timedelta(hours=1)
+        trial.save(update_fields=["source", "source_ref", "ends_at"])
+        AccessGrant.objects.create(
+            user=self.seller, plan="standard", source="payment",
+            source_ref="nosale:paid-dialog-test",
+            starts_at=timezone.now() - timedelta(minutes=10),
+            ends_at=timezone.now() + timedelta(days=25),
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertNotContains(response, 'id="nosale-trial-end-dialog"')
+        self.assertNotContains(response, "Мониторинг приостановлен")
 
     def test_public_and_pretrial_header_have_no_trial_badge(self):
         self.client.logout()
