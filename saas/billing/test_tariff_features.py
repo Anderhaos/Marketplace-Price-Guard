@@ -45,7 +45,9 @@ class TariffFeatureBuilderTests(TestCase):
             AccessGrant.objects.create(
                 user=seller, source="admin", source_ref=f"builder-{plan}",
                 plan=plan, starts_at=self.morning-timedelta(days=2),
-                ends_at=self.morning+timedelta(days=5),
+                # Keep the historical Smart-slot fixture while the grant is
+                # also active at real wall-clock time for permission checks.
+                ends_at=max(self.morning, timezone.now()) + timedelta(days=5),
             )
         self.store = GuardAccount.objects.create(
             user=self.standard, marketplace="wb", name="Synthetic WB",
