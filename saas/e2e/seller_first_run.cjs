@@ -651,6 +651,9 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         close:!!modal.querySelector('[data-trial-end-close]'),
         checkoutCount:modal.querySelectorAll('form[action="/billing/checkout/"]').length,
         logoutCount:modal.querySelectorAll('form[action="/logout/"]').length,
+        enquiryLinks:[...modal.querySelectorAll('.trial-end-dialog__action a')].map(a=>a.getAttribute('href')),
+        ctaTop:[...modal.querySelectorAll('.trial-end-dialog__action a')].map(a=>a.getBoundingClientRect().top),
+        modalWidth:modal.getBoundingClientRect().width,
         disabledCount:modal.querySelectorAll('button[disabled]').length
       };
     });
@@ -658,12 +661,40 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(paywall.text.includes('599 ₽') && paywall.text.includes('990 ₽'),'owner tariff prices must be visible');
     assert.ok(paywall.text.includes('Всё из Standard'),'Smart must show differences vs Standard');
     assert.equal(paywall.checkoutCount,0,'disabled bank must never expose fake checkout');
-    assert.equal(paywall.disabledCount,2,'both plan payment buttons must be disabled until bank ready');
+    assert.equal(paywall.disabledCount,0,'No dead disabled CTAs in the paywall');
+    assert.equal(paywall.enquiryLinks.length,2,'Both offers must have a real support contact action');
+    assert.ok(paywall.enquiryLinks.every(url=>url.startsWith('mailto:support@nosale.pro?subject=NoSale')),
+      'No inert or fabricated payment links');
+    assert.ok(Math.abs(paywall.ctaTop[0]-paywall.ctaTop[1])<=4,
+      'Plan CTAs must align horizontally: '+paywall.ctaTop.join(', '));
+    assert.ok(paywall.modalWidth>=700 && paywall.modalWidth<=820,'Desktop paywall must be readable');
     assert.equal(paywall.logoutCount,1,'paywall must allow logout');
     await page.keyboard.press('Escape');
     assert.ok(await page.$eval('#nosale-trial-end-dialog',el=>el.matches(':modal')),
       'Escape must not dismiss the expired trial dialog');
     await page.screenshot({path:snapshotDir+'/09-expired-trial-hard-paywall.png'});
+    await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
+    await goto('/');
+    const mobilePaywall=await page.evaluate(() => {
+      const modal=document.querySelector('#nosale-trial-end-dialog');
+      const cards=[...modal.querySelectorAll('.trial-end-dialog__plan')];
+      return {
+        modal:modal.matches(':modal'),
+        overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+        modalWidth:modal.getBoundingClientRect().width,
+        cardLefts:cards.map(x=>x.getBoundingClientRect().left),
+        cardTops:cards.map(x=>x.getBoundingClientRect().top)
+      };
+    });
+    assert.ok(mobilePaywall.modal,'mobile paywall should block dashboard');
+    assert.ok(mobilePaywall.overflow<=1,'mobile paywall must not horizontally overflow');
+    assert.ok(mobilePaywall.modalWidth<=390,'mobile paywall must fit viewport');
+    assert.ok(Math.abs(mobilePaywall.cardLefts[0]-mobilePaywall.cardLefts[1])<=2,
+      'mobile plan cards should stack in the same column');
+    assert.ok(mobilePaywall.cardTops[1]>mobilePaywall.cardTops[0],
+      'mobile cards should stack vertically');
+    await page.screenshot({path:snapshotDir+'/09-expired-trial-mobile.png'});
+    await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
     await goto('/settings/');
     assert.ok(await page.$eval('#nosale-trial-end-dialog',el=>el.matches(':modal')),
       'seller must not bypass paywall by direct settings navigation');
