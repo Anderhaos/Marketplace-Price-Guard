@@ -38,7 +38,7 @@
   .trial-end-dialog__plan--smart .trial-end-dialog__action a:hover,.trial-end-dialog__plan--smart .trial-end-dialog__action button:hover{background:#a34ce0}
   .trial-end-dialog__action-note{margin:9px 0 0;text-align:center;color:#aa9db4;font-size:11px;line-height:1.35}
   .trial-end-dialog__payment-status{display:flex;align-items:flex-start;gap:10px;padding:13px 15px;margin-top:16px;border-radius:11px;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.035)}
-  .trial-end-dialog__payment-status-marker{flex:none;font-weight:800;color:#cea3ee}
+  .trial-end-dialog__payment-status-marker{display:grid;place-items:center;flex:none;width:17px;height:17px;margin-top:1px;border:1px solid rgba(206,163,238,.65);border-radius:50%;font-size:11px;line-height:1;font-weight:800;color:#cea3ee}
   .trial-end-dialog__payment-status p{margin:0;color:#bcb0c8;font-size:11.5px;line-height:1.52}
   .trial-end-dialog__footer{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:16px 24px 20px;border-top:1px solid rgba(255,255,255,.09)}
   .trial-end-dialog__footer form{margin:0}
@@ -101,7 +101,7 @@
     </div>
     {% if not seller_trial_payment_available %}
     <div class="trial-end-dialog__payment-status" role="status">
-      <span class="trial-end-dialog__payment-status-marker" aria-hidden="true">ⓘ</span>
+      <span class="trial-end-dialog__payment-status-marker" aria-hidden="true">i</span>
       <p>Эквайринг ещё подключается. Сейчас можно обратиться в поддержку по выбранному тарифу — оплата на сайте пока не принимается.</p>
     </div>
     {% else %}
