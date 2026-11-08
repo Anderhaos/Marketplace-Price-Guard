@@ -5,9 +5,23 @@ Separate administrative product settings can replace this in the owner-admin sta
 """
 from decimal import Decimal
 
+from django.conf import settings
+
 from .tochka import AcquiringUnavailable, approved_price_kopeks, configured
 from .models import OwnerTariffOffer
 from .access import FEATURE_CHOICES, capabilities_for_plan
+
+# Concise, actual feature claims for the expired-trial purchase screen.
+# Never promise disabled WB Finance or unconditional DeepSeek availability.
+PAYWALL_BENEFITS = {
+    "discount_guard": "Контроль скидок по вашим лимитам",
+    "notifications": "Уведомления и отчёты",
+    "activity_history": "История проверок и изменений",
+    "promotion_audit": "Проверка акций Wildberries",
+    "finance_audit": "Финансовые отчёты Wildberries",
+    "store_advice": "Персональные рекомендации по расписанию",
+    "ai_advice": "AI-резюме при включённом DeepSeek",
+}
 
 PLAN_DESCRIPTIONS = {
     "standard": {
@@ -46,12 +60,21 @@ def tariff_offers():
             slug == "smart" and standard_features
             and standard_features.issubset(active_features)
         )
-        modal_labels = (
-            ["Всё из Standard"]
-            + [label for code, label in FEATURE_CHOICES
-               if code in active_features and code not in standard_features]
-            if smart_extends_standard else feature_labels
+        visible_features = (
+            active_features if settings.NOSALE_WB_FINANCE_ENABLED
+            else active_features - {"finance_audit"}
         )
+        if smart_extends_standard:
+            extras = visible_features - standard_features
+            modal_labels = ["Всё из Standard"] + [
+                PAYWALL_BENEFITS[code] for code, _ in FEATURE_CHOICES
+                if code in extras and code in PAYWALL_BENEFITS
+            ]
+        else:
+            modal_labels = [
+                PAYWALL_BENEFITS[code] for code, _ in FEATURE_CHOICES
+                if code in visible_features and code in PAYWALL_BENEFITS
+            ]
         offers.append({
             "slug": slug,
             **info,
