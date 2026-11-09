@@ -322,3 +322,91 @@ class BasicManualActionCooldownTests(SimpleTestCase):
         account.last_error="Wildberries HTTP 429"
         account.next_check_at=now+timedelta(hours=1)
         self.assertEqual(_scheduled_wb_due(account,now),now+timedelta(hours=1))
+
+
+@override_settings(
+    SAAS_PIN_AUTH_ENABLED=False, SAAS_ACCESS_ENFORCED=False,
+    SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=False,
+    SECURE_SSL_REDIRECT=False,
+)
+class StagedQueueSurvivesSameRuleReapplyTests(TestCase):
+    """The repeated Apply clicks that cancelled the live 14:04 WB upload."""
+    def setUp(self):
+        self.user = User.objects.create_user("staged-click@example.test")
+        self.client.force_login(self.user)
+        now = timezone.now()
+        self.due = now + timedelta(minutes=9)
+        self.account = GuardAccount.objects.create(
+            user=self.user, token_ciphertext="fake-protected-token",
+            enabled=True, default_allowed_discount=13, max_fixes=20,
+            check_requested=True, apply_all_requested=True, rules_version=7,
+            basic_staged_rules_version=7, basic_staged_changes=[[123, 13]],
+            last_check_at=now - timedelta(minutes=7),
+            next_check_at=self.due,
+        )
+        from .models import Product
+        Product.objects.create(
+            account=self.account, nm_id=123, current_discount=20,
+            active=True,
+        )
+
+    def test_repeated_same_limit_apply_preserves_stage_version_and_api_due(self):
+        with patch("guard.views._account_can_write", return_value=True), patch(
+            "guard.views._account_token_type", return_value="base",
+        ), patch("guard.views._check_now", return_value="queued_basic") as online:
+            for _ in range(3):
+                response = self.client.post(reverse("dashboard"), {
+                    "action": "apply_all", "default_allowed_discount": "13",
+                })
+                self.assertEqual(response.status_code, 302)
+                self.account.refresh_from_db()
+                self.assertEqual(self.account.rules_version, 7)
+                self.assertEqual(self.account.basic_staged_rules_version, 7)
+                self.assertEqual(self.account.basic_staged_changes, [[123, 13]])
+                self.assertGreaterEqual(self.account.next_check_at, self.due)
+                self.assertTrue(self.account.apply_all_requested)
+            self.assertEqual(online.call_count, 3)
+
+    def test_changed_limit_invalidates_stage_version_but_never_bypasses_due(self):
+        with patch("guard.views._account_can_write", return_value=True), patch(
+            "guard.views._account_token_type", return_value="base",
+        ), patch("guard.views._check_now", return_value="queued_basic"):
+            response = self.client.post(reverse("dashboard"), {
+                "action": "apply_all", "default_allowed_discount": "10",
+            })
+        self.assertEqual(response.status_code, 302)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.rules_version, 8)
+        self.assertEqual(self.account.default_allowed_discount, 10)
+        self.assertGreaterEqual(self.account.next_check_at, self.due)
+
+    def test_saving_unchanged_global_policy_does_not_invalidate(self):
+        response = self.client.post(reverse("dashboard"), {
+            "action": "save_limit", "default_allowed_discount": "13",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.rules_version, 7)
+        self.assertEqual(self.account.basic_staged_changes, [[123, 13]])
+
+    def test_repeating_product_rule_without_change_does_not_invalidate(self):
+        response = self.client.post(reverse("product_rule",args=[123]), {
+            "allowed_discount": "",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.rules_version, 7)
+        self.assertEqual(self.account.basic_staged_changes, [[123, 13]])
+
+    def test_repeating_apply_one_product_does_not_invalidate_other_stage(self):
+        with patch("guard.views._account_can_write", return_value=True), patch(
+            "guard.views._account_token_type", return_value="base",
+        ), patch("guard.views._check_now", return_value="queued_basic"):
+            response = self.client.post(reverse("product_rule",args=[123]), {
+                "allowed_discount": "13",
+            })
+        self.assertEqual(response.status_code, 302)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.rules_version, 7)
+        self.assertEqual(self.account.basic_staged_changes, [[123, 13]])
+        self.assertGreaterEqual(self.account.next_check_at, self.due)

@@ -465,9 +465,17 @@ def dashboard(request):
             if discount == 0 and request.POST.get("confirm_zero_discount") != "1":
                 messages.error(request, "Подтвердите нулевой предел скидки.")
                 return _dashboard_redirect(request)
-            GuardAccount.objects.filter(pk=account.pk, user_id=request.user.pk).update(
-                default_allowed_discount=discount, rules_version=F("rules_version") + 1,
-            )
+            # Re-saving the same value must not invalidate already staged
+            # WB corrections; only a real policy change increments its version.
+            with transaction.atomic():
+                locked = GuardAccount.objects.select_for_update().get(
+                    pk=account.pk, user_id=request.user.pk,
+                )
+                if locked.default_allowed_discount != discount:
+                    GuardAccount.objects.filter(pk=locked.pk).update(
+                        default_allowed_discount=discount,
+                        rules_version=F("rules_version") + 1,
+                    )
             messages.success(request, f"Предел {discount}% сохранён только в NoSale. Wildberries не изменялся.")
             return _dashboard_redirect(request)
         if action == "toggle_autocontrol":
@@ -506,10 +514,17 @@ def dashboard(request):
                     messages.error(request, "Сначала подключите токен Wildberries.")
                     return redirect("settings")
                 with transaction.atomic():
-                    GuardAccount.objects.filter(pk=account.pk).update(
-                        default_allowed_discount=discount, apply_all_requested=True,
-                        next_check_at=timezone.now(), rules_version=F("rules_version") + 1,
+                    locked = GuardAccount.objects.select_for_update().get(
+                        pk=account.pk, user_id=request.user.pk,
                     )
+                    updates = {
+                        "default_allowed_discount": discount,
+                        "apply_all_requested": True,
+                        "next_check_at": _scheduled_wb_due(locked, timezone.now()),
+                    }
+                    if locked.default_allowed_discount != discount:
+                        updates["rules_version"] = F("rules_version") + 1
+                    GuardAccount.objects.filter(pk=locked.pk).update(**updates)
                 result = _check_now(account)
                 if result is True:
                     messages.success(request, f"Максимум {discount}% сохранён. Превышения отправлены в Wildberries.")
@@ -570,7 +585,7 @@ def dashboard(request):
         for key, label in (
             ("all", "Все"), ("over_limit", "Выше лимита"),
             ("corrected", "Исправлено"), ("no_discount", "Без скидки"),
-            ("custom_limit", "Свой лимит"), ("pending", "Ожидают WB"),
+            ("custom_limit", "Свой лимит"), ("pending", "В очереди"),
         )
         if key in ("all", "over_limit") or filter_counts[key] or filter_name == key
     ]
@@ -728,12 +743,16 @@ def product_rule(request, nm_id):
                 return _dashboard_redirect(request)
             allowed = form.cleaned_data["allowed_discount"]
         with transaction.atomic():
-            Product.objects.filter(pk=product.pk, account_id=account.pk).update(
-                allowed_discount_override=allowed,
+            locked = GuardAccount.objects.select_for_update().get(
+                pk=account.pk, user_id=request.user.pk,
             )
-            GuardAccount.objects.filter(pk=account.pk, user_id=request.user.pk).update(
-                rules_version=F("rules_version") + 1,
-            )
+            if product.allowed_discount_override != allowed:
+                Product.objects.filter(pk=product.pk, account_id=account.pk).update(
+                    allowed_discount_override=allowed,
+                )
+                GuardAccount.objects.filter(pk=locked.pk).update(
+                    rules_version=F("rules_version") + 1,
+                )
         GuardEvent.objects.create(
             account=account, kind="rule", nm_id=nm_id,
             message="Локальный предел скидки сохранён. Запросов на изменение WB нет.",
@@ -767,9 +786,10 @@ def product_rule(request, nm_id):
         requested_ids = {int(value) for value in locked.apply_requested_ids}
         requested_ids.add(product.nm_id)
         locked.apply_requested_ids = sorted(requested_ids)
-        locked.rules_version = F("rules_version") + 1
+        # A manual apply intent is not a rule change: don't throw away a
+        # staged, still-valid upload for other products.
         locked.next_check_at = _scheduled_wb_due(locked, timezone.now())
-        locked.save(update_fields=["apply_requested_ids", "rules_version", "next_check_at"])
+        locked.save(update_fields=["apply_requested_ids", "next_check_at"])
     GuardEvent.objects.create(account=account, kind="rule", nm_id=nm_id, message=message)
     if account.token_ciphertext:
         result = _check_now(account)
