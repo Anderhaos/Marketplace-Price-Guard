@@ -1,4 +1,4 @@
-"""NoSale one-time subscription payments, using MiniBook's AccessGrant ledger.
+"""NoSale one-time subscription payments, with a server-authoritative AccessGrant ledger.
 
 Access is granted ONLY from verified, matching bank events. Browser redirects
 can never activate a payment. Repeat events and concurrent requests are safe.
