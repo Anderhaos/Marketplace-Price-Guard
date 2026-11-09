@@ -88,6 +88,33 @@ class TochkaTransportContractTests(SimpleTestCase):
         self.assertEqual(data["failRedirectUrl"], data["redirectUrl"])
         self.assertNotIn("webhookUrl", data)  # Register event via Tochka ManageWebhookData API
 
+    def test_accepts_verified_live_tochka_securepaytb_payment_host(self):
+        opener = FakeOpener(FakeResponse({"Data": {
+            "paymentLink": "https://merch.securepaytb.ru/order/?uuid=bank-test",
+            "operationId": "bank-operation",
+            "merchantId": "200000000001056",
+            "paymentLinkId": "nosale-42",
+        }}))
+        with patch("billing.tochka.build_opener", return_value=opener):
+            url, operation = create_tochka_link(self.payment)
+        self.assertEqual(url, "https://merch.securepaytb.ru/order/?uuid=bank-test")
+        self.assertEqual(operation, "bank-operation")
+
+    def test_rejects_securepaytb_lookalike_hosts(self):
+        from .tochka import validate_payment_url
+
+        for malicious_url in (
+            "https://merch.securepaytb.ru.attacker.invalid/order/test",
+            "https://securepaytb.ru.attacker.invalid/order/test",
+            "http://merch.securepaytb.ru/order/test",
+            "https://evil@merch.securepaytb.ru/order/test",
+            "https://merch.securepaytb.ru:443/order/test",
+            "https://fake.securepaytb.ru/order/test",
+        ):
+            with self.subTest(url=malicious_url):
+                with self.assertRaises(AcquiringUnavailable):
+                    validate_payment_url(malicious_url)
+
     def test_refuses_bank_response_without_operation_id(self):
         opener = FakeOpener(FakeResponse({"Data": {"paymentLink": "https://merch.tochka.com/order/test"}}))
         with patch("billing.tochka.build_opener", return_value=opener):
