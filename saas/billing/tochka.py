@@ -107,7 +107,10 @@ def create_tochka_link(payment):
     except ValidationError as exc:
         raise AcquiringUnavailable("Buyer email for fiscal receipt is missing") from exc
     amount = Decimal(payment.amount_kopeks) / 100
-    base = settings.NOSALE_PAYMENT_RETURN_BASE
+    # Leave payment-result display to Tochka (standard bank pages selected
+    # for this retailer). The optional browser-return URLs previously caused
+    # an immediate return to NoSale in the live SBP test.
+    # Access grants still depend on the verified bank event/readback, not UI.
     name = f"NoSale {payment.plan.title()} — доступ на {payment.period_months} мес."
     order_ref = f"nosale-{payment.pk}"
     body = {"Data": {
@@ -119,8 +122,6 @@ def create_tochka_link(payment):
         "paymentLinkId": order_ref,
         "preAuthorization": False,
         "saveCard": False,
-        "redirectUrl": base + "/billing/return/?payment=" + str(payment.pk),
-        "failRedirectUrl": base + "/billing/return/?payment=" + str(payment.pk),
         "ttl": 30,
         "taxSystemCode": tax,
         "Client": {"email": buyer_email},
