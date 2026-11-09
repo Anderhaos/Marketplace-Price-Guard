@@ -127,3 +127,50 @@ class GoalBankTransportTests(TestCase):
             with self.subTest(payload=payload), patch("billing.tochka.build_opener", return_value=Opener()):
                 with self.assertRaises(AcquiringUnavailable):
                     get_tochka_operation("op-123")
+
+
+@override_settings(TOCHKA_BILLING_ENABLED=True)
+class PaidRefundPollingScheduleTests(TestCase):
+    """Refunds initiated at the bank must not keep paid access for a whole day."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="recent-refund@example.test")
+
+    def make_payment(self, age, last_checked_age):
+        now = timezone.now()
+        return SubscriptionPayment.objects.create(
+            user=self.user,
+            amount_kopeks=100,
+            operation_id="poll-refund-" + str(SubscriptionPayment.objects.count() + 1),
+            status="paid",
+            paid_at=now - age,
+            last_reconciled_at=now - last_checked_age,
+        )
+
+    def test_recent_paid_payment_checked_after_ten_minutes(self):
+        from .management.commands.reconcile_tochka import reconcile_due_payments
+        payment = self.make_payment(timedelta(hours=1), timedelta(minutes=15))
+        with patch("billing.management.commands.reconcile_tochka.reconcile_payment", return_value="duplicate") as call:
+            self.assertEqual(reconcile_due_payments(), 1)
+            call.assert_called_once()
+            self.assertEqual(call.call_args.args[0].pk, payment.pk)
+
+    def test_recent_paid_payment_not_rechecked_immediately(self):
+        from .management.commands.reconcile_tochka import reconcile_due_payments
+        self.make_payment(timedelta(hours=1), timedelta(minutes=4))
+        with patch("billing.management.commands.reconcile_tochka.reconcile_payment") as call:
+            self.assertEqual(reconcile_due_payments(), 0)
+            call.assert_not_called()
+
+    def test_older_paid_payment_retains_daily_schedule(self):
+        from .management.commands.reconcile_tochka import reconcile_due_payments
+        payment = self.make_payment(timedelta(days=3), timedelta(hours=2))
+        with patch("billing.management.commands.reconcile_tochka.reconcile_payment") as call:
+            self.assertEqual(reconcile_due_payments(), 0)
+            call.assert_not_called()
+
+        SubscriptionPayment.objects.filter(pk=payment.pk).update(
+            last_reconciled_at=timezone.now() - timedelta(days=2))
+        with patch("billing.management.commands.reconcile_tochka.reconcile_payment", return_value="duplicate") as call:
+            self.assertEqual(reconcile_due_payments(), 1)
+            call.assert_called_once()
