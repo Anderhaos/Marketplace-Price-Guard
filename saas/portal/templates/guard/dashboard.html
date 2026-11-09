@@ -85,7 +85,8 @@
     </div>
   </div>
 
-  {% if account.last_error and data_checked_at %}<p class="data-age bad">Данные WB от {{ data_checked_at|date:"d.m.Y H:i" }}. Последняя проверка не обновила скидки.</p>{% endif %}
+  {% if account.last_error and data_checked_at %}<p class="data-age bad">Данные WB от {{ data_checked_at|date:"d.m.Y H:i" }}. {{ account.last_error }} Следующая проверка: {{ account.next_check_at|date:"d.m.Y H:i" }} (МСК).</p>{% endif %}
+  {% if account.basic_staged_changes %}<p class="refresh-status">Защита скидок: {{ account.basic_staged_changes|length }} исправлений подготовлено. Отправка WB по лимиту базового токена — не раньше {{ account.next_check_at|date:"d.m.Y H:i" }} (МСК). Скидки пока не изменены.</p>{% endif %}
   {% if product_cards_missing %}<p class="refresh-status">Фото и названия загрузятся при следующем обновлении.</p>{% endif %}
   <div class="products-grid">{% for product in products %}
     <article class="product-card">

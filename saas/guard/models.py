@@ -14,6 +14,10 @@ class GuardAccount(models.Model):
     check_requested = models.BooleanField(default=False)
     apply_all_requested = models.BooleanField(default=False)
     apply_requested_ids = models.JSONField(default=list)
+    # A basic WB token permits one price API request per 15 minutes. Store
+    # reductions from a verified read so upload occurs in a separate cycle.
+    basic_staged_changes = models.JSONField(default=list)
+    basic_staged_rules_version = models.PositiveIntegerField(default=0)
     default_allowed_discount = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(99)])
     interval_minutes = models.PositiveIntegerField(default=10, validators=[MinValueValidator(5), MaxValueValidator(1440)])
     max_fixes = models.PositiveIntegerField(default=20, validators=[MinValueValidator(1), MaxValueValidator(1000)])

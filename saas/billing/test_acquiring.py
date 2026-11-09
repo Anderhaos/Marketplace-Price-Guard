@@ -173,6 +173,23 @@ class AcquiringTests(TestCase):
         self.assertEqual(payment.status, "refunded")
         self.assertIsNotNone(AccessGrant.objects.get(source_ref=f"nosale:tochka:{payment.pk}").revoked_at)
 
+    def test_client_sees_confirmed_refund_and_payment_details(self):
+        payment = self.payment()
+        self.post_signed(self.event(payment))
+        self.post_signed(self.event(payment, status="REFUNDED"))
+        details = self.client.get(reverse("billing_return"), {"payment": payment.pk})
+        self.assertEqual(details.status_code, 200)
+        self.assertContains(details, "Платёж возвращён")
+        self.assertContains(details, "Возврат")
+        self.assertContains(details, "990,00")
+        self.assertContains(details, "Оплаченный этим платежом доступ отменён")
+        history = self.client.get(reverse("subscription"))
+        self.assertContains(history, "Деньги возвращены")
+        self.assertContains(history, f"?payment={payment.pk}")
+        self.client.force_login(self.other)
+        denied = self.client.get(reverse("billing_return"), {"payment": payment.pk})
+        self.assertEqual(denied.status_code, 302)
+
     def test_signed_approval_recovers_bank_link_after_local_timeout(self):
         # The server marked the creation request failed, but the bank could
         # still have issued a link and subsequently accepted payment.

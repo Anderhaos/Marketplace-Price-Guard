@@ -78,6 +78,8 @@ def connect_wb_token(account, token):
         # Never replay pending price writes against a newly connected store.
         current.apply_all_requested = False
         current.apply_requested_ids = []
+        current.basic_staged_changes = []
+        current.basic_staged_rules_version = 0
         current.check_requested = True  # read-only first refresh, if enabled
         current.lock_until = None
         current.rules_version += 1  # fences active workers on stale credentials/rules
@@ -87,7 +89,8 @@ def connect_wb_token(account, token):
         current.next_check_at = cooldown_until if preserve_cooldown else timezone.now()
         current.save(update_fields=[
             "token_ciphertext", "token_hint", "enabled", "apply_all_requested",
-            "apply_requested_ids", "check_requested", "lock_until",
+            "apply_requested_ids", "basic_staged_changes",
+            "basic_staged_rules_version", "check_requested", "lock_until",
             "rules_version", "last_error", "last_check_at", "initial_sync_completed_at", "next_check_at",
         ])
         # Trial is issued by the worker after the first complete import.

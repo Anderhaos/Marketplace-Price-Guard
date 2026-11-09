@@ -71,8 +71,9 @@
         <article class="workspace-card-item">
           <div class="workspace-payment-row">
             <span>{{ p.created_at|date:"d.m.Y" }} · {{ p.get_plan_display }} · {{ p.amount_rubles|floatformat:2 }} ₽</span>
-            <strong>{% if p.status == "paid" %}Оплачено{% elif p.status == "pending" %}Ожидает оплаты{% elif p.status == "refunded" %}Возврат{% else %}Не оплачено{% endif %}</strong>
+            <strong>{% if p.status == "paid" %}Оплачено{% elif p.status == "pending" %}Ожидает оплаты{% elif p.status == "refunded" %}Деньги возвращены{% else %}Не оплачено{% endif %}</strong>
           </div>
+          <a class="muted" href="{% url 'billing_return' %}?payment={{ p.pk }}">Подробности платежа</a>
         </article>
       {% endfor %}
       </div>

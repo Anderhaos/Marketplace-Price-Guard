@@ -133,6 +133,16 @@ def _account_can_write(account):
     return info["access"] == "Чтение и запись"
 
 
+def _scheduled_wb_due(account, now):
+    """UI writes cannot bypass WB 429 or the basic 15-minute price API gap."""
+    due = now
+    if "429" in account.last_error and account.next_check_at > due:
+        due = account.next_check_at
+    if _account_token_type(account) == "base" and account.last_check_at:
+        due = max(due, account.last_check_at + timedelta(minutes=16))
+    return due
+
+
 def _check_now(account):
     """Never talk to WB without an active grant and explicit network approval."""
     if not guard_is_permitted(account):
@@ -144,10 +154,8 @@ def _check_now(account):
     # of price requests synchronously from the user's browser.
     if _account_token_type(account) == "base":
         now = timezone.now()
-        min_due = ((account.last_check_at + timedelta(minutes=60))
-                   if account.last_check_at else now)
         GuardAccount.objects.filter(pk=account.pk).update(
-            check_requested=True, next_check_at=max(now, min_due),
+            check_requested=True, next_check_at=_scheduled_wb_due(account, now),
         )
         return "queued_basic"
     now = timezone.now()
@@ -469,7 +477,11 @@ def dashboard(request):
                 messages.error(request, "Подтвердите отключение всех скидок перед включением защиты.")
             else:
                 enabled = request.POST.get("enabled") == "on"
-                GuardAccount.objects.filter(pk=account.pk).update(enabled=enabled, next_check_at=timezone.now())
+                # A toggle must not bypass a seller-wide API cooldown.
+                now = timezone.now()
+                GuardAccount.objects.filter(pk=account.pk).update(
+                    enabled=enabled, next_check_at=_scheduled_wb_due(account, now),
+                )
                 messages.success(request, "Автоисправление включено." if enabled else "Автоисправление выключено.")
             return _dashboard_redirect(request)
         if action == "apply_all":
@@ -514,6 +526,11 @@ def dashboard(request):
     pending_product_ids = {int(value) for value in account.apply_requested_ids}
     for upload in Upload.objects.filter(account=account, status="pending"):
         pending_product_ids.update(int(value) for value in upload.product_ids)
+    # Basic token: WB accepts the queued reduction in a later API window.
+    pending_product_ids.update(
+        int(pair[0]) for pair in (account.basic_staged_changes or [])
+        if isinstance(pair, list) and len(pair) == 2
+    )
 
     filter_name = _dashboard_filter_name(request)
     sort_name = _dashboard_sort_name(request)
@@ -633,7 +650,7 @@ def settings_view(request):
             settings_form = AccountSettingsForm(request.POST, instance=account)
             if settings_form.is_valid():
                 updated = settings_form.save(commit=False)
-                updated.next_check_at = timezone.now()
+                updated.next_check_at = _scheduled_wb_due(account, timezone.now())
                 updated.save()
                 GuardAccount.objects.filter(pk=account.pk).update(rules_version=F("rules_version") + 1)
                 messages.success(request, "Настройки сохранены.")
@@ -746,7 +763,7 @@ def product_rule(request, nm_id):
         requested_ids.add(product.nm_id)
         locked.apply_requested_ids = sorted(requested_ids)
         locked.rules_version = F("rules_version") + 1
-        locked.next_check_at = timezone.now()
+        locked.next_check_at = _scheduled_wb_due(locked, timezone.now())
         locked.save(update_fields=["apply_requested_ids", "rules_version", "next_check_at"])
     GuardEvent.objects.create(account=account, kind="rule", nm_id=nm_id, message=message)
     if account.token_ciphertext:

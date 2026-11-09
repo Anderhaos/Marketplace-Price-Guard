@@ -51,8 +51,12 @@ def _save_card_data(account, card_data):
         Product.objects.filter(account=account, nm_id=nm_id).update(**card)
 
 
-def _reconcile_uploads(account, client):
+def _reconcile_uploads(account, client, *, basic=False):
     pending = Upload.objects.filter(account=account, status="pending").order_by("created_at")
+    if basic:
+        # A base WB token may spend only ONE price API request per 16-min
+        # worker cycle, including upload-status reads.
+        pending = pending[:1]
     still_pending = False
     successful_upload = False
     for upload in pending:
@@ -74,7 +78,7 @@ def _reconcile_uploads(account, client):
         elif status in {4, 5, 6}:
             upload.status = "failed" if status in {4, 6} else "partial"
             errors = []
-            if status in {5, 6}:
+            if status in {5, 6} and not basic:
                 for item in client.get_upload_details(upload.upload_id):
                     if item.get("errorText"):
                         errors.append(f"{item.get('nmID')}: {item['errorText']}")
@@ -91,6 +95,86 @@ def _reconcile_uploads(account, client):
     return still_pending, successful_upload
 
 
+def _submit_staged_basic(account, client, *, token_ciphertext, rules_version):
+    """One price WRITE per worker cycle, based on previously read WB data.
+
+    Revalidate authorization and live local rules before submission. This
+    intentionally does not fetch WB prices again inside the same cycle.
+    """
+    account.refresh_from_db(fields=[
+        "enabled", "apply_all_requested", "apply_requested_ids",
+        "basic_staged_changes", "basic_staged_rules_version",
+        "token_ciphertext", "rules_version", "max_fixes",
+    ])
+    stage = account.basic_staged_changes
+    if not stage:
+        return False
+    if (account.rules_version != rules_version
+            or account.basic_staged_rules_version != rules_version
+            or account.token_ciphertext != token_ciphertext
+            or not (account.enabled or account.apply_all_requested or account.apply_requested_ids)):
+        GuardAccount.objects.filter(pk=account.pk).update(
+            basic_staged_changes=[], basic_staged_rules_version=0,
+        )
+        _event(account, "paused", "Изменились правила или подключение WB: устаревшая очередь не отправлена.")
+        return "basic_stale"
+    if not guard_is_permitted(account) or settings.SAAS_WB_READ_ONLY:
+        _event(account, "paused", "Нет допуска к отправке скидок WB.")
+        return False
+
+    ids = [int(pair[0]) for pair in stage if isinstance(pair, list) and len(pair) == 2]
+    active = {p.nm_id: p for p in Product.objects.filter(
+        account=account, active=True, nm_id__in=ids,
+    )}
+    changes = []
+    details = []
+    for pair in stage:
+        if not isinstance(pair, list) or len(pair) != 2:
+            continue
+        nm_id, stage_limit = int(pair[0]), int(pair[1])
+        p = active.get(nm_id)
+        if p is None:
+            continue
+        allowed = p.allowed_discount_override
+        if allowed is None:
+            allowed = account.default_allowed_discount
+        if (allowed != stage_limit or p.current_discount <= allowed
+                or not 0 <= allowed <= 99):
+            continue
+        changes.append((nm_id, allowed))
+        details.append({
+            "nm_id": nm_id, "vendor_code": p.vendor_code,
+            "title": p.title, "before": p.current_discount, "after": allowed,
+        })
+        if len(changes) >= account.max_fixes:
+            break
+    if not changes:
+        GuardAccount.objects.filter(pk=account.pk).update(
+            basic_staged_changes=[], basic_staged_rules_version=0,
+        )
+        return False
+
+    # No automatic retries on an accepted upload: store its provider ID and
+    # poll status no sooner than the following 16-minute cycle.
+    upload_id = client.submit_discounts(changes)
+    Upload.objects.update_or_create(
+        account=account, upload_id=upload_id,
+        defaults={
+            "status": "pending", "product_ids": [nm for nm, _ in changes],
+            "corrected_count": len(changes), "change_details": details,
+        },
+    )
+    GuardAccount.objects.filter(
+        pk=account.pk, rules_version=rules_version,
+    ).update(basic_staged_changes=[], basic_staged_rules_version=0)
+    _event(
+        account, "submitted",
+        f"WB принял загрузку {upload_id} на {len(changes)} товаров. Ожидаем подтверждение.",
+        details={"upload_id": upload_id, "changes": details},
+    )
+    return "waiting_upload"
+
+
 def check_account(account):
     if not (guard_is_permitted(account) or first_inventory_import_permitted(account)):
         return False
@@ -105,9 +189,24 @@ def check_account(account):
         else settings.SAAS_PIN_AUTH_ENABLED
     )
     client = WBClient(raw_token)
-    # The actual access scope, not the token class, controls write access.
+    basic = get_token_type(raw_token) == "base"
+    # Base-price API limit is four requests per hour, one per 15 minutes.
+    # A cycle is therefore exactly one of: read products, submit saved
+    # reductions, or confirm one upload. Never GET+POST in the same cycle.
     if token_readonly:
         still_pending, successful_upload = False, False
+    elif basic and Upload.objects.filter(account=account, status="pending").exists():
+        _reconcile_uploads(account, client, basic=True)
+        return ("waiting_upload" if Upload.objects.filter(
+            account=account, status="pending",
+        ).exists() else "basic_complete")
+    elif basic and GuardAccount.objects.filter(
+        pk=account.pk,
+    ).exclude(basic_staged_changes=[]).exists():
+        return _submit_staged_basic(
+            account, client, token_ciphertext=token_ciphertext,
+            rules_version=rules_version,
+        )
     else:
         still_pending, successful_upload = _reconcile_uploads(account, client)
     if still_pending:
@@ -201,6 +300,22 @@ def check_account(account):
     if not guard_is_permitted(account):
         _event(account, "paused", "Доступ остановлен до отправки исправления.")
         return False
+    if basic:
+        # Persist the one-price-read result; next worker cycle sends a single
+        # POST after the 16-minute bank-compliant cooldown. Revalidate rules
+        # and authorization then, never trust stale queued values blindly.
+        GuardAccount.objects.filter(
+            pk=account.pk, token_ciphertext=token_ciphertext,
+            rules_version=rules_version,
+        ).update(
+            basic_staged_changes=[[nm, allowed] for nm, allowed in changes],
+            basic_staged_rules_version=rules_version,
+        )
+        _event(account, "staged", (
+            f"Подготовлено исправлений: {len(changes)}. "
+            "Базовый токен WB: отправка не раньше следующего интервала API."
+        ))
+        return "basic_staged"
     upload_id = client.submit_discounts(changes)
     upload, created = Upload.objects.get_or_create(
         account=account, upload_id=upload_id,
@@ -282,7 +397,8 @@ def run_due_checks():
 
         try:
             outcome = check_account(account)
-            delay = timedelta(minutes=max(60, account.interval_minutes)) if token_type == "base" else timedelta(minutes=account.interval_minutes)
+            # One basic price endpoint per cycle, spaced by >15 min.
+            delay = timedelta(minutes=16) if token_type == "base" else timedelta(minutes=account.interval_minutes)
             finished_at = timezone.now()
             changes = dict(
                 lock_until=None, last_check_at=finished_at, last_error="",
@@ -291,9 +407,12 @@ def run_due_checks():
             )
             # Only a completed read of the WB inventory may unlock the cabinet.
             # "waiting_upload" returned before the inventory fetch is not success.
-            if outcome != "waiting_upload" and account.initial_sync_completed_at is None:
+            if outcome not in ("waiting_upload", "basic_complete", "basic_stale") and account.initial_sync_completed_at is None:
                 changes["initial_sync_completed_at"] = finished_at
-            if outcome in ("waiting_upload", "remaining"):
+            if (outcome in ("waiting_upload", "remaining", "basic_staged", "basic_stale")
+                    or (outcome == "basic_complete" and account.apply_all_requested)):
+                # Manual "apply all" must survive 20-item batches and WB
+                # upload confirmation until a fresh WB read finds no excess.
                 changes["check_requested"] = True
             else:
                 changes.update(check_requested=token_readonly,
