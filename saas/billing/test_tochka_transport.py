@@ -84,8 +84,10 @@ class TochkaTransportContractTests(SimpleTestCase):
         self.assertEqual(data["Items"][0]["amount"], data["amount"])
         self.assertEqual(data["paymentMode"], ["card", "sbp"])
         self.assertEqual(data["ttl"], 30)
-        self.assertEqual(data["redirectUrl"], "https://nosale.svdev.pro/billing/return/?payment=42")
-        self.assertEqual(data["failRedirectUrl"], data["redirectUrl"])
+        # Bank-standard success/failure pages: neither payment method must
+        # force the browser back to NoSale after payment or failure.
+        self.assertNotIn("redirectUrl", data)
+        self.assertNotIn("failRedirectUrl", data)
         self.assertNotIn("webhookUrl", data)  # Register event via Tochka ManageWebhookData API
 
     def test_accepts_verified_live_tochka_securepaytb_payment_host(self):
