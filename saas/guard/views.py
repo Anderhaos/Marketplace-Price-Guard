@@ -836,7 +836,7 @@ def product_history_data(request, nm_id):
     })
 
 
-IMPORTANT_EVENT_KINDS = ("confirmed", "upload_error", "error")
+from .notifications_feed import IMPORTANT_EVENT_KINDS, notification_page
 
 
 @login_required
@@ -844,19 +844,12 @@ def notifications(request):
     if (feature_disabled_for_active_plan(request.user.pk, "notifications")
             and feature_disabled_for_active_plan(request.user.pk, "store_advice")):
         return HttpResponseForbidden("Сводки и уведомления не включены в тариф.")
-    events = list(GuardEvent.objects.filter(
-        account__user=request.user,
-        kind__in=IMPORTANT_EVENT_KINDS,
-    ).select_related("account").order_by("-created_at", "-id")[:100])
-    digest_messages = list(PushMessage.objects.filter(
-        user=request.user, kind__in=("digest", "smart"),
-    ).order_by("-created_at")[:30])
-    return render(request, "guard/notifications.html", {
-        "events": events,
-        "digest_messages": digest_messages,
-        "event_grid": list(zip(events, _balanced_grid_spans(len(events)))),
-        "digest_grid": list(zip(digest_messages, _balanced_grid_spans(len(digest_messages)))),
-    })
+    context = notification_page(
+        request.user,
+        category=request.GET.get("type", "all"),
+        page=request.GET.get("page", "1"),
+    )
+    return render(request, "guard/notifications.html", context)
 
 
 @login_required

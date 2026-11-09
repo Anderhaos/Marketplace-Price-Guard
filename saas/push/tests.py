@@ -130,6 +130,33 @@ class PushTests(TestCase):
         self.assertFalse(PushDelivery.objects.filter(message__event=foreign).exists())
         self.assertEqual(PushMessage.objects.filter(event=confirmed).count(), 1)
 
+    def test_repeated_429_error_sends_one_push_per_24_hours(self):
+        sub = self.subscribe()
+        # Both the push subscription and the event timeline are real-time;
+        # old events predating subscription must not trigger a device alert.
+        repeated = [
+            GuardEvent.objects.create(
+                account=self.shop, kind="error",
+                message="WB HTTP 429: too many requests",
+            )
+            for _ in range(8)
+        ]
+        distinct = GuardEvent.objects.create(
+            account=self.shop, kind="error",
+            message="WB HTTP 503: temporary outage",
+        )
+        self.assertEqual(queue_new_events(), 9)
+        self.assertEqual(PushMessage.objects.filter(event__in=repeated).count(), 8)
+        self.assertEqual(
+            PushDelivery.objects.filter(subscription=sub, message__event__in=repeated).count(),
+            1,
+        )
+        self.assertEqual(
+            PushDelivery.objects.filter(subscription=sub, message__event=distinct).count(),
+            1,
+        )
+        self.assertEqual(queue_new_events(), 0)
+
     def test_event_from_before_device_registration_is_not_sent(self):
         event = GuardEvent.objects.create(
             account=self.shop, kind="confirmed", message="Past confirmation",

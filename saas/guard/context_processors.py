@@ -1,13 +1,9 @@
 from django.conf import settings
-from .models import GuardAccount, GuardEvent, PromotionSnapshot, FinanceSnapshot
+from .models import GuardAccount, PromotionSnapshot, FinanceSnapshot
 from .stores import SESSION_KEY
-from push.models import PushMessage
 from billing.access import capabilities_for_user
 from billing.trial import access_snapshot
 from billing.plans import tariff_offers
-
-
-IMPORTANT_EVENT_KINDS = ("confirmed", "upload_error", "error")
 
 
 def notification_count(request):
@@ -21,14 +17,10 @@ def notification_count(request):
             "seller_header_access": None,
         }
     capabilities = capabilities_for_user(request.user.pk)
-    count = GuardEvent.objects.filter(
-        account__user=request.user,
-        kind__in=IMPORTANT_EVENT_KINDS,
-        read_at__isnull=True,
-    ).count()
-    digests = PushMessage.objects.filter(
-        user=request.user, kind__in=("digest", "smart"), read_at__isnull=True
-    ).count()
+    # A burst of identical WB 429 responses is one unread incident,
+    # not dozens of unread messages in the header.
+    from .notifications_feed import unread_notification_groups
+    unread_count = unread_notification_groups(request.user)
 
     # Use the seller's OWN selected store. Never leak another account's
     # campaigns or show empty / operator-disabled feature screens.
@@ -72,7 +64,7 @@ def notification_count(request):
         "seller_header_store_name": active_store["name"] if active_store else None,
         "seller_header_store_id": store_id,
         "seller_header_wb_stores": seller_stores,
-        "unread_notification_count": count + digests,
+        "unread_notification_count": unread_count,
         "seller_capabilities": capabilities,
         "seller_has_other_stores": len(store_ids) > 1,
         "seller_has_promotion_data": has_promotions,

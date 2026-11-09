@@ -89,7 +89,7 @@ class MarketplaceNavigationTests(TestCase):
                 )
                 self.assertNotIn('class="compact-context">\n  <span class="trial-strip"', html)
         self.assertContains(self.client.get(reverse("dashboard")),
-                            "seller-workspace-panels.css?v=20261101k")
+                            "seller-workspace-panels.css?v=20261109-inbox")
 
     def test_expired_trial_badge_stays_in_header_and_is_short_on_mobile(self):
         grant = AccessGrant.objects.get(user=self.seller)
@@ -192,7 +192,7 @@ class MarketplaceNavigationTests(TestCase):
             '<label for="dashboard-discount-limit" class="summary-label">Предел скидки, %</label>',
         )
         self.assertContains(page, 'id="dashboard-discount-limit" type="number"')
-        self.assertContains(page, "seller-workspace-panels.css?v=20261101k")
+        self.assertContains(page, "seller-workspace-panels.css?v=20261109-inbox")
 
     def test_header_switches_real_wb_store_without_exposing_other_tenants(self):
         first = self.client.get(reverse("dashboard"))
@@ -269,10 +269,9 @@ class MarketplaceNavigationTests(TestCase):
         report = self.client.get(reverse("notifications"))
         self.assertContains(report, "<h2", count=1)
         self.assertContains(report, "Товаров под контролем: 41")
-        self.assertContains(report, "workspace-message-body")
-        self.assertContains(report, '<article class="workspace-message compact-feed-item balanced-feed-item balanced-span-12">')
-        self.assertNotContains(report, '<details class="workspace-message')
-        self.assertNotContains(report, '<summary>')
+        self.assertContains(report, 'class="notice-description"')
+        self.assertContains(report, 'class="notice-list"')
+        self.assertNotContains(report, '<details class="notice-details">')
 
     def test_event_changes_are_visible_immediately_without_expansion(self):
         GuardEvent.objects.create(
@@ -287,9 +286,9 @@ class MarketplaceNavigationTests(TestCase):
         self.assertContains(response, "Исправлено два товара")
         self.assertContains(response, "WB 12345678")
         self.assertContains(response, "WB 34567890")
-        self.assertContains(response, "Товары (2)")
-        self.assertNotContains(response, '<details class="workspace-event-products')
-        self.assertNotContains(response, '<summary>')
+        self.assertContains(response, "Показать товары (2)")
+        self.assertContains(response, '<details class="notice-details">')
+        self.assertNotContains(response, 'balanced-feed-grid')
 
     def test_history_day_and_events_have_no_nested_disclosures(self):
         GuardEvent.objects.create(
@@ -320,42 +319,40 @@ class MarketplaceNavigationTests(TestCase):
         self.assertNotIn("<details", stores_main)
         self.assertNotIn("<summary", stores_main)
 
-    def test_balanced_notification_report_rows_preserve_visible_content(self):
+    def test_notification_reports_are_readable_vertical_rows(self):
         for index in range(6):
             PushMessage.objects.create(
                 user=self.seller, kind="digest",
                 title=f"Test report {index + 1}",
                 body=f"Visible content {index + 1}",
             )
-        page = self.client.get(reverse("notifications"))
+        page = self.client.get(reverse("notifications"), {"type": "reports"})
         self.assertEqual(page.status_code, 200)
-        self.assertEqual([span for _, span in page.context["digest_grid"]], [4] * 6)
-        self.assertContains(page, "balanced-span-4", count=6)
+        self.assertEqual(len(page.context["notification_items"]), 6)
+        self.assertContains(page, 'class="notice-list"')
+        self.assertNotContains(page, "balanced-feed-grid")
         for index in range(6):
             self.assertContains(page, f"Visible content {index + 1}")
-        self.assertNotContains(page, '<details class="workspace-message')
 
-    def test_balanced_notification_events_preserve_tenant_boundary(self):
+    def test_notification_events_preserve_tenant_boundary(self):
         for index in range(5):
             GuardEvent.objects.create(
                 account=self.shop, kind="error",
                 message=f"Seller-only event {index + 1}",
             )
-        response = self.client.get(reverse("notifications"))
-        self.assertEqual([span for _, span in response.context["event_grid"]],
-                         [4, 4, 4, 6, 6])
-        self.assertContains(response, "balanced-span-4", count=3)
-        self.assertContains(response, "balanced-span-6", count=2)
+        response = self.client.get(reverse("notifications"), {"type": "errors"})
+        self.assertEqual(len(response.context["notification_items"]), 5)
+        self.assertNotContains(response, "balanced-span-4")
         for index in range(5):
             self.assertContains(response, f"Seller-only event {index + 1}")
 
-    def test_notifications_show_actual_messages_in_compact_grid(self):
+    def test_notifications_show_actual_messages_in_compact_list(self):
         PushMessage.objects.create(user=self.seller, kind="digest", title="Отчёт QA",
                                    body="Без изменений")
         page = self.client.get(reverse("notifications"))
-        self.assertContains(page, 'compact-feed-grid')
+        self.assertContains(page, 'class="notice-list"')
         self.assertContains(page, 'Отчёт QA')
-        self.assertNotContains(page, "Пока нет уведомлений.")
+        self.assertNotContains(page, "Здесь пока нет событий")
         self.assertNotContains(page, "Доставка уведомлений")
 
     def test_shared_wide_workspace_only_on_authenticated_seller_pages(self):
@@ -366,7 +363,7 @@ class MarketplaceNavigationTests(TestCase):
                 self.assertEqual(page.status_code, 200)
                 self.assertContains(page, "seller-workspace-page")
                 self.assertContains(page, "seller-dashboard-grid.css?v=20261031b")
-                self.assertContains(page, "seller-workspace-panels.css?v=20261101k")
+                self.assertContains(page, "seller-workspace-panels.css?v=20261109-inbox")
         dashboard = self.client.get(reverse("dashboard"))
         self.assertContains(dashboard, "seller-dashboard-page")
         notifications = self.client.get(reverse("notifications"))
@@ -380,8 +377,8 @@ class MarketplaceNavigationTests(TestCase):
     def test_notifications_are_feed_only_settings_own_configuration(self):
         feed = self.client.get(reverse("notifications"))
         self.assertContains(feed, "<h1>Уведомления</h1>")
-        self.assertContains(feed, "compact-inbox")
-        self.assertContains(feed, "Пока нет уведомлений.")
+        self.assertContains(feed, 'class="notice-list"')
+        self.assertContains(feed, "Здесь пока нет событий")
         self.assertNotContains(feed, "Доставка уведомлений")
         self.assertNotContains(feed, "Важные события")
         self.assertNotContains(feed, 'name="timezone_name"')
@@ -414,13 +411,11 @@ class MarketplaceNavigationTests(TestCase):
         self.assertTrue(pref.daily_enabled)
         self.assertContains(self.client.get(reverse("settings")), 'name="instant_enabled" checked')
 
-    def test_owner_has_no_operator_admin_link_in_seller_workspace(self):
+    def test_owner_is_redirected_to_operator_admin_instead_of_seller_workspace(self):
         self.client.force_login(self.operator)
         response = self.client.get(reverse("dashboard"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'aria-label="Основная навигация"')
-        self.assertNotContains(response, '<a href="/admin/">Админка</a>')
-        # Admin route itself remains available and protected by existing RBAC.
+        self.assertRedirects(response, "/admin/", fetch_redirect_response=False)
+        # An owner must never be accidentally served a seller-only UI.
 
     def test_quick_links_use_official_wb_and_card_url(self):
         response = self.client.get(reverse("dashboard"))

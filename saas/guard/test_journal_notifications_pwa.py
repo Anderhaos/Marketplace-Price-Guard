@@ -55,7 +55,7 @@ class JournalNotificationsPWATests(TestCase):
         self.assertContains(inbox, "Alice confirmed")
         self.assertContains(inbox, "Alice failure")
         self.assertNotContains(inbox, "Bob secret")
-        self.assertNotIn("check", [event.kind for event in inbox.context["events"]])
+        self.assertNotIn("check", [item["category"] for item in inbox.context["notification_items"]])
         self.assertContains(inbox, "Новое", count=2)
 
     def test_read_action_is_post_only_and_does_not_mark_others(self):

@@ -144,7 +144,22 @@ def queue_new_events(now=None):
             },
         )
         if created:
-            if instant_enabled and pref.instant_enabled:
+            # Preserve every raw WB incident in the audit/outbox, but never
+            # bombard a seller's phone with the same error every worker poll.
+            # An identical error from the same store is notified at most once
+            # per 24 hours. New error types and successful fixes still notify.
+            repeated_error = (
+                event.kind == "error"
+                and PushMessage.objects.filter(
+                    kind="event",
+                    event__account_id=event.account_id,
+                    event__kind="error",
+                    event__message=event.message,
+                    event__created_at__gte=event.created_at - timedelta(hours=24),
+                    event__pk__lt=event.pk,
+                ).exists()
+            )
+            if instant_enabled and pref.instant_enabled and not repeated_error:
                 # Owner may disable mid-cycle; do not create new push deliveries.
                 live_policy = OwnerOperationsSettings.runtime()
                 if live_policy is not None and live_policy.instant_events_enabled:

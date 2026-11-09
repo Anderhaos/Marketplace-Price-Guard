@@ -1,66 +1,74 @@
 {% extends 'guard/base.html' %}
 {% block title %}Уведомления — NoSale{% endblock %}
 {% block content %}
-<header class="compact-page-head">
-  <div><h1>Уведомления</h1>{% if unread_notification_count %}<span class="compact-page-count">{{ unread_notification_count }} новых</span>{% endif %}</div>
-  {% if unread_notification_count %}
-  <form method="post" action="{% url 'mark_notifications_read' %}">{% csrf_token %}
-    <button class="secondary" type="submit">Прочитать всё</button>
-  </form>
-  {% endif %}
-</header>
-
-<div class="compact-inbox workspace-columns--inbox">
-  {% if digest_messages %}
-  <section aria-label="Отчёты и рекомендации" class="compact-feed">
-    <div class="compact-feed-grid balanced-feed-grid">
-    {% for summary, span in digest_grid %}
-      <article class="workspace-message compact-feed-item balanced-feed-item balanced-span-{{ span }}">
-        <div class="workspace-message-heading">
-          <h2 class="workspace-message-title">{{ summary.title }}</h2>
-          {% if not summary.read_at %}<span class="scope-chip">Новое</span>{% endif %}
-        </div>
-        <div class="workspace-message-body">{{ summary.body }}</div>
-        <time class="workspace-message-time" datetime="{{ summary.created_at|date:'c' }}">{{ summary.created_at|date:"d.m.Y H:i" }}</time>
-      </article>
-    {% endfor %}
+<section class="notice-center" aria-label="Центр уведомлений">
+  <header class="compact-page-head notice-center-head">
+    <div>
+      <h1>Уведомления</h1>
+      {% if unread_notification_count %}<span class="compact-page-count">{{ unread_notification_count }} новых тем</span>{% endif %}
     </div>
-  </section>
-  {% endif %}
+    {% if unread_notification_count %}
+    <form method="post" action="{% url 'mark_notifications_read' %}">{% csrf_token %}
+      <button class="secondary" type="submit">Отметить всё прочитанным</button>
+    </form>
+    {% endif %}
+  </header>
+  <p class="notice-intro">Результаты защиты, важные ошибки и отчёты. Повторяющиеся технические сообщения объединены; исходные записи сохранены в журнале.</p>
+  <nav class="notice-tabs" aria-label="Фильтр уведомлений">
+    <a href="?type=all" class="{% if notification_filter == 'all' %}is-active{% endif %}" {% if notification_filter == 'all' %}aria-current="page"{% endif %}>Все <span>{{ notification_counts.all }}</span></a>
+    <a href="?type=errors" class="{% if notification_filter == 'errors' %}is-active{% endif %}" {% if notification_filter == 'errors' %}aria-current="page"{% endif %}>Ошибки <span>{{ notification_counts.errors }}</span></a>
+    <a href="?type=changes" class="{% if notification_filter == 'changes' %}is-active{% endif %}" {% if notification_filter == 'changes' %}aria-current="page"{% endif %}>Исправления <span>{{ notification_counts.changes }}</span></a>
+    <a href="?type=reports" class="{% if notification_filter == 'reports' %}is-active{% endif %}" {% if notification_filter == 'reports' %}aria-current="page"{% endif %}>Отчёты <span>{{ notification_counts.reports }}</span></a>
+  </nav>
 
-  {% if events %}
-  <section class="compact-events" aria-label="Важные события">
-    <h2>Важные события <span class="compact-page-count">{{ events|length }}</span></h2>
-    <div class="compact-feed-grid balanced-feed-grid">
-    {% for event, span in event_grid %}
-      <article class="workspace-event balanced-feed-item balanced-span-{{ span }}">
-        <div class="workspace-event-top">
-          <strong>
-            {% if event.kind == "confirmed" %}Исправление подтверждено
-            {% elif event.kind == "error" %}Ошибка проверки
-            {% elif event.kind == "upload_error" %}Ошибка исправления
-            {% else %}Событие{% endif %}
-          </strong>
-          {% if not event.read_at %}<span class="scope-chip">Новое</span>{% endif %}
+  <div class="notice-list">
+    {% for item in notification_items %}
+    <article class="notice-row {% if item.is_error %}notice-row--error{% elif item.is_success %}notice-row--success{% else %}notice-row--report{% endif %} {% if item.resolved %}notice-row--historical{% endif %}">
+      <div class="notice-indicator" aria-hidden="true"></div>
+      <div class="notice-content">
+        <div class="notice-heading">
+          <h2>{{ item.title }}</h2>
+          {% if item.unread %}<span class="notice-new">Новое</span>{% endif %}
+          {% if item.occurrences > 1 %}<span class="notice-repeat">Повторений: {{ item.occurrences }}</span>{% endif %}
+          {% if item.resolved %}<span class="notice-past">Было ранее</span>{% endif %}
         </div>
-        <time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"d.m.Y H:i" }}</time>
-        <p>{{ event.account.name }} · {{ event.message }}</p>
-        {% if event.details.changes %}
-        <div class="workspace-event-products">
-          <strong>Товары ({{ event.details.changes|length }})</strong>
-          <ul>{% for item in event.details.changes %}
-            <li>WB {{ item.nm_id }} · {{ item.before }}% → {{ item.after }}%</li>
+        <p class="notice-description">{{ item.body }}</p>
+        <div class="notice-meta">
+          {% if item.store %}<span>{{ item.store }}</span>{% endif %}
+          <time datetime="{{ item.created_at|date:'c' }}">Последнее: {{ item.created_at|date:"d.m.Y H:i" }}</time>
+          {% if item.occurrences > 1 %}
+          <span>Первое: {{ item.first_at|date:"d.m.Y" }}</span>
+          {% endif %}
+        </div>
+        {% if item.changes %}
+        <details class="notice-details">
+          <summary>Показать товары ({{ item.changes|length }})</summary>
+          <ul>{% for change in item.changes %}
+            <li>WB {{ change.nm_id }} · {{ change.before }}% → {{ change.after }}%</li>
           {% endfor %}</ul>
-        </div>
+        </details>
         {% endif %}
-      </article>
-    {% endfor %}
+      </div>
+    </article>
+    {% empty %}
+    <div class="notice-empty">
+      <strong>Здесь пока нет событий</strong>
+      <p>События появятся после проверок Wildberries или отправки отчётов.</p>
     </div>
-  </section>
-  {% endif %}
+    {% endfor %}
+  </div>
 
-  {% if not digest_messages and not events %}
-    <p class="compact-empty">Пока нет уведомлений.</p>
+  {% if notification_items.paginator.num_pages > 1 %}
+  <nav class="notice-pages" aria-label="Страницы уведомлений">
+    {% if notification_items.has_previous %}
+    <a href="?type={{ notification_filter }}&amp;page={{ notification_items.previous_page_number }}">← Новее</a>
+    {% endif %}
+    <span>Страница {{ notification_items.number }} из {{ notification_items.paginator.num_pages }}</span>
+    {% if notification_items.has_next %}
+    <a href="?type={{ notification_filter }}&amp;page={{ notification_items.next_page_number }}">Старее →</a>
+    {% endif %}
+  </nav>
   {% endif %}
-</div>
+  <p class="notice-footer">Уведомления показывают итог и важные изменения, а не каждую техническую проверку.{% if 'activity_history' in seller_capabilities %} <a href="{% url 'history' %}">Полный журнал событий</a>{% endif %}</p>
+</section>
 {% endblock %}
