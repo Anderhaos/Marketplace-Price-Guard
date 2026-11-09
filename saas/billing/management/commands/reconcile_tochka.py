@@ -23,10 +23,24 @@ def reconcile_due_payments():
     ).exclude(operation_id="").filter(
         Q(last_reconciled_at__isnull=True) | Q(last_reconciled_at__lte=now - timedelta(minutes=30))
     ).order_by("last_reconciled_at", "id")[:25]
+    # The acquiring webhook is not a guaranteed refund notification.
+    # Read back recently paid orders frequently so bank-initiated/manual refunds
+    # revoke paid access promptly, without querying every historical payment
+    # every 10 minutes. Older paid orders retain a daily safety reconciliation.
+    recent_paid = Q(
+        paid_at__gte=now - timedelta(days=1),
+    ) & Q(
+        last_reconciled_at__lte=now - timedelta(minutes=10),
+    )
+    older_paid = Q(
+        paid_at__lt=now - timedelta(days=1),
+    ) & Q(
+        last_reconciled_at__lte=now - timedelta(days=1),
+    )
     paid = SubscriptionPayment.objects.filter(
         status="paid", paid_at__gt=now - timedelta(days=365),
     ).exclude(operation_id="").filter(
-        Q(last_reconciled_at__isnull=True) | Q(last_reconciled_at__lte=now - timedelta(days=1))
+        Q(last_reconciled_at__isnull=True) | recent_paid | older_paid
     ).order_by("last_reconciled_at", "id")[:25]
     ids = [p.pk for p in pending] + [p.pk for p in paid]
     checked = 0
