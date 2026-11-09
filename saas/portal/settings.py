@@ -79,7 +79,7 @@ SAAS_WB_READ_ONLY = env_bool("SAAS_WB_READ_ONLY", True)
 # authorization. Never enabled just because the general WB network is enabled.
 NOSALE_WB_FINANCE_ENABLED = env_bool("NOSALE_WB_FINANCE_ENABLED", False)
 SAAS_ACCESS_ENFORCED = env_bool("SAAS_ACCESS_ENFORCED", True)
-# Same acquiring contract as MiniBook, separate NoSale merchant configuration.
+# Official Tochka.API acquiring contract; NoSale has its own merchant configuration.
 # Fail closed until a merchant, verified RS256 webhook key, and approved RUB price exist.
 TOCHKA_BILLING_ENABLED = env_bool("NOSALE_TOCHKA_ENABLED", False)
 TOCHKA_API_BASE = os.environ.get("NOSALE_TOCHKA_API_BASE", "https://enter.tochka.com/uapi")
