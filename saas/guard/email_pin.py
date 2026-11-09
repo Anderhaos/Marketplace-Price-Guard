@@ -538,7 +538,7 @@ def pin_login(request):
     and for compatibility with password recovery and prior clients.
     """
     if request.user.is_authenticated:
-        if request.GET.get("next") == "/admin/" and request.user.is_superuser:
+        if request.user.is_active and request.user.is_superuser:
             return redirect("/admin/")
         return redirect("dashboard")
     if request.method not in ("GET", "POST"):
@@ -597,7 +597,9 @@ def pin_login(request):
                         request.session.pop(SESSION_LOGIN_EMAIL, None)
                         requested = request.session.pop(SESSION_LOGIN_NEXT, "")
                         login(request, user)
-                        if requested == "/admin/" and user.is_superuser:
+                        if user.is_active and user.is_superuser:
+                            # Owner always proceeds to the mandatory email
+                            # challenge, regardless of the requested URL.
                             request.session.pop(SESSION_OWNER_VERIFIED, None)
                             return redirect("/admin/code/")
                         return redirect("dashboard")

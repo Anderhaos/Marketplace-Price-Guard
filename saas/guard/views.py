@@ -346,6 +346,8 @@ def select_store(request, store_id):
 @login_required
 def onboarding_connect(request):
     """Allow token replacement only while the initial inventory is pending."""
+    if request.user.is_active and request.user.is_superuser:
+        return redirect("/admin/")
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
     account = _account(request)
@@ -387,6 +389,9 @@ def connect_wb(request):
 
 @login_required
 def dashboard(request):
+    if request.user.is_active and request.user.is_superuser:
+        # A platform owner must never enter the seller WB onboarding.
+        return redirect("/admin/")
     account = _account(request)
     if settings.SAAS_PIN_AUTH_ENABLED:
         if not account.token_ciphertext:

@@ -15,6 +15,11 @@ def home_or_dashboard(request):
     and registration. This avoids any replacement marketing layout.
     """
     if request.user.is_authenticated:
+        if request.user.is_active and request.user.is_superuser:
+            # The platform owner is not a WB seller. Preserve the existing
+            # admin second-factor gate via /admin/ (never serve seller setup).
+            from django.shortcuts import redirect
+            return redirect("/admin/")
         from guard.views import dashboard
         return dashboard(request)
     from guard.email_pin import login_entry
