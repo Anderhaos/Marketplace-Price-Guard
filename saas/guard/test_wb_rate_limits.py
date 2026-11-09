@@ -410,3 +410,16 @@ class StagedQueueSurvivesSameRuleReapplyTests(TestCase):
         self.assertEqual(self.account.rules_version, 7)
         self.assertEqual(self.account.basic_staged_changes, [[123, 13]])
         self.assertGreaterEqual(self.account.next_check_at, self.due)
+
+    def test_saving_worker_settings_does_not_erase_valid_pending_upload(self):
+        response = self.client.post(reverse("settings"), {
+            "action": "settings", "interval_minutes": "30",
+            "max_fixes": "10",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.rules_version, 7)
+        self.assertEqual(self.account.basic_staged_rules_version, 7)
+        self.assertEqual(self.account.basic_staged_changes, [[123, 13]])
+        self.assertGreaterEqual(self.account.next_check_at, self.due)
+        self.assertEqual(self.account.max_fixes, 10)

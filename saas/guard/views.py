@@ -136,7 +136,9 @@ def _account_can_write(account):
 def _scheduled_wb_due(account, now):
     """UI writes cannot bypass WB 429 or the basic 15-minute price API gap."""
     due = now
-    if "429" in account.last_error and account.next_check_at > due:
+    if ("429" in account.last_error or account.basic_staged_changes) and account.next_check_at > due:
+        # Preserve a scheduled upload even if token inspection is temporarily
+        # unavailable; neither Save nor Apply may pull a staged WB write earlier.
         due = account.next_check_at
     if _account_token_type(account) == "base" and account.last_check_at:
         due = max(due, account.last_check_at + timedelta(minutes=16))
@@ -669,10 +671,18 @@ def settings_view(request):
         elif action == "settings":
             settings_form = AccountSettingsForm(request.POST, instance=account)
             if settings_form.is_valid():
-                updated = settings_form.save(commit=False)
-                updated.next_check_at = _scheduled_wb_due(account, timezone.now())
-                updated.save()
-                GuardAccount.objects.filter(pk=account.pk).update(rules_version=F("rules_version") + 1)
+                with transaction.atomic():
+                    locked = GuardAccount.objects.select_for_update().get(
+                        pk=account.pk, user_id=request.user.pk,
+                    )
+                    # Worker cadence and batch size aren't discount-policy
+                    # changes: a settings save must not invalidate a staged WB
+                    # upload, nor overwrite its concurrent queue/status fields.
+                    GuardAccount.objects.filter(pk=locked.pk).update(
+                        interval_minutes=settings_form.cleaned_data["interval_minutes"],
+                        max_fixes=settings_form.cleaned_data["max_fixes"],
+                        next_check_at=_scheduled_wb_due(locked, timezone.now()),
+                    )
                 messages.success(request, "Настройки сохранены.")
                 return redirect("settings")
             token_form = TokenForm()
