@@ -74,10 +74,12 @@ def validate_payment_url(value):
         port = parsed.port
     except ValueError as exc:
         raise AcquiringUnavailable("Invalid acquiring payment port") from exc
-    # An attacker must never be able to redirect the seller to an arbitrary host.
+    # Bank-confirmed payment links can use merch.securepaytb.ru (live NoSale 2026-11-09).
+    # Exact-host allowlist retains HTTPS and forbids attacker-controlled subdomains.
     if (parsed.scheme != "https" or parsed.username or parsed.password or port
             or not parsed.hostname or
-            (parsed.hostname != "merch.tochka.com" and not parsed.hostname.endswith(".tochka.com"))
+            (parsed.hostname not in ("merch.tochka.com", "merch.securepaytb.ru")
+             and not parsed.hostname.endswith(".tochka.com"))
             or parsed.fragment):
         raise AcquiringUnavailable("Unexpected acquiring payment host")
     return value
