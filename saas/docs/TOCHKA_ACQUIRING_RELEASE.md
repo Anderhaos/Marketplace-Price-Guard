@@ -1,68 +1,95 @@
-# NoSale / Tochka — подключение эквайринга с фискализацией
+# NoSale — эквайринг по официальной документации Точка.API
 
-Интеграция основана на способе работы BeClients (Anderhaos/MiniBook):
-серверный запрос к Tochka API, подтверждение по подписанному RS256 JWT,
-периодические сверки платежей. Реквизиты и токены MiniBook НЕ переносятся.
+Источник истины: документация Точки, версия API v1.103.1-stable (проверено 09.11.2026).
+Olvee и BeClients — только примеры; не переносить их JWT, merchantId,
+customerCode, webhook, цены или налоговую конфигурацию.
 
-## Что реализовано
+Production: https://nosale.pro, сервер 226082.msk.web.highserver.ru,
+репозиторий Anderhaos/Marketplace-Price-Guard, ветка main.
+Старые инструкции для E5 и nosale.svdev.pro НЕ применимы.
 
-- Разовая помесячная покупка Standard или Smart, без автосписаний.
-- Цены из включённых OwnerTariffOffer в PostgreSQL; проверка на сервере.
-- Платёжная ссылка только с чеком: POST /uapi/acquiring/v1.0/payments_with_receipt.
-- В чеке: email покупателя, услуга NoSale и её цена, режим налогообложения,
-  НДС и способ расчёта; никаких предположений о налогах.
-- Событие acquiringInternetPayment — подписанный JWT RS256, text/plain.
-- Проверка merchantId, customerCode, суммы, операции и номера заказа;
-  идемпотентное начисление AccessGrant и отзыв при полном возврате.
-- Браузерный возврат не подтверждает оплату. При пропущенном webhook
-  статус запрашивается сервером через Get Payment Operation Info.
-- Частичные возвраты остаются ручной проверкой без автоматического изменения срока.
+## Сценарий
 
-## Действия владельца в интернет-банке
+- NoSale продаёт доступ к Standard или Smart на один месяц без автосписания.
+- Использовать Create Payment Operation With Receipt:
+  POST https://enter.tochka.com/uapi/acquiring/v1.0/payments_with_receipt
+  (а не Create Subscription With Receipt: это отдельные рекуррентные списания).
+- Сервер считает цену по включённым OwnerTariffOffer; браузер не задаёт сумму.
+- Client.email покупателя обязателен для кассового чека.
+- Одна строка Items: услуга NoSale, paymentObject=service, quantity=1,
+  measure=шт., amount в рублях, подтверждённые taxSystemCode/vatType/paymentMethod.
+- paymentMode: card и sbp, preAuthorization=false, saveCard=false.
+- Ответ содержит operationId и paymentLink. Сам браузерный redirect не выдаёт
+  платный AccessGrant. Доступ выдаётся только после проверенного APPROVED
+  с совпадающими merchant/customer, operationId, paymentLinkId и суммой.
+- Подписанный webhook: acquiringInternetPayment, JWT RS256 в text/plain.
+  Публичный URL: https://nosale.pro/billing/tochka/webhook/
+- Пропущенные webhook восстанавливаются серверным запросом Get Payment Operation Info
+  через reconciliation-контейнер. Возвраты и чеки возвратов проверять отдельно.
 
-1. Сервисы → Интернет-эквайринг: проверить, что договор подключён для
-   NoSale и торговая точка активна. Если merchant общий с BeClients,
-   уточнить у Точки, можно ли использовать его для второго сайта.
-2. Подключить фискального партнёра: «Чеки» либо онлайн-кассу. Проверить
-   формирование чеков продажи И возврата. С бухгалтером подтвердить:
-   систему налогообложения, ставку НДС, способ расчёта по подписке.
-3. Сервисы → Интеграции и API → Создать JWT-ключ. Имя «NoSale».
-   Требуются разрешения MakeAcquiringOperation, ReadAcquiringData,
-   ReadCustomerData и ManageWebhookData для создания/изменения webhook.
-   Не пересылать JWT по чату и не добавлять его в GitHub.
-4. Получить customerCode (Get Customers List, тип Business), merchantId
-   (Get Retailers), client_id и публичный ключ проверки подписи Точки.
-5. Настроить получение acquiringInternetPayment по HTTPS:
-   https://nosale.svdev.pro/billing/tochka/webhook/
-   Точка отправляет тестовый POST при регистрации и ждёт HTTP 200;
-   даже при выключенном эквайринге NoSale отвечает 200 без изменения
-   платежей и прав. После включения активной обработки события
-   проверяются подписанным JWT RS256.
-6. В защищённом окружении E5 задать, НЕ публикуя секреты:
-   NOSALE_TOCHKA_JWT_TOKEN, NOSALE_TOCHKA_CUSTOMER_CODE,
-   NOSALE_TOCHKA_MERCHANT_ID, NOSALE_TOCHKA_WEBHOOK_JWK_JSON,
-   NOSALE_TOCHKA_TAX_SYSTEM_CODE (osn/usn_income/usn_income_outcome/esn/patent),
-   NOSALE_TOCHKA_VAT_TYPE (none/vat0/vat5/vat7/vat10/vat22 и др.),
-   NOSALE_TOCHKA_RECEIPT_PAYMENT_METHOD (full_payment/full_prepayment).
-   После подтверждения кассы: NOSALE_FISCALIZATION_CONFIRMED=1.
-   До окончания проверки: NOSALE_TOCHKA_ENABLED=0.
-7. В тестовой/контролируемой среде проверить ОДНУ фактическую оплату,
-   email с чеком, однократное начисление доступа, повтор webhook,
-   возврат (с чеком возврата) и отзыв доступа. Только после этого
-   отдельным решением открыть продажи и включить тарифы.
+## Факты 09.11.2026
 
-## Важные ограничения
+- Банк сообщил, что эквайринг подключён; на скриншотах доступны карты,
+  СБП и сервис «Чеки».
+- Не подтверждены через API банка: merchantId активной торговой точки NoSale,
+  customerCode, отдельный JWT/client_id и регистрация webhook.
+- На VPS нет банковских ключей NoSale; acquiring и тарифы для оплаты выключены.
+- HTTPS из контейнера до enter.tochka.com работает. Публичный JWK Точки
+  по HTTPS доступен. Наш webhook отвечает HTTP 200.
+- В интерфейсе «Чеки» на снимке выбран предмет расчёта «Товары» —
+  для NoSale должен соответствовать услуге. НДС и способ расчёта
+  согласовать с бухгалтером/Точкой, не выбирать автоматически.
 
-- Не переносить токены, merchantId или customerCode BeClients.
-- Подтверждённое подключение фискального сервиса — обязательная предпосылка,
-  одна булева настройка без подключения кассы не подтверждает выдачу чека.
-- Изменение токена JWT в Точке требует обновить client_id вебхука.
-- Не включать реальные платежи на основании только unit/E2E тестов.
-- Вебхук доступен публично, но не доверяет неподписанным событиям.
+## Последовательность подключения
 
-Официальные документы:
-https://developers.tochka.com/docs/tochka-api/internet-acquiring-integration
-https://developers.tochka.com/docs/tochka-api/api/create-payment-operation-with-receipt-acquiring-v-1-0-payments-with-receipt-post
-https://developers.tochka.com/docs/tochka-api/api/get-payment-operation-info-acquiring-v-1-0-payments-operation-id-get
-https://developers.tochka.com/docs/tochka-api/opisanie-metodov/vebhuki
-https://developers.tochka.com/docs/tochka-api/algoritm-raboty-s-jwt-tokenom
+1. В Точке подтвердить фискализацию: предмет «Услуги», способ расчёта,
+   актуальный режим УСН/НДС, чек продажи и возврата.
+2. Создать отдельный JWT NoSale в Интеграции и API, сохранить client_id.
+   Разрешения: ReadCustomerData, ReadAcquiringData, MakeAcquiringOperation,
+   ManageWebhookData. JWT не отправлять в чат или GitHub.
+3. Получить customerCode через Get Customers List, где customerType=Business.
+   Получить merchantId через Get Retailers. Для точки NoSale необходимо
+   status=REG, isActive=true и url=nosale.pro.
+4. Секреты только в приватном /opt/nosale/source/saas/.env на новом VPS:
+   NOSALE_TOCHKA_JWT_TOKEN — отдельный JWT;
+   NOSALE_TOCHKA_CLIENT_ID — отдельный client_id;
+   NOSALE_TOCHKA_CUSTOMER_CODE — проверенный код клиента;
+   NOSALE_TOCHKA_MERCHANT_ID — проверенный 15-значный ID торговой точки;
+   NOSALE_TOCHKA_WEBHOOK_JWK_JSON — публичный RSA JWK с официального
+     https://enter.tochka.com/doc/openapi/static/keys/public (TLS-проверка);
+   NOSALE_TOCHKA_TAX_SYSTEM_CODE — подтверждённый налоговый режим;
+   NOSALE_TOCHKA_VAT_TYPE — подтверждённая ставка НДС;
+   NOSALE_TOCHKA_RECEIPT_PAYMENT_METHOD — full_payment или full_prepayment;
+   NOSALE_PAYMENT_RETURN_BASE=https://nosale.pro.
+   Оставить NOSALE_TOCHKA_ENABLED=0 до приёмки.
+5. Проверить без операций списания:
+   docker compose exec web python manage.py tochka_preflight --online
+   Команда сверяет merchantId, регистрацию REG/active, nosale.pro,
+   карту/СБП, официальный публичный JWK и webhook. Секреты не печатаются.
+6. Если webhook ещё отсутствует, зарегистрировать:
+   docker compose exec web python manage.py tochka_preflight --online --register-webhook
+   Используется PUT /webhook/v1.0/{client_id} с webhooksList =
+   acquiringInternetPayment и url = https://nosale.pro/billing/tochka/webhook/.
+   Команда НЕ перезаписывает чужой URL или набор событий.
+7. Только после подтверждения кассы включить флаги NOSALE_FISCALIZATION_CONFIRMED
+   и NOSALE_TOCHKA_ENABLED. Включить тестируемый тариф отдельно.
+   Провести реальную контролируемую оплату с выдачей чека, однократным
+   AccessGrant, повторным webhook, возвратом и сверкой. Повторить для СБП.
+   Не открывать продажи всем до успешной приёмки.
+
+В Точке на один client_id допускается ОДИН URL webhook; при перевыпуске JWT
+меняется client_id. Не использовать для NoSale ключ другого проекта.
+Регистрация webhook может проводиться при выключенном эквайринге:
+проверочный POST получит 200 и не создаст подписку.
+
+## Официальные ссылки
+
+- https://developers.tochka.com/docs/tochka-api/internet-acquiring-integration
+- https://developers.tochka.com/docs/tochka-api/algoritm-raboty-s-jwt-tokenom
+- https://developers.tochka.com/docs/tochka-api/opisanie-metodov/platyozhnye-ssylki
+- https://developers.tochka.com/docs/tochka-api/api/create-payment-operation-with-receipt-acquiring-v-1-0-payments-with-receipt-post
+- https://developers.tochka.com/docs/tochka-api/api/get-retailers-acquiring-v-1-0-retailers-get
+- https://developers.tochka.com/docs/tochka-api/opisanie-metodov/vebhuki
+- https://developers.tochka.com/docs/tochka-api/api/create-webhook-webhook-v-1-0-client-id-put
+- https://developers.tochka.com/docs/tochka-api/faq
+- https://developers.tochka.com/docs/tochka-api/certificate
