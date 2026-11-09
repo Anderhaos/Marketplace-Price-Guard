@@ -39,6 +39,39 @@ class SubscriptionPayment(models.Model):
         constraints = [models.UniqueConstraint(fields=["provider","operation_id"], condition=~models.Q(operation_id=""), name="unique_provider_operation")]
 
 
+class PaymentRefundAttempt(models.Model):
+    """One durable full-refund request per bank payment; never resend on uncertainty.
+
+    Tochka has no client-supplied refund idempotency key for this endpoint.
+    The unique payment relation is the server-side duplicate/refund barrier.
+    """
+    payment = models.OneToOneField(
+        SubscriptionPayment, on_delete=models.PROTECT, related_name="refund_attempt",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="requested_nosale_refunds",
+    )
+    bank_operation_id = models.CharField(max_length=128)
+    amount_kopeks = models.PositiveIntegerField()
+    status = models.CharField(max_length=16, default="sending", choices=[
+        ("sending", "Запрос зафиксирован"),
+        ("submitted", "Банк принял запрос"),
+        ("confirmed", "Возврат подтверждён"),
+        ("uncertain", "Требуется проверка банка"),
+        ("rejected", "Банк отклонил запрос"),
+    ])
+    bank_status = models.CharField(max_length=32, blank=True)
+    bank_refund_order_id = models.CharField(max_length=128, blank=True)
+    failure_code = models.CharField(max_length=40, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Запрос возврата Точки"
+        verbose_name_plural = "Журнал запросов возврата Точки"
+
+
 class OwnerAISettings(models.Model):
     """Singleton NoSale AI control plane (non-secret configuration only).
 

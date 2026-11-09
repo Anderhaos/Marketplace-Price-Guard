@@ -2,7 +2,15 @@ from decimal import Decimal
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.models import LogEntry
-from .models import AccessGrant, SubscriptionPayment, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerOperationsSettings, OwnerMCPAdapter
+from django.http import HttpResponseForbidden, HttpResponseNotAllowed
+from django.shortcuts import get_object_or_404, redirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
+from django.utils.html import format_html
+
+from .models import AccessGrant, SubscriptionPayment, PaymentRefundAttempt, OwnerAISettings, OwnerTariffOffer, OwnerAIGatewayConnection, OwnerMCPSettings, OwnerOperationsSettings, OwnerMCPAdapter
+from .refunds import RefundUnavailable, start_full_refund
+from .tochka import configured
 from .ai_platform_connection import (
     PlatformConnectionError, normalize_base_url, save_gateway_token, verify_gateway,
 )
@@ -12,10 +20,152 @@ class AccessGrantAdmin(admin.ModelAdmin):
     list_display = ("user", "source", "plan", "starts_at", "ends_at", "revoked_at")
     search_fields = ("user__email","source_ref")
 
+class RefundConfirmForm(forms.Form):
+    confirm_refund = forms.BooleanField(
+        label="Подтверждаю полный возврат исходной суммы без частичного удержания",
+        required=True,
+    )
+
+
 @admin.register(SubscriptionPayment)
 class SubscriptionPaymentAdmin(admin.ModelAdmin):
-    list_display = ("user","provider","plan","amount_kopeks","status","created_at")
-    readonly_fields = ("user","provider","plan","operation_id","amount_kopeks","currency","status","period_months","created_at","paid_at")
+    """Read-only bank ledger; refunds are an explicit confirmed owner action."""
+    list_display = ("id", "user", "plan", "amount_kopeks", "status",
+                    "refund_state", "refund_action", "created_at")
+    list_filter = ("status", "plan")
+    search_fields = ("user__email", "operation_id")
+    readonly_fields = tuple(field.name for field in SubscriptionPayment._meta.fields)
+    actions = None
+
+    def _owner(self, request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_module_permission(self, request):
+        return self._owner(request)
+
+    def has_view_permission(self, request, obj=None):
+        return self._owner(request)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Возврат")
+    def refund_state(self, obj):
+        attempt = PaymentRefundAttempt.objects.filter(payment_id=obj.pk).first()
+        return attempt.get_status_display() if attempt else "Нет запроса"
+
+    @admin.display(description="Управление")
+    def refund_action(self, obj):
+        if obj.status != "paid" or obj.provider != "tochka":
+            return "—"
+        if PaymentRefundAttempt.objects.filter(payment_id=obj.pk).exists():
+            return "Запрос уже отправлен"
+        return format_html(
+            '<a href="{}">Вернуть {} ₽</a>',
+            reverse("admin:billing_subscriptionpayment_refund", args=[obj.pk]),
+            f"{Decimal(obj.amount_kopeks) / 100:.2f}",
+        )
+
+    def get_urls(self):
+        own = [
+            path(
+                "<int:payment_id>/refund/",
+                self.admin_site.admin_view(self.refund_payment_view),
+                name="billing_subscriptionpayment_refund",
+            ),
+        ]
+        return own + super().get_urls()
+
+    def refund_payment_view(self, request, payment_id):
+        if not self._owner(request):
+            return HttpResponseForbidden("Только владелец NoSale может оформлять возвраты.")
+        if request.method not in ("GET", "POST"):
+            return HttpResponseNotAllowed(["GET", "POST"])
+        payment = get_object_or_404(
+            SubscriptionPayment.objects.select_related("user"), pk=payment_id,
+        )
+        attempt = PaymentRefundAttempt.objects.filter(payment=payment).first()
+        if request.method == "POST":
+            form = RefundConfirmForm(request.POST)
+            if (payment.status != "paid" or payment.provider != "tochka"
+                    or attempt is not None):
+                self.message_user(
+                    request, "Платёж уже возвращён или запрос возврата уже создан.",
+                    level=messages.WARNING,
+                )
+                return redirect("admin:billing_subscriptionpayment_changelist")
+            if form.is_valid():
+                try:
+                    result = start_full_refund(payment.pk, request.user)
+                except RefundUnavailable as exc:
+                    self.message_user(request, str(exc), level=messages.ERROR)
+                else:
+                    if result.status == "confirmed":
+                        self.message_user(
+                            request, "Точка подтвердила возврат. Платный доступ отозван.",
+                            level=messages.SUCCESS,
+                        )
+                    elif result.status == "submitted":
+                        self.message_user(
+                            request, "Запрос принят Точкой. Доступ будет отозван после подтверждения банком.",
+                            level=messages.SUCCESS,
+                        )
+                    else:
+                        self.message_user(
+                            request, "Статус возврата неоднозначен. Проверьте журнал и Точку; повторная отправка заблокирована.",
+                            level=messages.WARNING,
+                        )
+                return redirect("admin:billing_subscriptionpayment_changelist")
+        else:
+            form = RefundConfirmForm()
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Подтверждение полного возврата",
+            "opts": self.model._meta,
+            "payment": payment,
+            "amount_rub": f"{Decimal(payment.amount_kopeks) / 100:.2f}",
+            "form": form,
+            "refund_eligible": (payment.provider == "tochka"
+                                and payment.status == "paid"
+                                and attempt is None and configured()),
+            "existing_attempt": attempt,
+            "back_url": reverse("admin:billing_subscriptionpayment_changelist"),
+        }
+        return TemplateResponse(
+            request, "admin/billing/subscriptionpayment/refund_confirmation.html", context,
+        )
+
+
+@admin.register(PaymentRefundAttempt)
+class PaymentRefundAttemptAdmin(admin.ModelAdmin):
+    """Immutable owner-facing audit of every refund POST / uncertain outcome."""
+    list_display = ("id", "payment", "requested_by", "amount_kopeks",
+                    "status", "bank_status", "failure_code", "created_at", "updated_at")
+    list_filter = ("status",)
+    search_fields = ("payment__operation_id", "payment__user__email")
+    readonly_fields = tuple(field.name for field in PaymentRefundAttempt._meta.fields)
+    actions = None
+
+    def has_module_permission(self, request):
+        return bool(request.user.is_active and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class OwnerAISettingsForm(forms.ModelForm):

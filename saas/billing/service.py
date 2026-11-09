@@ -158,6 +158,8 @@ def reconcile_payment(payment):
     operation = get_tochka_operation(payment.operation_id)
     if operation.get("status") == "REFUNDED_PARTIALLY":
         # Partial refunds need a separately approved entitlement policy.
+        from .refunds import reconcile_refund_attempt
+        reconcile_refund_attempt(payment, "REFUNDED_PARTIALLY")
         return "partial_refund_manual_review"
     event = {"data": {
         "webhookType": "acquiringInternetPayment",
@@ -168,4 +170,8 @@ def reconcile_payment(payment):
         "status": operation.get("status"),
         "amount": operation.get("amount"),
     }}
-    return apply_verified_event(event)
+    result = apply_verified_event(event)
+    from .refunds import reconcile_refund_attempt
+    payment.refresh_from_db()
+    reconcile_refund_attempt(payment, operation.get("status"))
+    return result

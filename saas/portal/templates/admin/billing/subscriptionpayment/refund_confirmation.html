@@ -1,0 +1,40 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Панель владельца</a> ›
+<a href="{{ back_url }}">Платежи</a> › Возврат №{{ payment.pk }}</div>
+{% endblock %}
+{% block content %}
+<main style="max-width:760px">
+  <h1>Полный возврат платежа №{{ payment.pk }}</h1>
+  <div style="border:1px solid var(--hairline-color,#bbb);border-radius:9px;padding:20px;margin:20px 0">
+    <p><strong>Покупатель:</strong> {{ payment.user.email }}</p>
+    <p><strong>Тариф:</strong> {{ payment.get_plan_display }}</p>
+    <p><strong>Сумма возврата:</strong> <strong>{{ amount_rub }} ₽</strong></p>
+    <p><strong>Статус NoSale:</strong> {{ payment.status }}</p>
+    <p><strong>Номер платежа в Точке:</strong> <code>{{ payment.operation_id }}</code></p>
+  </div>
+  {% if existing_attempt %}
+    <p class="errornote">Возврат уже запрошен: {{ existing_attempt.get_status_display }}.
+    Повторный запрос к банку заблокирован. Проверяйте статус в журнале возвратов.</p>
+  {% elif not refund_eligible %}
+    <p class="errornote">Запрос недоступен. Нужен оплаченный платёж Точки и активный эквайринг.</p>
+  {% else %}
+    <p><strong>Важно:</strong> действие отправит в Точку настоящий запрос на возврат всей суммы.
+    После подтверждения банка оплаченный доступ пользователя будет отозван.
+    Если банк не ответит, NoSale <strong>не повторит</strong> запрос автоматически.</p>
+    <form method="post" autocomplete="off">
+      {% csrf_token %}
+      {{ form.confirm_refund.errors }}
+      <p><label for="{{ form.confirm_refund.id_for_label }}">{{ form.confirm_refund }}
+      {{ form.confirm_refund.label }}</label></p>
+      <p style="margin:22px 0">
+        <button type="submit" class="button" style="background:#952b42;color:#fff;padding:10px 18px;border:0;border-radius:5px">
+          Вернуть {{ amount_rub }} ₽ через Точку
+        </button>
+        <a href="{{ back_url }}" style="margin-left:16px">Отмена</a>
+      </p>
+    </form>
+  {% endif %}
+  <p><a href="{{ back_url }}">К списку платежей</a></p>
+</main>
+{% endblock %}

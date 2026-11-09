@@ -85,6 +85,8 @@
     <div class="owner-caption-row"><span>АДМИНИСТРИРОВАНИЕ</span></div>
     <div class="owner-quicklinks">
       <a href="{% url 'admin:auth_user_changelist' %}">Клиенты и подписки <span>↗</span></a>
+      <a href="{% url 'admin:billing_subscriptionpayment_changelist' %}">Платежи и возвраты Точки <span>↗</span></a>
+      <a href="{% url 'admin:billing_paymentrefundattempt_changelist' %}">Журнал возвратов <span>↗</span></a>
       <a href="{% url 'admin:guard_guardevent_changelist' %}">Мониторинг <span>↗</span></a>
       <a href="{% url 'admin:admin_logentry_changelist' %}">Журнал изменений <span>↗</span></a>
       <a href="{% url 'nosale_owner_devices' %}">Доверенные устройства <span>↗</span></a>

@@ -29,6 +29,7 @@
       <p class="owner-navtitle owner-navtitle--secondary">ДОПОЛНИТЕЛЬНО</p>
       <nav class="owner-navigation">
         <a href="{% url 'admin:auth_user_changelist' %}" class="owner-navlink"><span class="owner-navbullet" aria-hidden="true"></span>Клиенты и подписки</a>
+        <a href="{% url 'admin:billing_subscriptionpayment_changelist' %}" class="owner-navlink"><span class="owner-navbullet" aria-hidden="true"></span>Платежи и возвраты</a>
         <a href="{% url 'admin:guard_guardevent_changelist' %}" class="owner-navlink"><span class="owner-navbullet" aria-hidden="true"></span>Мониторинг</a>
         <a href="{% url 'admin:admin_logentry_changelist' %}" class="owner-navlink"><span class="owner-navbullet" aria-hidden="true"></span>Журнал изменений</a>
       </nav>
