@@ -1,4 +1,4 @@
-"""Tochka acquiring adapter, following MiniBook's payment-link + signed-JWT model.
+"""Tochka acquiring adapter based on the official Tochka.API contract.
 
 Strictly no unsignalled sandbox or simulated payment activation in production.
 All merchant values are isolated to NoSale's environment.
