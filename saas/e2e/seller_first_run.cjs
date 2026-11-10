@@ -294,7 +294,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await goto('/notifications/');
     assert.equal(await page.$('main details'),null,'Notification reports must not be hidden behind disclosures');
     assert.equal(await page.$('#notification-settings'),null);
-    await waitText('Пока нет уведомлений.');
+    await waitText('Здесь пока нет событий');
     step('routine_sync_does_not_spam_important_notifications');
     await page.screenshot({path:snapshotDir+'/03-notifications.png'});
     await goto('/history/');

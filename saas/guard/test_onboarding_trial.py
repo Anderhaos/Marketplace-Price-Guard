@@ -240,7 +240,9 @@ class FirstRunOnboardingTests(TestCase):
         account = GuardAccount.objects.get(user=self.user)
         self.assertFalse(account.enabled)
         self.assertFalse(account.check_requested)
-        self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 59*60)
+        # The basic WB token now permits one prices API call per 16-minute
+        # cycle, not the old 60-minute full-catalog interval.
+        self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 15*60)
         self.assertEqual(run_due_checks(), 0)
 
     @override_settings(SAAS_WB_NETWORK_ENABLED=True, SAAS_WB_READ_ONLY=False)
@@ -268,6 +270,17 @@ class FirstRunOnboardingTests(TestCase):
         account.check_requested = True
         account.next_check_at = timezone.now()
         account.save(update_fields=["enabled", "default_allowed_discount", "check_requested", "next_check_at"])
+        self.assertEqual(run_due_checks(), 1)
+        # A basic token cannot GET prices and POST a correction in the same
+        # API window: the first cycle only persists a staged correction.
+        client.submit_discounts.assert_not_called()
+        account.refresh_from_db()
+        self.assertEqual(account.basic_staged_changes, [[804, 10]])
+        self.assertGreater((account.next_check_at-timezone.now()).total_seconds(), 15*60)
+        # Simulate the scheduled next 16-minute worker cycle without a live WB call.
+        GuardAccount.objects.filter(pk=account.pk).update(
+            next_check_at=timezone.now() - timedelta(seconds=1),
+        )
         self.assertEqual(run_due_checks(), 1)
         client.submit_discounts.assert_called_once_with([(804, 10)])
         self.assertEqual(Upload.objects.filter(account=account, upload_id=87436).count(), 1)

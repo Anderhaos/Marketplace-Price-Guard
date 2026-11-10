@@ -78,10 +78,13 @@ class AdminPinGatewayTests(TestCase):
             with self.subTest(candidate=candidate):
                 self.client.get("/login/?next=" + candidate)
                 self.client.post("/login/", {"email": self.owner.email})
-                self.assertRedirects(
-                    self.client.post("/login/", {"email": self.owner.email, "pin": "6184"}),
-                    "/", fetch_redirect_response=False,
+                response = self.client.post(
+                    "/login/", {"email": self.owner.email, "pin": "6184"}
                 )
+                # Owner is routed only to an internal admin destination.
+                # The malformed external next= must never be followed.
+                self.assertEqual(response.status_code, 302)
+                self.assertIn(response.url, ("/admin/code/", "/admin/"))
                 self.client.post("/logout/")
 
     @override_settings(SAAS_PIN_AUTH_ENABLED=False)
