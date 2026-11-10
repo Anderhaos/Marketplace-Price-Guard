@@ -315,7 +315,7 @@ class BasicManualActionCooldownTests(SimpleTestCase):
         from .views import _scheduled_wb_due
         now = timezone.now()
         account = SimpleNamespace(
-            last_error="", last_check_at=now,
+            last_error="", last_check_at=now, basic_staged_changes=[],
             next_check_at=now + timedelta(minutes=16),
         )
         self.assertEqual(_scheduled_wb_due(account,now),now+timedelta(minutes=16))
