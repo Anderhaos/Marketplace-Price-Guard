@@ -315,7 +315,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.equal(seeded.json.campaigns,6);
     assert.equal(seeded.json.reports,6);
     await goto('/notifications/');
-    assert.equal(await page.$eval('.notice-list .notice-row',els=>els.length),6);
+    assert.equal(await page.$$eval('.notice-list .notice-row',els=>els.length),6);
     await waitText('Synthetic seller report 6');
     await goto('/promotions/');
     assert.equal(await page.$$eval('.promo-action-line',els=>els.length),3);
