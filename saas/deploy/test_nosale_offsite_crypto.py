@@ -30,6 +30,19 @@ class EncryptedBackupContractTests(TestCase):
         ):
             self.assertIn(required, script)
 
+    def test_current_production_backup_unit_paths(self):
+        service = SCRIPT.with_suffix(".service").read_text(encoding="utf-8")
+        script = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("EnvironmentFile=/etc/nosale-saas/offsite.env", service)
+        self.assertIn("WorkingDirectory=/opt/nosale/source/saas", service)
+        self.assertIn(
+            "ExecStart=/usr/bin/bash /opt/nosale/source/saas/deploy/nosale-backup-offsite.sh",
+            service,
+        )
+        self.assertIn("/opt/nosale/secure-backups/offsite", script)
+        self.assertIn("/opt/nosale/source/saas/.env", script)
+        self.assertNotIn("/srv/mpnosale-saas/source/saas", service)
+
     @skipUnless(shutil.which("gpg"), "GnuPG required for crypto integration test")
     def test_public_only_encryption_and_independent_private_key_recovery(self):
         with TemporaryDirectory() as directory:

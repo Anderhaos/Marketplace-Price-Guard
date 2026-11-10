@@ -1,4 +1,33 @@
-# NoSale independent encrypted offsite backup (E5)
+# NoSale independent encrypted offsite backup
+
+## Current production deployment (2026-11-10, NoSale #12)
+
+- Public `nosale.pro` runs on the migrated production VPS, with the immutable
+  GitHub checkout at `/opt/nosale/source/saas` and the dedicated database
+  container `mpnosale-saas-db-1`. The old `/srv/mpnosale-saas` layout belongs
+  to the earlier E5 host, **not** to the public production deployment.
+- The production unit and script use the new paths. The root-only
+  `/etc/nosale-saas/offsite.env` explicitly pins the SSH endpoint, destination,
+  public GPG recipient fingerprint, private application configuration path, DB
+  container and local encrypted archive directory. Do not put these settings
+  or backup keys in a Git commit.
+- A fresh production-only SSH key is authorized on the existing offsite
+  storage, restricted to the production source IP. The recovery private
+  OpenPGP key was **not** installed or copied to production.
+- Production backup `20261110T212306Z` completed with service
+  `Result=success`. Both encrypted artifacts and `FORMAT`/`SHA256SUMS`
+  were verified on production and again against the actual remote archive.
+  The daily production timer is enabled (02:15 server local time, plus jitter).
+- The previous E5 host's failing backup timer is disabled after successful
+  replacement. This does not delete any old archives or alter the new
+  production database, WB guard, billing or AI.
+- **Release gate still open:** remote ciphertext integrity is **not**
+  equivalent to an independent offsite *decryption and PostgreSQL restore*.
+  Recover on the separate recovery machine with the private key, verify
+  `pg_restore -l` and perform a disposable restoration before marking
+  `offsite_backup` in #12 verified. Do not put the recovery private key on
+  the application host.
+
 
 NoSale retains its original Docker-local rolling backup volume; this dedicated
 systemd timer creates separate *encrypted* online PostgreSQL and SaaS environment
@@ -12,10 +41,10 @@ artifacts, `postgres.dump.gpg` and `saas.env.gpg`, plus `FORMAT` and
 stored as a plaintext file in the new local/offsite snapshot. The DB dump
 stream goes directly from `docker exec pg_dump` to GPG.
 
-- E5 contains a **public** key only under root-only
+- The production VPS contains a **public** key only under root-only
   `/etc/nosale-saas/gpg-public`.
 - A **separate recovery machine** stores the private OpenPGP key, under a
-  root-only GPG homedir, not on E5 or the offsite storage host.
+  root-only GPG homedir, not on the production VPS or the offsite storage host.
 - `NOSALE_OFFSITE_GPG_RECIPIENT` pins the complete 40-character verified
   fingerprint in the root-only host `/etc/nosale-saas/offsite.env`.
 - Never commit secret keys, the environment file, DB dumps or tokens to Git.
@@ -57,7 +86,7 @@ snapshot and independent decryption drill have passed.
 
 Asymmetric encryption protects new offsite data at rest if the storage account
 is compromised without access to the private key. It does not eliminate the
-need to protect E5 at runtime, to safeguard the recovery host, or to test
+need to protect the production VPS at runtime, to safeguard the recovery host, or to test
 recovery key backups. SHA-256 detects transport corruption but is not a
 substitute for the GPG integrity check when decrypting. A compromised E5 could
 replace the encryption key; compare its fingerprint to the independently
