@@ -315,7 +315,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.equal(seeded.json.campaigns,6);
     assert.equal(seeded.json.reports,6);
     await goto('/notifications/');
-    assert.equal(await page.$$eval('.balanced-feed-grid .workspace-message',els=>els.length),6);
+    assert.equal(await page.$eval('.notice-list .notice-row',els=>els.length),6);
     await waitText('Synthetic seller report 6');
     await goto('/promotions/');
     assert.equal(await page.$$eval('.promo-action-line',els=>els.length),3);
@@ -373,7 +373,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         if(expected===null)expected=geometry.mainWidth;
         assert.ok(Math.abs(expected-geometry.mainWidth)<=1,'Inconsistent page width '+route+' at '+width);
         const target={
-          '/notifications/':'.compact-inbox',
+          '/notifications/':'.notice-list',
           '/settings/':'.compact-settings-grid',
           '/history/':'.workspace-panel-grid',
           '/stores/':'.workspace-columns',
@@ -398,9 +398,9 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
         }
         if(route==='/notifications/'){
           const reportLayout=await page.evaluate(()=>{
-            const grid=document.querySelector('.balanced-feed-grid');
+            const grid=document.querySelector('.notice-list');
             const bounds=grid.getBoundingClientRect();
-            const cards=[...grid.querySelectorAll('.workspace-message')];
+            const cards=[...grid.querySelectorAll('.notice-row')];
             const boxes=cards.map(card=>card.getBoundingClientRect());
             const tops=[...new Set(boxes.map(box=>Math.round(box.top)))];
             const rows=tops.map(top=>boxes.filter(box=>Math.abs(box.top-top)<2));
@@ -416,7 +416,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
           assert.equal(reportLayout.count,6,'Six synthetic reports expected');
           assert.ok(reportLayout.fill,'Orphan report row: '+JSON.stringify(reportLayout));
           assert.equal(reportLayout.overflow,false,'Overflow in report cards');
-          if(width===1920)assert.deepEqual(reportLayout.rowCounts,[3,3]);
+          if(width===1920)assert.deepEqual(reportLayout.rowCounts,[1,1,1,1,1,1]);
           if(width===390)assert.deepEqual(reportLayout.rowCounts,[1,1,1,1,1,1]);
         }
         if(route==='/promotions/') {
