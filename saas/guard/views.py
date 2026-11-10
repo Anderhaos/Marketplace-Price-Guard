@@ -1,4 +1,5 @@
 import re
+import json
 from urllib.parse import urlencode
 from datetime import timedelta
 from django.contrib import messages
@@ -836,7 +837,7 @@ def product_history_data(request, nm_id):
     })
 
 
-from .notifications_feed import IMPORTANT_EVENT_KINDS, notification_page
+from .notifications_feed import IMPORTANT_EVENT_KINDS, notification_page, unread_notification_groups
 
 
 @login_required
@@ -850,6 +851,59 @@ def notifications(request):
         page=request.GET.get("page", "1"),
     )
     return render(request, "guard/notifications.html", context)
+
+
+@login_required
+def mark_notifications_viewed(request):
+    """Read receipts for notifications actually displayed in the viewport.
+
+    POST-only and CSRF-protected. An event ID represents the exact visible
+    group snapshot, so only earlier matching records of that user's store
+    can be marked read. Later events remain unread.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    if (feature_disabled_for_active_plan(request.user.pk, "notifications")
+            and feature_disabled_for_active_plan(request.user.pk, "store_advice")):
+        return HttpResponseForbidden("Уведомления не включены в тариф.")
+    if len(request.body) > 4096:
+        return JsonResponse({"error": "too_large"}, status=400)
+    try:
+        data = json.loads(request.body)
+        if not isinstance(data, dict):
+            raise ValueError("not an object")
+        ids = {}
+        for field in ("events", "reports"):
+            raw = data.get(field, [])
+            if (not isinstance(raw, list) or len(raw) > 24
+                    or any(type(pk) is not int or pk < 1 or pk > 9223372036854775807 for pk in raw)):
+                raise ValueError("invalid ids")
+            ids[field] = set(raw)
+    except (ValueError, TypeError, AssertionError):
+        return JsonResponse({"error": "invalid_ids"}, status=400)
+
+    when = timezone.now()
+    with transaction.atomic():
+        # Check ownership before deriving a group; never trust the browser's
+        # store ID/message, and do not acknowledge newer queued events.
+        snapshots = list(GuardEvent.objects.filter(
+            pk__in=ids["events"], account__user=request.user,
+            kind__in=IMPORTANT_EVENT_KINDS,
+        ).values("pk", "account_id", "kind", "message", "created_at"))
+        for event in snapshots:
+            GuardEvent.objects.filter(
+                account_id=event["account_id"],
+                kind=event["kind"],
+                message=event["message"],
+                pk__lte=event["pk"],
+                created_at__lte=event["created_at"],
+                read_at__isnull=True,
+            ).update(read_at=when)
+        PushMessage.objects.filter(
+            pk__in=ids["reports"], user=request.user,
+            kind__in=("digest", "smart"), read_at__isnull=True,
+        ).update(read_at=when)
+    return JsonResponse({"unread": unread_notification_groups(request.user)})
 
 
 @login_required

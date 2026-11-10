@@ -98,5 +98,6 @@ urlpatterns = [
     path("push/unsubscribe/", push_views.unsubscribe_device, name="push_unsubscribe"),
     path("push/preferences/", push_views.preferences, name="push_preferences"),
     path("notifications/read/", views.mark_notifications_read, name="mark_notifications_read"),
+    path("notifications/viewed/", views.mark_notifications_viewed, name="mark_notifications_viewed"),
     path("health/", views.health, name="health"),
 ]

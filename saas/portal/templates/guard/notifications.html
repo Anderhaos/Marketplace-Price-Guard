@@ -1,7 +1,7 @@
 {% extends 'guard/base.html' %}
 {% block title %}Уведомления — NoSale{% endblock %}
 {% block content %}
-<section class="notice-center" aria-label="Центр уведомлений">
+<section class="notice-center" aria-label="Центр уведомлений" data-viewed-url="{% url 'mark_notifications_viewed' %}">
   <header class="compact-page-head notice-center-head">
     <div>
       <h1>Уведомления</h1>
@@ -23,7 +23,7 @@
 
   <div class="notice-list">
     {% for item in notification_items %}
-    <article class="notice-row {% if item.is_error %}notice-row--error{% elif item.is_success %}notice-row--success{% else %}notice-row--report{% endif %} {% if item.resolved %}notice-row--historical{% endif %}">
+    <article {% if item.unread %}data-notice-source="{{ item.source }}" data-notice-id="{{ item.key }}"{% endif %} class="notice-row {% if item.is_error %}notice-row--error{% elif item.is_success %}notice-row--success{% else %}notice-row--report{% endif %} {% if item.resolved %}notice-row--historical{% endif %}">
       <div class="notice-indicator" aria-hidden="true"></div>
       <div class="notice-content">
         <div class="notice-heading">
@@ -71,4 +71,5 @@
   {% endif %}
   <p class="notice-footer">Уведомления показывают итог и важные изменения, а не каждую техническую проверку.{% if 'activity_history' in seller_capabilities %} <a href="{% url 'history' %}">Полный журнал событий</a>{% endif %}</p>
 </section>
+<script src="/static/seller-notifications.js?v=20261110a" defer></script>
 {% endblock %}
