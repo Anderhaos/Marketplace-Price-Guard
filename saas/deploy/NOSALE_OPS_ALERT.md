@@ -8,11 +8,13 @@
 
 Install:
 ```
-cd /opt/nosale/source/saas\ninstall -m 644 deploy/nosale-ops-alert.service /etc/systemd/system/
+cd /opt/nosale/source/saas
+install -m 644 deploy/nosale-ops-alert.service /etc/systemd/system/
 install -m 644 deploy/nosale-ops-alert.timer /etc/systemd/system/
 systemctl daemon-reload
 python3 deploy/nosale-ops-alert.py --check-only
-## Do NOT run --test-email by default: it sends a real message to the owner.\n## Only request a single labeled test email with separate owner approval.
+## Do NOT run --test-email by default: it sends a real message to the owner.
+## Only request a single labeled test email with separate owner approval.
 systemctl start nosale-ops-alert.service
 systemctl enable --now nosale-ops-alert.timer
 systemctl list-timers nosale-ops-alert.timer
