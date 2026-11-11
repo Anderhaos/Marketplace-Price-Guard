@@ -20,11 +20,23 @@ class OpsAlertTests(TestCase):
         self.assertIn("container", mod.monitor(["container offline"], now, baseline)[1])
         active = {"issues": ["container offline"], "last_sent": now}
         self.assertIsNone(mod.monitor(["container offline"], now + 60, active))
-        self.assertIsNotNone(mod.monitor(["container offline"], now + 6 * 3600, active))
-        self.assertIsNotNone(mod.monitor(["container offline", "backup stale"], now + 60, active))
+        self.assertIsNone(mod.monitor(["container offline"], now + 6 * 3600, active))
+        self.assertIsNone(mod.monitor(["container offline", "backup stale"], now + 60, active))
         recovered = mod.monitor([], now + 65, active)
         self.assertIn("восстановлены", recovered[0])
         self.assertIsNone(mod.monitor([], now + 65, baseline))
+
+    def test_current_production_paths_and_no_periodic_spam(self):
+        self.assertEqual(str(mod.APP_ENV), "/opt/nosale/source/saas/.env")
+        self.assertEqual(str(mod.BACKUPS), "/opt/nosale/secure-backups/offsite")
+        self.assertEqual(mod.HEALTH_URL, "https://nosale.pro/health/")
+        service = file_path.with_suffix(".service").read_text(encoding="utf-8")
+        self.assertIn("/opt/nosale/source/saas/deploy/nosale-ops-alert.py", service)
+        self.assertNotIn("/srv/mpnosale-saas/source/saas", service)
+        old = {"issues": ["backup stale"], "last_sent": 100}
+        for timestamp in (101, 100 + 6 * 3600, 100 + 30 * 86400):
+            self.assertIsNone(mod.monitor(["backup stale"], timestamp, old))
+        self.assertIsNotNone(mod.monitor([], 100 + 30 * 86400, old))
 
     def test_persistent_alert_state_is_only_root_private(self):
         with TemporaryDirectory() as directory:

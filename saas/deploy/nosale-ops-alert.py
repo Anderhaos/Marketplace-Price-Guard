@@ -16,9 +16,9 @@ import time
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, ProxyHandler
 
-APP_ENV = Path("/srv/mpnosale-saas/source/saas/.env")
+APP_ENV = Path("/opt/nosale/source/saas/.env")
 STATE = Path("/var/lib/nosale-ops-alert/state.json")
-BACKUPS = Path("/srv/mpnosale-saas/secure-backups/offsite")
+BACKUPS = Path("/opt/nosale/secure-backups/offsite")
 CONTAINERS = (
     "mpnosale-saas-db-1",
     "mpnosale-saas-web-1",
@@ -28,8 +28,7 @@ CONTAINERS = (
     "mpnosale-saas-reconciliation-1",
 )
 BACKUP_MAX_AGE_SECONDS = 40 * 3600
-REMINDER_INTERVAL_SECONDS = 6 * 3600
-HEALTH_URL = "https://nosale.svdev.pro/health/"
+HEALTH_URL = "https://nosale.pro/health/"
 
 
 def command(*args, timeout=12):
@@ -137,13 +136,15 @@ def load_state(path=STATE):
 def monitor(issues, now, old):
     previous = sorted(set(old.get("issues", [])))
     issues = sorted(set(issues))
-    if issues:
-        if issues != previous or now - old.get("last_sent", 0) >= REMINDER_INTERVAL_SECONDS:
-            return ("[NoSale] Авария сервисов", "NoSale E5 requires attention:\n\n"
-                    + "\n".join("- " + item for item in issues)
-                    + "\n\nCheck: docker ps; systemctl status nosale-backup-offsite.service")
-    elif previous:
-        return "[NoSale] Сервисы восстановлены", "NoSale E5 health and backup checks are back to normal."
+    # A continuing incident produces ONE owner alert, never repeated reminders.
+    # New failures during the same outage are covered by the next scheduled
+    # check and the persistent issue state, without spamming the mailbox.
+    if issues and not previous:
+        return ("[NoSale] Авария сервисов", "NoSale production requires attention:\n\n"
+                + "\n".join("- " + item for item in issues)
+                + "\n\nCheck: docker ps; systemctl status nosale-backup-offsite.service")
+    if not issues and previous:
+        return "[NoSale] Сервисы восстановлены", "NoSale production health and backup checks are back to normal."
     return None
 
 
