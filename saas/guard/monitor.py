@@ -6,7 +6,6 @@ from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 
 from billing.access import guard_is_permitted, first_inventory_import_permitted
-from billing.trial import grant_trial_once
 from billing.models import AccessGrant, OwnerOperationsSettings
 from django.conf import settings
 from .crypto import decrypt_token
@@ -421,10 +420,6 @@ def run_due_checks():
                 updated = GuardAccount.objects.filter(
                     pk=account.pk, lock_until=lease_until, rules_version=current_version,
                 ).update(**changes)
-                if updated and "initial_sync_completed_at" in changes:
-                    # Readiness and the idempotent three-day grant must commit
-                    # together; stale in-flight token updates cannot earn a trial.
-                    grant_trial_once(account.user_id, at=finished_at)
                 if not updated:
                     GuardAccount.objects.filter(pk=account.pk, lock_until=lease_until).update(
                         lock_until=None, next_check_at=timezone.now()
