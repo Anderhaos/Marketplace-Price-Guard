@@ -62,7 +62,9 @@
         {% endfor %}
       </div>
       {% if more_products %}<p class="os-foot">Показаны первые 100 товаров. Остальные будут использовать общий предел; изменить их отдельно можно после запуска.</p>{% endif %}
-      {% else %}<p class="os-empty">В магазине пока нет активных товаров. Дождитесь появления товаров в Wildberries. Три дня не расходуются.</p>{% endif %}
+      {% else %}
+      <p class="os-empty">В магазине пока нет активных товаров. Когда товары появятся в Wildberries, повторите загрузку. Три дня не расходуются.</p>
+      {% endif %}
     </div>
     <aside class="os-card">
       <h2>3. Начать работу</h2>
@@ -78,4 +80,13 @@
     </aside>
   </form>
 </section>
+{% if not setup_products %}
+<form method="post" action="{% url 'dashboard' %}" class="os-card" style="margin-top:15px">
+  {% csrf_token %}
+  <h2>Обновить список товаров</h2>
+  <p>После создания первого товара в WB можно снова проверить каталог. Повтор выполняется фоновым процессом с учётом ограничений Wildberries.</p>
+  <button type="submit" name="action" value="retry_empty_import" {% if not retry_empty_import_available %}disabled aria-disabled="true"{% endif %}>Повторить загрузку товаров</button>
+  {% if not retry_empty_import_available %}<p class="os-foot">Следующая проверка WB — не раньше {{ next_retry_at|date:"d.m.Y H:i" }}. Обновите страницу после этого времени.</p>{% endif %}
+</form>
+{% endif %}
 {% endblock %}
