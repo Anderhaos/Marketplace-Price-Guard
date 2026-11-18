@@ -168,6 +168,42 @@ class TrialActivationTests(TestCase):
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
         self.assertContains(self.client.get("/"), "В магазине пока нет активных товаров")
 
+    def test_empty_initial_catalog_can_be_refreshed_without_starting_trial(self):
+        with patch("guard.integrations.WBClient"):
+            self.client.post(reverse("connect_wb"), {"token": token_for(kind=1)})
+        with patch("guard.monitor.WBClient") as wb:
+            wb.return_value.get_product_cards.return_value = []
+            wb.return_value.get_products.return_value = []
+            self.assertEqual(run_due_checks(), 1)
+        account = GuardAccount.objects.get(user=self.user)
+        self.assertIsNotNone(account.initial_sync_completed_at)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        self.assertContains(self.client.get("/"), "Обновить список товаров")
+        self.assertRedirects(self.client.post("/", {"action": "retry_empty_import"}), "/")
+        account.refresh_from_db()
+        self.assertFalse(account.check_requested)  # Cannot bypass the WB cooldown.
+        GuardAccount.objects.filter(pk=account.pk).update(
+            next_check_at=timezone.now() - timedelta(seconds=1)
+        )
+        self.assertRedirects(self.client.post("/", {"action": "retry_empty_import"}), "/")
+        account.refresh_from_db()
+        self.assertTrue(account.check_requested)
+        with patch("guard.monitor.WBClient") as wb:
+            wb.return_value.get_product_cards.return_value = [
+                {"nmID": 9001, "title": "Новый товар", "photos": []}
+            ]
+            wb.return_value.get_products.return_value = [
+                {"nmID": 9001, "discount": 4, "sizes": [
+                    {"price": 100, "discountedPrice": 96}
+                ]}
+            ]
+            self.assertEqual(run_due_checks(), 1)
+            wb.return_value.submit_discounts.assert_not_called()
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        self.assertContains(self.client.get("/"), "Новый товар")
+        self.assertRedirects(self.client.post("/", self.form()), "/")
+        self.assertTrue(has_active_access(self.user.pk))
+
     def test_expired_old_grant_does_not_reset_by_setup_or_reconnect(self):
         account = self.import_one()
         self.client.post("/", self.form())
