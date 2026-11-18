@@ -131,7 +131,9 @@ class TrialActivationTests(TestCase):
                                                   current_discount=10, allowed_discount_override=17)
         self.assertRedirects(self.client.post("/", self.form(limit_9001="999")), "/")
         self.assertRedirects(self.client.post("/", self.form(limit_9001="abc")), "/")
-        self.assertRedirects(self.client.post("/", self.form(limit_9001=None)), "/")
+        incomplete = self.form()
+        incomplete.pop("limit_9001")
+        self.assertRedirects(self.client.post("/", incomplete), "/")
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
         self.assertRedirects(self.client.post("/", self.form(
             action="save_setup", limit_9002="0")), "/")
