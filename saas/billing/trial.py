@@ -1,7 +1,9 @@
 """Three-day, once-per-account trial using the canonical AccessGrant ledger.
 
-Same access-grant pattern as MiniBook. Trial starts after the first fully successful inventory import, not after
-email confirmation or token verification. Failures and WB 429 do not consume it.
+Same access-grant pattern as MiniBook. The first verified inventory import only
+unlocks local setup. Trial starts on the seller's explicit Guard activation
+after setting discounts, not on email confirmation, token validation or import.
+Existing trial grants are immutable: reconnection never extends access.
 """
 from datetime import timedelta
 from math import ceil
