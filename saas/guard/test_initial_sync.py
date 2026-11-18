@@ -178,6 +178,8 @@ class InitialSyncGateTests(TestCase):
         sess = self.client.session
         sess["mpno_selected_store_id"] = ready.pk
         sess.save()
+        # Marked as previously activated; a new seller with no trial stays in setup.
+        grant_trial_once(self.user.pk)
         self.assertEqual(self.client.get("/stores/").status_code, 200)
 
     @override_settings(SAAS_WB_READ_ONLY=True)
@@ -210,13 +212,13 @@ class InitialSyncGateTests(TestCase):
         account.initial_sync_completed_at = timezone.now()
         account.save(update_fields=["initial_sync_completed_at"])
         response = self.client.get("/")
-        self.assertContains(response, "Предельные скидки можно настроить")
-        self.assertContains(response, 'name="action" value="save_limit"')
-        self.assertContains(response, "disabled")
+        self.assertContains(response, "Настройте защиту товаров")
+        self.assertContains(response, "Сохранить настройки")
+        self.assertContains(response, 'disabled aria-disabled="true"')
         for action in ("apply_all", "toggle_autocontrol"):
             response = self.client.post("/", {"action": action,
                                               "enabled": "on", "default_allowed_discount": "0"})
-            self.assertRedirects(response, "/")
+            self.assertEqual(response.status_code, 405)
             account.refresh_from_db()
             self.assertFalse(account.apply_all_requested)
             self.assertFalse(account.enabled)
