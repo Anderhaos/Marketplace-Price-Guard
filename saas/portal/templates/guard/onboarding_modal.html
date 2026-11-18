@@ -1,70 +1,153 @@
-{% comment %}Seller-friendly first run. No token is ever reflected into rendered HTML.{% endcomment %}
-<dialog id="wb-setup" class="setup-dialog" open aria-labelledby="wb-setup-title" aria-describedby="wb-setup-lead">
-  <div class="setup-dialog-top">
-    <span class="eyebrow">Первый запуск · подключение магазина</span>
-    {% if not trial_status.trial_started %}<strong class="setup-trial-pill">3 дня бесплатно</strong>{% endif %}
+{% comment %}Official WB API guide, illustrated with schematic UI (not screenshots). The modal stays server-gated.{% endcomment %}
+<style>
+  #wb-setup.setup-dialog{width:min(900px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #38383e;border-radius:19px;overflow-y:auto;overflow-x:hidden;background:#141416}
+  #wb-setup .wb-setup-head{padding:22px 26px 18px;border-bottom:1px solid rgba(255,255,255,.08);background:radial-gradient(ellipse at 85% 0%,rgba(255,90,31,.11),transparent 65%),#18181a}
+  #wb-setup .wb-setup-head h1{margin:8px 0;font-size:clamp(23px,3vw,30px);letter-spacing:-.035em}
+  #wb-setup .wb-setup-head .lead{margin:0;max-width:72ch;font-size:13px;line-height:1.55;color:#c1bec2}
+  #wb-setup .wb-onboard-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(265px,.85fr);align-items:start;gap:20px;padding:20px 26px 24px}
+  #wb-setup .wb-guide-kicker{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 11px;color:#aaa5ad;font-size:11px;font-weight:650}
+  #wb-setup .wb-guide-kicker span:last-child{color:#ff946d}
+  #wb-setup .wb-connect-steps{display:grid;gap:10px;margin:0}
+  #wb-setup .wb-connect-step{display:grid;grid-template-columns:27px minmax(0,1fr);gap:11px;padding:14px;border:1px solid #343138;border-radius:13px;background:#1b1a1e}
+  #wb-setup .wb-connect-step:last-child{padding-bottom:14px;border-bottom:1px solid #343138}
+  #wb-setup .wb-step-number{width:27px;height:27px;margin:0;border-radius:8px;background:rgba(255,90,31,.17);color:#ff946d;font-size:12px}
+  #wb-setup .wb-connect-step h2{margin:1px 0 4px;font-size:14px;line-height:1.35;font-weight:750;color:#f6f3f4}
+  #wb-setup .wb-connect-step p{margin:0 0 8px;font-size:12px;line-height:1.55;color:#c4bfc6}
+  #wb-setup .wb-connect-step p:last-child{margin-bottom:0}
+  #wb-setup .wb-mini-map{padding:10px 11px;margin:10px 0;border:1px solid #34323b;border-radius:10px;background:#141318}
+  #wb-setup .wb-mini-map .wb-mini-caption{display:block;margin-bottom:7px;color:#8f8894;font-size:10px}
+  #wb-setup .wb-path{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+  #wb-setup .wb-path span{display:inline-flex;padding:5px 7px;border:1px solid #3a3641;border-radius:6px;color:#e8e2ec;font-size:11px;line-height:1.3}
+  #wb-setup .wb-path i{font-size:13px;color:#8e8594;font-style:normal}
+  #wb-setup .wb-path span:last-child{border-color:#8b523b;background:rgba(255,90,31,.13);color:#ffa07b}
+  #wb-setup .wb-token-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:9px 0}
+  #wb-setup .wb-token-tabs span{padding:6px 8px;border:1px solid #3b3741;border-radius:7px;color:#918a96;font-size:11px}
+  #wb-setup .wb-token-tabs .is-selected{border-color:#985438;background:rgba(255,90,31,.12);color:#ffad87;font-weight:750}
+  #wb-setup .wb-minimum-title{margin:10px 0 6px;font-size:11px;font-weight:750;color:#e5e0e7}
+  #wb-setup .wb-minimum{display:grid;gap:5px;margin:0}
+  #wb-setup .wb-minimum>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;border:1px solid #38333e;border-radius:8px;background:#161419}
+  #wb-setup .wb-minimum dt{font-size:10px;color:#aaa2ad}
+  #wb-setup .wb-minimum dd{margin:0;color:#f3e9f5;text-align:right;font-size:11px;font-weight:750}
+  #wb-setup .wb-minimum dd::before{content:"✓";color:#64d8a1;margin-right:6px;font-weight:750}
+  #wb-setup .wb-copy-example{display:inline-flex;align-items:center;gap:9px;padding:8px 11px;margin:3px 0 9px;border:1px solid #553d36;border-radius:8px;background:#211a19;color:#f4c9b2;font-size:11px;font-weight:700}
+  #wb-setup .wb-link{display:inline-flex;align-items:center;gap:6px;margin-top:5px;font-size:12px;font-weight:750;color:#ff956e;text-decoration:underline;text-underline-offset:3px}
+  #wb-setup .wb-link:focus-visible,#wb-setup .wb-connect-details summary:focus-visible{outline:2px solid #ff956e;outline-offset:3px}
+  #wb-setup .wb-connect-panel{position:sticky;top:12px;min-width:0;border:1px solid #4a3835;border-radius:14px;background:linear-gradient(160deg,#282023,#19191d 60%);padding:18px}
+  #wb-setup .wb-connect-panel h2{margin:0 0 7px;font-size:19px;letter-spacing:-.025em}
+  #wb-setup .wb-panel-description{margin:0 0 15px;color:#bcb5bf;font-size:12px;line-height:1.55}
+  #wb-setup .setup-form{padding-top:12px;margin:0;gap:9px;border-top:1px solid rgba(255,255,255,.12)}
+  #wb-setup .setup-form label{font-size:12px}
+  #wb-setup .setup-form textarea{width:100%;min-height:92px;max-height:180px;padding:11px;font-size:12px;border-color:#58505a}
+  #wb-setup .setup-form textarea:focus{outline:2px solid #ff7848;outline-offset:1px}
+  #wb-setup .setup-submit{width:100%;justify-self:stretch;min-height:44px;padding:10px;font-size:13px}
+  #wb-setup .setup-submit:disabled{opacity:.6;cursor:not-allowed}
+  #wb-setup .setup-security{font-size:11px;line-height:1.5;color:#a9a2ae}
+  #wb-setup .setup-bottom{margin:12px 0 0;font-size:11px;line-height:1.5;color:#bcb4bd}
+  #wb-setup .wb-safety{display:flex;gap:9px;margin-top:14px;padding:10px;border:1px solid #3e4240;border-radius:9px;background:rgba(100,216,161,.055);color:#d2dfd5;font-size:11px;line-height:1.45}
+  #wb-setup .wb-safety span:first-child{flex:none;color:#64d8a1;font-weight:900}
+  #wb-setup .wb-setup-footer{display:flex;flex-wrap:wrap;align-items:center;gap:8px 17px;padding:14px 26px 18px;border-top:1px solid rgba(255,255,255,.08)}
+  #wb-setup .wb-setup-footer p{width:100%;margin:0;color:#9c959e;font-size:10.5px}
+  #wb-setup .wb-setup-footer a{font-size:11px;color:#ff976e;text-decoration:underline;text-underline-offset:3px}
+  #wb-setup .wb-connect-details{margin:0;font-size:11px;color:#c1b9c5}
+  #wb-setup .wb-connect-details summary{color:#d5c8d5}
+  #wb-setup .wb-connect-details p{font-size:11px}
+  #wb-setup .setup-feedback{margin:0 0 12px;font-size:12px}
+  @media(max-width:720px){
+    #wb-setup.setup-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border-radius:13px}
+    #wb-setup .wb-setup-head{padding:18px 17px 16px}
+    #wb-setup .wb-onboard-grid{grid-template-columns:minmax(0,1fr);gap:16px;padding:16px 14px}
+    #wb-setup .wb-connect-panel{position:static}
+    #wb-setup .wb-setup-footer{padding:14px 16px 20px}
+    #wb-setup .wb-connect-step{padding:12px}
+  }
+</style>
+<dialog id="wb-setup" class="setup-dialog" open aria-labelledby="wb-setup-title" aria-describedby="wb-setup-lead" aria-modal="true">
+  <header class="wb-setup-head">
+    <div class="setup-dialog-top">
+      <span class="eyebrow">Первый запуск · подключение магазина</span>
+      {% if not trial_status.trial_started %}<strong class="setup-trial-pill">3 дня бесплатно</strong>{% endif %}
+    </div>
+    <h1 id="wb-setup-title">Добавим ваш магазин</h1>
+    {% if not wb_connect_available %}
+      <p class="lead" id="wb-setup-lead" role="status"><strong>Подключение Wildberries временно закрыто оператором NoSale.</strong> Сейчас API-токен не проверяется и не сохраняется. Действующие данные и настройки сохраняются.</p>
+    {% else %}
+      <p class="lead" id="wb-setup-lead">Создайте отдельный API-токен в кабинете Wildberries и вставьте его сюда. Это не пароль от WB: NoSale использует токен только в пределах выбранных вами разрешений.</p>
+    {% endif %}
+  </header>
+  <div class="wb-onboard-grid">
+    <section aria-label="Инструкция по созданию токена Wildberries">
+      <div class="wb-guide-kicker"><span>Пошаговая инструкция по WB API</span><span>Подключение · шаг 1 из 2</span></div>
+      <div class="wb-connect-steps">
+        <section class="wb-connect-step">
+          <span class="wb-step-number" aria-hidden="true">1</span>
+          <div>
+            <h2>Откройте настройки WB API</h2>
+            <p>Войдите на портал <b>WB Партнёры</b> под владельцем магазина: создавать токены может только владелец профиля.</p>
+            <div class="wb-mini-map" aria-label="Схема пути в кабинете WB">
+              <small class="wb-mini-caption">Где искать — схема пути, не скриншот</small>
+              <div class="wb-path" aria-hidden="true"><span>Профиль</span><i>›</i><span>Интеграции по API</span><i>›</i><span>+ Создать токен</span></div>
+            </div>
+            <a class="wb-link wb-open-partners" href="https://seller.wildberries.ru/" target="_blank" rel="noopener noreferrer">Открыть WB Партнёры ↗</a>
+          </div>
+        </section>
+        <section class="wb-connect-step">
+          <span class="wb-step-number" aria-hidden="true">2</span>
+          <div>
+            <h2>Создайте базовый токен</h2>
+            <p>Выберите вкладку <b>«Для интеграции вручную»</b> и тип <b>«Базовый токен»</b>. Укажите название <b>NoSale</b>.</p>
+            <div class="wb-mini-map">
+              <small class="wb-mini-caption">Какие пункты выбрать — схема, не скриншот</small>
+              <div class="wb-token-tabs" aria-hidden="true"><span>Для сервиса из каталога</span><span class="is-selected">Для интеграции вручную ✓</span></div>
+              <div class="wb-token-tabs" aria-hidden="true"><span class="is-selected">Базовый токен ✓</span><span>Персональный</span><span>Тестовый</span></div>
+              <h3 class="wb-minimum-title">Минимальные разрешения NoSale</h3>
+              <dl class="wb-minimum">
+                <div><dt>Категория 1</dt><dd>Цены и скидки</dd></div>
+                <div><dt>Категория 2</dt><dd>Контент</dd></div>
+                <div><dt>Уровень доступа</dt><dd>Чтение и запись</dd></div>
+              </dl>
+            </div>
+            <p>Не отмечайте другие категории — <b>«Финансы»</b>, «Заказы» и прочие права для основной защиты скидок не нужны. Доступ «Только чтение» не позволит исправлять скидки.</p>
+          </div>
+        </section>
+        <section class="wb-connect-step">
+          <span class="wb-step-number" aria-hidden="true">3</span>
+          <div>
+            <h2>Скопируйте токен</h2>
+            <p>В WB нажмите <b>«Создать»</b>, затем <b>«Скопировать и закрыть»</b>. Токен показывается только один раз; сохраните его в надёжном месте.</p>
+            <div class="wb-copy-example" aria-hidden="true">Скопировать и закрыть <span>✓</span></div>
+            <p>Вернитесь в NoSale и вставьте скопированный ключ справа (на телефоне — в поле ниже).</p>
+          </div>
+        </section>
+      </div>
+    </section>
+    <aside class="wb-connect-panel" aria-label="Подключение API-токена">
+      <h2>Подключить магазин</h2>
+      <p class="wb-panel-description">Вставьте полный токен, чтобы NoSale проверил доступ и загрузил реальные товары. До подключения кабинет недоступен.</p>
+      {% if messages %}<div class="setup-feedback" role="alert" aria-live="assertive">{% for message in messages %}<p class="setup-feedback-line">{{ message }}</p>{% endfor %}</div>{% endif %}
+      <form method="post" action="{% url 'connect_wb' %}" class="setup-form">
+        {% csrf_token %}
+        <label for="onboarding-token">Ключ доступа Wildberries</label>
+        <textarea id="onboarding-token" name="token" autocomplete="off" autocapitalize="off" spellcheck="false" rows="3" {% if not wb_connect_available %}disabled{% else %}required{% endif %} maxlength="4096" placeholder="{% if wb_connect_available %}Вставьте скопированный ключ{% else %}Подключение временно недоступно{% endif %}" aria-describedby="setup-security"></textarea>
+        <p id="setup-security" class="setup-security">Проверим подлинность и минимальные разрешения: «Цены и скидки», «Контент», «Чтение и запись». При подключении ничего в Wildberries не изменяется. Защита включается отдельно после настройки лимитов.</p>
+        <button type="submit" class="setup-submit" {% if not wb_connect_available %}disabled{% endif %}>{% if wb_connect_available %}Подключить магазин{% else %}Подключение временно закрыто{% endif %}</button>
+      </form>
+      <p class="setup-bottom">{% if trial_status.trial_started %}Повторное подключение не продлевает пробный период.{% else %}3 дня бесплатно начнутся после успешной первой загрузки товаров. Без оплаты и списаний.{% endif %}</p>
+      <div class="wb-safety"><span aria-hidden="true">✓</span><span>Токен хранится в NoSale зашифрованным. Не пересылайте его в чат или поддержку. Срок действия токена WB — 180 дней; потом его нужно заменить.</span></div>
+    </aside>
   </div>
-  <h1 id="wb-setup-title">Добавим ваш магазин</h1>
-  {% if not wb_connect_available %}
-  <p class="lead" id="wb-setup-lead" role="status"><strong>Подключение Wildberries временно закрыто оператором NoSale.</strong> Сейчас API-токен не проверяется и не сохраняется, поэтому не вставляйте его в сервис до открытия подключения. Действующие данные и настройки сохраняются.</p>
-  {% else %}
-  <p class="lead" id="wb-setup-lead">Чтобы NoSale показал ваши товары, понадобится ключ доступа из кабинета Wildberries. Это не пароль от вашего аккаунта.</p>
-  {% endif %}
-  <details class="wb-connect-details">
-    <summary>У вас уже есть токен из NoSale Solo?</summary>
-    <p>Если это <b>персональный токен</b>, продолжайте использовать его в Solo — менять или удалять его не нужно. Для <b>облачного NoSale</b> Wildberries требует другой тип доступа: пока сервис не опубликован в Каталоге, создайте отдельный <b>базовый токен</b> с категориями «Цены и скидки» и «Контент» и уровнем «Чтение и запись». Персональный токен не передавайте облачным сервисам.</p>
-  </details>
-
-  <div class="wb-connect-steps" aria-label="Как подключить Wildberries">
-    <div class="wb-connect-step">
-      <span class="wb-step-number" aria-hidden="true">1</span>
-      <div>
-        <strong>Откройте кабинет продавца</strong>
-        <p>Перейдите в <b>Профиль → Интеграции по API → + Создать токен</b>.</p>
-        <a class="wb-open-partners" href="https://seller.wildberries.ru/" target="_blank" rel="noopener noreferrer">Открыть WB Партнёры ↗</a>
-      </div>
-    </div>
-    <div class="wb-connect-step">
-      <span class="wb-step-number" aria-hidden="true">2</span>
-      <div>
-        <strong>Создайте ключ для NoSale</strong>
-        <p>Для подключения этой облачной версии до публикации NoSale в Каталоге WB откройте вкладку <b>«Для интеграции вручную»</b> и выберите <b>«Базовый токен»</b>. Он будет отдельным от вашего токена Solo. После публикации NoSale в Каталоге появится подключение через <b>сервисный токен</b>. Укажите:</p>
-        <div class="wb-key-settings">
-          <span>Название <b>NoSale</b></span>
-          <span>Категории <b>Цены и скидки, Контент</b></span>
-          <span>Доступ <b>Чтение и запись</b></span>
-        </div>
-        <p>Нажмите <b>«Создать» → «Скопировать и закрыть»</b>.</p>
-      </div>
-    </div>
-    <div class="wb-connect-step">
-      <span class="wb-step-number" aria-hidden="true">3</span>
-      <div>
-        <strong>Вставьте ключ сюда</strong>
-        <p>Вернитесь в NoSale и вставьте скопированный ключ в поле ниже.</p>
-      </div>
-    </div>
-  </div>
-
-  <a class="wb-guide-link" href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token" target="_blank" rel="noopener noreferrer">Нужна помощь? Пошаговая инструкция Wildberries ↗</a>
-
-  {% if messages %}<div class="setup-feedback" role="alert" aria-live="assertive">
-    {% for message in messages %}<p class="setup-feedback-line">{{ message }}</p>{% endfor %}
-  </div>{% endif %}
-
-  <form method="post" action="{% url 'connect_wb' %}" class="setup-form">
-    {% csrf_token %}
-    <label for="onboarding-token">Ключ доступа Wildberries</label>
-    <textarea id="onboarding-token" name="token" autocomplete="off" autocapitalize="off" spellcheck="false" rows="2" {% if not wb_connect_available %}disabled{% else %}required{% endif %} maxlength="4096" placeholder="{% if wb_connect_available %}Вставьте скопированный ключ{% else %}Подключение временно недоступно{% endif %}" aria-describedby="setup-security"></textarea>
-    <p id="setup-security" class="setup-security">Мы проверим права «Чтение и запись» и загрузим ваши товары. При подключении цены и скидки не меняются. Автоматическая защита включается отдельно после настройки пределов.</p>
-    <button type="submit" class="setup-submit" {% if not wb_connect_available %}disabled{% endif %}>{% if wb_connect_available %}Подключить магазин{% else %}Подключение временно закрыто{% endif %}</button>
-  </form>
-
-  <p class="setup-bottom">{% if trial_status.trial_started %}Повторное подключение не продлевает пробный период.{% else %}Пробные 3 дня начнутся после успешной первой загрузки товаров. Без оплаты и списаний.{% endif %}</p>
-  <details class="wb-connect-details">
-    <summary>Как работает защита скидок?</summary>
-    <p>Токен с правами <b>«Чтение и запись»</b> позволяет NoSale получать товары и отправлять исправления скидок после настройки допустимых пределов и включения защиты. Само подключение ничего в Wildberries не изменяет. Базовый токен допустим для временного тестирования, но его лимиты WB ниже: оперативную защиту он не гарантирует. Для облачного релиза используйте сервисный токен NoSale. Персональный токен WB предназначен для собственных программ и локальных установок; передавать его облачному сервису нельзя.</p>
-  </details>
+  <footer class="wb-setup-footer">
+    <p>По официальным инструкциям Wildberries. Схемы показывают нужные пункты, но не воспроизводят интерфейс WB один в один.</p>
+    <a href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token" target="_blank" rel="noopener noreferrer">Как создать токен — WB ↗</a>
+    <a href="https://seller.wildberries.ru/instructions/ru/kg/material/wb-api-data-categories" target="_blank" rel="noopener noreferrer">О категориях доступа — WB ↗</a>
+    <details class="wb-connect-details">
+      <summary>У вас уже есть токен из NoSale Solo?</summary>
+      <p>Если это <b>персональный токен</b>, он предназначен для локального Solo. Для облачного NoSale нужен отдельный базовый токен до подключения сервиса через Каталог WB. Персональный токен нельзя передавать облачному сервису.</p>
+    </details>
+    <details class="wb-connect-details">
+      <summary>Как работает защита скидок?</summary>
+      <p>Нужны категории «Цены и скидки» и «Контент» с уровнем «Чтение и запись». После подключения магазин сначала загружается без исправлений, затем вы задаёте лимиты и отдельно включаете защиту. Базовый токен имеет более строгие лимиты запросов WB, поэтому мгновенная защита не гарантируется.</p>
+    </details>
+  </footer>
 </dialog>
 <script>
 (() => {
