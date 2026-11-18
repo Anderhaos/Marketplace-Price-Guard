@@ -47,6 +47,38 @@ class FirstRunOnboardingTests(TestCase):
         self.assertNotContains(response, "Всего товаров")
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
 
+
+    def test_official_wb_guide_shows_exact_minimal_permissions_and_links(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Минимальные разрешения NoSale")
+        self.assertContains(response, "Профиль")
+        self.assertContains(response, "Интеграции по API")
+        self.assertContains(response, "+ Создать токен")
+        self.assertContains(response, "Для интеграции вручную")
+        self.assertContains(response, "Базовый токен")
+        self.assertContains(response, "Цены и скидки")
+        self.assertContains(response, "Контент")
+        self.assertContains(response, "Чтение и запись")
+        self.assertContains(response, "Скопировать и закрыть")
+        self.assertContains(response, "180 дней")
+        self.assertContains(response, 'href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token"')
+        self.assertContains(response, 'href="https://seller.wildberries.ru/instructions/ru/ru/material/wb-api-data-categories"')
+        self.assertContains(response, 'rel="noopener noreferrer"')
+        self.assertContains(response, 'aria-modal="true"')
+        self.assertContains(response, 'name="token"')
+        self.assertNotContains(response, 'class="compact-summary"')
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+
+    @override_settings(SAAS_WB_NETWORK_ENABLED=False)
+    def test_official_wb_guide_shown_but_token_submission_disabled_by_operator(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "Подключение Wildberries временно закрыто")
+        self.assertContains(response, "Минимальные разрешения NoSale")
+        self.assertContains(response, 'name="token"')
+        self.assertContains(response, 'disabled')
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+
     @override_settings(SAAS_WB_NETWORK_ENABLED=False)
     @patch("guard.integrations.WBClient")
     def test_disabled_wb_egress_does_not_validate_or_save_token_or_start_trial(self, mock_wb):
