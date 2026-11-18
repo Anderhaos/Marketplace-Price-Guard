@@ -26,7 +26,7 @@ from .ai_gateway import AIGatewayUnavailable
 from .smart_assistant import smart_store_reply
 from .ai_safety import contains_credential
 from billing.trial import access_snapshot
-from billing.models import OwnerAISettings
+from billing.models import OwnerAISettings, AccessGrant
 from .integrations import connect_wb_token, ConnectError
 from .crypto import decrypt_token, encrypt_token
 from .forms import AccountSettingsForm, DefaultDiscountForm, ProductRuleForm, RegistrationForm, TokenForm, StoreCreateForm
@@ -382,7 +382,7 @@ def connect_wb(request):
     if trial["trial_expired"]:
         messages.info(request, "Токен сохранён, но пробный период уже завершён. Для мониторинга нужен активный доступ.")
     elif not trial["trial_started"] and not trial["active"]:
-        messages.success(request, "API проверен. Загружаем товары; 3 бесплатных дня начнутся после успешной первой загрузки.")
+        messages.success(request, "API проверен. Загружаем товары; 3 бесплатных дня начнутся после вашей настройки и включения защиты.")
     else:
         messages.success(request, "Токен проверен и сохранён. Повторное подключение не продлевает пробный период.")
     if permissions["token_type"] == "base":
@@ -448,6 +448,13 @@ def dashboard(request):
                     and account.next_check_at > timezone.now()
                 ),
             })
+    # First-run settings are local-only. A successful import alone no longer
+    # grants trial access: the seller must explicitly configure and start Guard.
+    if (settings.SAAS_PIN_AUTH_ENABLED and settings.SAAS_ACCESS_ENFORCED
+            and not AccessGrant.objects.filter(user_id=request.user.pk).exists()):
+        from .onboarding_setup import render_or_process_setup
+        return render_or_process_setup(request, account, _account_can_write(account),
+                                       _scheduled_wb_due)
     token_readonly = not _account_can_write(account)
     # GET never performs network I/O: the dedicated worker refreshes WB data.
     if request.method == "POST":
@@ -665,7 +672,7 @@ def settings_view(request):
                     permissions, grant, created = connect_wb_token(account, token_form.cleaned_data["token"])
                     messages.success(request, "Токен проверен и сохранён.")
                     if not access_snapshot(request.user.pk)["trial_started"]:
-                        messages.info(request, "3 бесплатных дня начнутся после успешной первой загрузки товаров.")
+                        messages.info(request, "3 бесплатных дня начнутся после настройки товаров и включения защиты.")
                     return redirect("settings")
                 except ConnectError as error:
                     token_form.add_error("token", str(error))
