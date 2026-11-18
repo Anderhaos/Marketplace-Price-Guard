@@ -130,6 +130,18 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     assert.ok(await page.$('#os-title'),'First successful import must show the locked rule setup');
     assert.equal(await page.$('.compact-summary'),null,'Import must not unlock the working dashboard');
     await page.screenshot({path:snapshotDir+'/02-onboarding-rules.png',fullPage:true});
+    await page.setViewport({width:390,height:844,deviceScaleFactor:1,isMobile:true,hasTouch:true});
+    const setupMobile=await page.evaluate(()=>({
+      overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+      control:!!document.querySelector('#os-default-limit'),
+      itemCount:document.querySelectorAll('.os-item').length,
+      sections:getComputedStyle(document.querySelector('.os-grid')).gridTemplateColumns.split(' ').filter(Boolean).length,
+    }));
+    assert.ok(setupMobile.overflow<=1,'Onboarding setup must not overflow a 390px phone: '+JSON.stringify(setupMobile));
+    assert.equal(setupMobile.sections,1,'Mobile setup must stack to one column');
+    assert.ok(setupMobile.control && setupMobile.itemCount===2,'Mobile setup must include both real products');
+    await page.screenshot({path:snapshotDir+'/02-onboarding-rules-mobile-390.png',fullPage:true});
+    await page.setViewport({width:1365,height:860,deviceScaleFactor:1,isMobile:false,hasTouch:false});
     const before=await page.evaluate(()=>document.body.innerText);
     assert.ok(before.includes('Три бесплатных дня начнутся только после этого действия'));
     step('initial_inventory_unlocks_rules_not_trial','2 synthetic WB items');
