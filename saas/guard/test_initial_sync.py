@@ -74,10 +74,8 @@ class InitialSyncGateTests(TestCase):
         account.refresh_from_db()
         self.assertIsNotNone(account.initial_sync_completed_at)
         self.assertFalse(account.enabled)
-        grant = AccessGrant.objects.get(user=self.user, source="trial")
-        self.assertAlmostEqual((grant.ends_at - grant.starts_at).total_seconds(),
-                               TRIAL_DAYS * 86400, delta=1)
-        self.assertGreaterEqual(grant.starts_at, account.initial_sync_completed_at)
+        # Import unlocks local setup, NOT a trial or any WB write.
+        self.assertFalse(AccessGrant.objects.filter(user=self.user, source="trial").exists())
         product = Product.objects.get(account=account, nm_id=4201)
         self.assertEqual(product.title, "Первый товар")
         self.assertEqual(product.current_discount, 17)
@@ -85,9 +83,10 @@ class InitialSyncGateTests(TestCase):
         wb.submit_discounts.assert_not_called()
         r = self.client.get("/")
         self.assertContains(r, "Первый товар")
-        self.assertContains(r, 'class="compact-summary"')
+        self.assertContains(r, "Настройте защиту товаров")
+        self.assertNotContains(r, 'class="compact-summary"')
         self.assertNotContains(r, "Первичная синхронизация")
-        self.assertEqual(self.client.get("/settings/").status_code, 200)
+        self.assertRedirects(self.client.get("/settings/"), "/")
 
     @patch("guard.monitor.WBClient")
     def test_catalog_failure_cannot_mark_inventory_ready(self, wb_class):
@@ -113,9 +112,10 @@ class InitialSyncGateTests(TestCase):
         self.assertEqual(run_due_checks(), 1)
         account.refresh_from_db()
         self.assertIsNotNone(account.initial_sync_completed_at)
-        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="trial").count(), 1)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user, source="trial").exists())
         self.assertEqual(Product.objects.filter(account=account).count(), 0)
-        self.assertContains(self.client.get("/"), "Товары появятся после первой проверки")
+        self.assertContains(self.client.get("/"), "В магазине пока нет активных товаров")
+        self.assertContains(self.client.get("/"), "disabled aria-disabled")
 
     @patch("guard.monitor.WBClient")
     def test_failed_first_import_can_retry_without_burning_trial(self, wb_class):
@@ -134,7 +134,7 @@ class InitialSyncGateTests(TestCase):
         self.assertEqual(run_due_checks(), 1)
         account.refresh_from_db()
         self.assertIsNotNone(account.initial_sync_completed_at)
-        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="trial").count(), 1)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user, source="trial").exists())
         self.assertEqual(run_due_checks(), 0)
 
     @patch("guard.monitor.WBClient")
