@@ -106,12 +106,17 @@ def first_inventory_import_permitted(account):
     if not (settings.SAAS_PIN_AUTH_ENABLED and settings.SAAS_ACCESS_ENFORCED
             and settings.SAAS_WB_NETWORK_ENABLED):
         return False
-    if (account.initial_sync_completed_at is not None or not account.check_requested
-            or account.enabled or account.apply_all_requested or account.apply_requested_ids):
+    if (not account.check_requested or account.enabled
+            or account.apply_all_requested or account.apply_requested_ids):
         return False
     if AccessGrant.objects.filter(user_id=account.user_id).exists():
         return False
-    from guard.models import Upload
+    from guard.models import Upload, Product
+    # A truly empty first catalog may be retried without consuming a trial.
+    # Imported stores with products cannot use this path for free monitoring.
+    if (account.initial_sync_completed_at is not None
+            and Product.objects.filter(account_id=account.pk, active=True).exists()):
+        return False
     return not Upload.objects.filter(account_id=account.pk, status="pending").exists()
 
 
