@@ -126,12 +126,37 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
       if(text.includes('Browser fixture item A') && text.includes('Browser fixture item B')){ready=true;break;}
       await new Promise(r=>setTimeout(r,850));
     }
-    assert.ok(ready,'First import did not unlock a dashboard with 2 real ORM-backed synthetic goods');
+    assert.ok(ready,'First import did not unlock local setup with 2 real ORM-backed synthetic goods');
+    assert.ok(await page.$('#os-title'),'First successful import must show the locked rule setup');
+    assert.equal(await page.$('.compact-summary'),null,'Import must not unlock the working dashboard');
+    await page.screenshot({path:snapshotDir+'/02-onboarding-rules.png',fullPage:true});
+    const before=await page.evaluate(()=>document.body.innerText);
+    assert.ok(before.includes('Три бесплатных дня начнутся только после этого действия'));
+    step('initial_inventory_unlocks_rules_not_trial','2 synthetic WB items');
+    await page.$eval('#os-default-limit',el=>{el.value='25'});
+    await submit('.os-actions button[name="action"][value="save_setup"]');
+    await waitText('Лимиты сохранены только в NoSale');
+    assert.ok(await page.$('#os-title'),'Local setup must not create trial or open dashboard');
+    const csrfForTrial=await page.$eval('input[name="csrfmiddlewaretoken"]',el=>el.value);
+    const activated=await page.evaluate(async token=>{
+      const result=await fetch('/__e2e/activate-trial/',{
+        method:'POST',credentials:'same-origin',
+        headers:{'X-CSRFToken':token,'Content-Type':'application/x-www-form-urlencoded'},
+        body:new URLSearchParams({
+          action:'start_trial',default_allowed_discount:'25',
+          limit_79001:'',limit_79002:''
+        }).toString()
+      });
+      return {status:result.status,json:await result.json()};
+    },csrfForTrial);
+    assert.equal(activated.status,200,'Synthetic activation should reuse production setup handler');
+    assert.equal(activated.json.ok,true,'Explicit start must create one trial after local rules');
+    await goto('/');
     await page.screenshot({path:snapshotDir+'/02-dashboard-desktop.png',fullPage:true});
     const text=await page.evaluate(()=>document.body.innerText);
     assert.ok(text.includes('Browser fixture item A')&&text.includes('Browser fixture item B'));
-    step('initial_inventory_synced_and_dashboard_ready','2 synthetic WB items');
     assert.ok(await page.$('body.seller-dashboard-page'));
+    step('trial_granted_after_explicit_activation','one locked setup and one grant');
     await page.evaluate(() => {
       const grid=document.querySelector('.products-grid');
       const first=grid.querySelector('.product-card');
@@ -283,7 +308,7 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     await waitText('пробный');
     const subscriptionText = await page.evaluate(()=>document.body.innerText);
     assert.ok(subscriptionText.toLowerCase().includes('standard'),'trial should have Standard capabilities');
-    step('trial_granted_on_first_import');
+    step('trial_remains_active_after_setup_activation');
     await goto('/settings/');
     assert.equal(await page.$('main details'),null,'Seller settings must show all sections without accordion clicks');
     assert.ok(await page.$('.compact-settings-info .compact-settings-form'),
