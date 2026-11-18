@@ -124,6 +124,15 @@ class OneSellerReleaseJourneyTests(TestCase):
             read_client.return_value.submit_discounts.assert_not_called()
         account.refresh_from_db()
         self.assertIsNotNone(account.initial_sync_completed_at)
+        self.assertIsNone(effective_plan(seller.pk))
+        self.assertContains(self.client.get(reverse("dashboard")), "Настройте защиту товаров")
+        from django.test import override_settings
+        with override_settings(SAAS_WB_READ_ONLY=False):
+            response = self.client.post(reverse("dashboard"), {
+                "action": "start_trial", "default_allowed_discount": "18",
+                "limit_5101": "", "confirm_zero_discount": "0",
+            })
+        self.assertEqual(response.status_code, 302)
         self.assertEqual(effective_plan(seller.pk), "standard")
         self.assertFalse(has_plan_capability(seller.pk, "ai_questions"))
         self.assertEqual(AccessGrant.objects.filter(user=seller, source="trial").count(), 1)
