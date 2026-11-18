@@ -230,6 +230,11 @@ class FirstRunOnboardingTests(TestCase):
             with self.subTest(path=path):
                 self.assertRedirects(self.client.get(path), reverse("dashboard"))
         GuardAccount.objects.filter(user=self.user).update(initial_sync_completed_at=timezone.now())
+        # Import alone still locks private pages until explicit activation.
+        for path in ("/stores/", "/settings/", "/history/", "/notifications/"):
+            with self.subTest(path=path):
+                self.assertRedirects(self.client.get(path), reverse("dashboard"))
+        grant_trial_once(self.user.pk)
         for path in ("/stores/", "/settings/", "/history/", "/notifications/"):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
@@ -297,11 +302,16 @@ class FirstRunOnboardingTests(TestCase):
         self.assertIsNotNone(account.initial_sync_completed_at)
         self.assertFalse(account.enabled)
         self.assertEqual(account.check_requested, False)
-        account.enabled = True
-        account.default_allowed_discount = 10
-        account.check_requested = True
+        self.assertRedirects(self.client.post(reverse("dashboard"), {
+            "action": "start_trial", "default_allowed_discount": "10",
+            "limit_804": "",
+        }), reverse("dashboard"))
+        account.refresh_from_db()
+        self.assertTrue(account.enabled)
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="trial").count(), 1)
+        # Simulate the next permitted WB cycle without waiting 16 minutes.
         account.next_check_at = timezone.now()
-        account.save(update_fields=["enabled", "default_allowed_discount", "check_requested", "next_check_at"])
+        account.save(update_fields=["next_check_at"])
         self.assertEqual(run_due_checks(), 1)
         # A basic token cannot GET prices and POST a correction in the same
         # API window: the first cycle only persists a staged correction.
