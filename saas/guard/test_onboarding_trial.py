@@ -101,7 +101,7 @@ class FirstRunOnboardingTests(TestCase):
         self.assertTrue(account.check_requested)
         self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
         self.assertFalse(has_active_access(self.user.pk))
-        self.assertContains(self.client.get(reverse("dashboard")), "3 дня начнутся после успешной первой загрузки")
+        self.assertContains(self.client.get(reverse("dashboard")), "3 дня начнутся после настройки лимитов")
         self.assertNotContains(self.client.get(reverse("dashboard")), 'id="wb-setup"')
 
     @patch("guard.integrations.WBClient")
