@@ -109,11 +109,21 @@ class R5TwoSellerAcceptanceTests(TestCase):
         account = GuardAccount.objects.get(user=user)
         self.assertIsNotNone(account.initial_sync_completed_at)
         self.assertTrue(Product.objects.filter(account=account, nm_id=nm_id, active=True).exists())
+        self.assertFalse(has_active_access(user.pk))
+        self.assertContains(client.get(reverse("dashboard")), "Настройте защиту товаров")
+        self.assertFalse(account.enabled)  # Import never sends WB writes.
+        with override_settings(SAAS_WB_READ_ONLY=False):
+            response = client.post(reverse("dashboard"), {
+                "action": "start_trial", "default_allowed_discount": "20",
+                f"limit_{nm_id}": "", "confirm_zero_discount": "0",
+            })
+        self.assertEqual(response.status_code, 302)
+        account.refresh_from_db()
+        self.assertTrue(account.enabled)
         self.assertTrue(has_active_access(user.pk))
         self.assertEqual(
             AccessGrant.objects.filter(user=user, source="trial", plan="standard").count(), 1,
         )
-        self.assertFalse(account.enabled)  # Read-only fixture may not send WB prices.
         return account
 
     def _event(self, payment, status, *, merchant="test-nosale-merchant"):
