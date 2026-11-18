@@ -34,6 +34,27 @@ def render_or_process_setup(request, account, token_can_write, scheduled_wb_due)
 
     if request.method == "POST":
         action = request.POST.get("action")
+        if action == "retry_empty_import":
+            if visible or not settings.SAAS_WB_NETWORK_ENABLED:
+                messages.error(request, "Повторная загрузка сейчас недоступна.")
+                return redirect("dashboard")
+            with transaction.atomic():
+                get_user_model().objects.select_for_update().get(pk=request.user.pk)
+                current = GuardAccount.objects.select_for_update().get(
+                    pk=account.pk, user_id=request.user.pk
+                )
+                if (AccessGrant.objects.filter(user_id=request.user.pk).exists()
+                        or current.enabled or not current.token_ciphertext
+                        or Product.objects.filter(account=current, active=True).exists()):
+                    messages.error(request, "Состояние магазина изменилось.")
+                elif current.next_check_at > timezone.now():
+                    messages.info(request, "Ожидаем разрешённого времени следующей проверки WB.")
+                else:
+                    current.check_requested = True
+                    current.next_check_at = timezone.now()
+                    current.save(update_fields=["check_requested", "next_check_at"])
+                    messages.success(request, "Повторная загрузка товаров поставлена в очередь.")
+            return redirect("dashboard")
         if action not in ("save_setup", "start_trial"):
             return HttpResponseNotAllowed(["GET", "POST"])
         form = DefaultDiscountForm(request.POST)
@@ -131,6 +152,11 @@ def render_or_process_setup(request, account, token_can_write, scheduled_wb_due)
         "account": account,
         "setup_products": visible,
         "more_products": more_products,
+        "retry_empty_import_available": bool(
+            not visible and settings.SAAS_WB_NETWORK_ENABLED
+            and account.next_check_at <= timezone.now()
+        ),
+        "next_retry_at": account.next_check_at,
         "setup_count": Product.objects.filter(account=account, active=True).count(),
         "can_start_protection": bool(
             visible and token_can_write and settings.SAAS_WB_NETWORK_ENABLED
