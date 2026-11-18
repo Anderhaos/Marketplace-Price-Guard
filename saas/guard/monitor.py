@@ -357,9 +357,8 @@ def run_due_checks():
             _any_grant=Exists(any_grant),
         ).filter(
             Q(_active_grant=True) |
-            Q(_any_grant=False, initial_sync_completed_at__isnull=True,
-              check_requested=True, enabled=False, apply_all_requested=False,
-              apply_requested_ids=[])
+            Q(_any_grant=False, check_requested=True, enabled=False,
+              apply_all_requested=False, apply_requested_ids=[])
         )
     due = due.distinct().order_by("next_check_at")[:20]
     processed = 0
