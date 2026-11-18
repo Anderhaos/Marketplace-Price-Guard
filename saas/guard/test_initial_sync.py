@@ -157,6 +157,7 @@ class InitialSyncGateTests(TestCase):
         account.initial_sync_completed_at = timezone.now()
         account.last_check_at = timezone.now()
         account.save(update_fields=["initial_sync_completed_at", "last_check_at"])
+        grant_trial_once(self.user.pk)  # Existing activated seller may replace token.
         self.assertEqual(self.client.get("/settings/").status_code, 200)
         self.connect()
         account.refresh_from_db()
