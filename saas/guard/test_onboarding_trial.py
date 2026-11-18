@@ -63,7 +63,7 @@ class FirstRunOnboardingTests(TestCase):
         self.assertContains(response, "Скопировать и закрыть")
         self.assertContains(response, "180 дней")
         self.assertContains(response, 'href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token"')
-        self.assertContains(response, 'href="https://seller.wildberries.ru/instructions/ru/kg/material/wb-api-data-categories"')
+        self.assertContains(response, 'href="https://seller.wildberries.ru/instructions/ru/ru/material/wb-api-data-categories"')
         self.assertContains(response, 'rel="noopener noreferrer"')
         self.assertContains(response, 'aria-modal="true"')
         self.assertContains(response, 'name="token"')
