@@ -278,6 +278,11 @@ class BillingOnboardingGateTests(TestCase):
         store.token_ciphertext = "synthetic-fixture"
         store.initial_sync_completed_at = timezone.now()
         store.save(update_fields=["token_ciphertext", "initial_sync_completed_at"])
+        # Imported-but-not-activated users remain locked, no free trial yet.
+        self.assertRedirects(self.client.get(page), reverse("dashboard"),
+                             fetch_redirect_response=False)
+        from billing.trial import grant_trial_once
+        grant_trial_once(seller.pk)  # Previously activated customer fixture.
         screen = self.client.get(page)
         self.assertContains(screen, "Оплата пока не подключена")
         self.assertContains(screen, "Standard")

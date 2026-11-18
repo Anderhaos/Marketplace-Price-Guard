@@ -131,7 +131,7 @@
         <p id="setup-security" class="setup-security">Проверим подлинность и минимальные разрешения: «Цены и скидки», «Контент», «Чтение и запись». При подключении ничего в Wildberries не изменяется. Защита включается отдельно после настройки лимитов.</p>
         <button type="submit" class="setup-submit" {% if not wb_connect_available %}disabled{% endif %}>{% if wb_connect_available %}Подключить магазин{% else %}Подключение временно закрыто{% endif %}</button>
       </form>
-      <p class="setup-bottom">{% if trial_status.trial_started %}Повторное подключение не продлевает пробный период.{% else %}3 дня бесплатно начнутся после успешной первой загрузки товаров. Без оплаты и списаний.{% endif %}</p>
+      <p class="setup-bottom">{% if trial_status.trial_started %}Повторное подключение не продлевает пробный период.{% else %}3 дня бесплатно начнутся, когда вы настроите товары и нажмёте «Включить защиту». Без оплаты и списаний.{% endif %}</p>
       <div class="wb-safety"><span aria-hidden="true">✓</span><span>Токен хранится в NoSale зашифрованным. Не пересылайте его в чат или поддержку. Срок действия токена WB — 180 дней; потом его нужно заменить.</span></div>
     </aside>
   </div>

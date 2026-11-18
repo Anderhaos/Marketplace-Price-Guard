@@ -13,7 +13,9 @@ class RequireWbConnectionMiddleware:
     PRIVATE_VIEWS = frozenset({
         "stores", "select_store", "settings", "product_rule",
         "product_history_data", "history", "notifications",
-        "mark_notifications_read", "push_subscribe", "push_unsubscribe",
+        "mark_notifications_read", "mark_notifications_viewed",
+        "promotion_audit", "finance_audit",
+        "push_subscribe", "push_unsubscribe",
         "push_preferences", "subscription", "billing_checkout", "store_advisor", "assistant_chat",
     })
 
@@ -43,4 +45,8 @@ class RequireWbConnectionMiddleware:
         if (selected is None or not selected.token_ciphertext
                 or selected.initial_sync_completed_at is None):
             return redirect("dashboard")
+        if settings.SAAS_ACCESS_ENFORCED:
+            from billing.models import AccessGrant
+            if not AccessGrant.objects.filter(user_id=request.user.pk).exists():
+                return redirect("dashboard")
         return None

@@ -81,6 +81,9 @@ class AccessGateTests(TestCase):
         # grant still cannot queue price writes.
         self.account.initial_sync_completed_at = timezone.now()
         self.account.save(update_fields=["initial_sync_completed_at"])
+        expired = self.grant()
+        expired.ends_at = timezone.now() - timedelta(seconds=1)
+        expired.save(update_fields=["ends_at"])
         self.client.force_login(self.user)
         response = self.client.post(reverse("dashboard"), {
             "action": "apply_all", "default_allowed_discount": "15",

@@ -190,7 +190,33 @@ def expire_trial_for_paywall(request):
     return JsonResponse({"ok": True})
 
 
+@login_required
+@require_POST
+def activate_synthetic_trial(request):
+    """Test-only: exercise production setup with a scoped writable flag.
+
+    The real browser fixture always boots READ_ONLY and blocks every external
+    socket. This scoped override exists only for the explicit activation POST;
+    no WB adapter method is invoked by that view.
+    """
+    from django.test import override_settings
+    from guard.onboarding_setup import render_or_process_setup
+    from guard.views import _account_can_write, _scheduled_wb_due
+    account = selected_store(request)
+    if request.POST.get("action") != "start_trial":
+        return JsonResponse({"error": "invalid activation"}, status=400)
+    with override_settings(SAAS_WB_READ_ONLY=False):
+        response = render_or_process_setup(
+            request, account, _account_can_write(account), _scheduled_wb_due
+        )
+    if response.status_code != 302:
+        return JsonResponse({"error": "setup rejected"}, status=409)
+    count = AccessGrant.objects.filter(user=request.user, source="trial").count()
+    return JsonResponse({"ok": count == 1, "grants": count})
+
+
 # Test-only route exists solely in this ephemeral, no-egress fixture process.
+portal.urls.urlpatterns.insert(0, path("__e2e/activate-trial/", activate_synthetic_trial))
 portal.urls.urlpatterns.insert(0, path("__e2e/seed-promotions/", seed_promotion_snapshot))
 portal.urls.urlpatterns.insert(0, path("__e2e/expire-trial/", expire_trial_for_paywall))
 clear_url_caches()
