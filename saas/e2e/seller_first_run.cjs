@@ -145,6 +145,14 @@ const step = (name, detail) => { timeline.push({step:name,detail:detail||'PASS'}
     const before=await page.evaluate(()=>document.body.innerText);
     assert.ok(before.includes('Три бесплатных дня начнутся только после этого действия'));
     step('initial_inventory_unlocks_rules_not_trial','2 synthetic WB items');
+    await goto('/?q=Browser%20fixture%20item%20B');
+    assert.ok(await page.$('#os-title'),'Search must preserve mandatory setup gate');
+    assert.equal((await page.$('.os-item')).length,1,'Search must select only matching product');
+    assert.ok((await page.evaluate(()=>document.body.innerText)).includes('Browser fixture item B'));
+    await goto('/?q=this-product-does-not-exist');
+    assert.ok((await page.evaluate(()=>document.body.innerText)).includes('По запросу товаров не найдено'));
+    await goto('/');
+    step('rule_setup_search_and_empty_result','Search stays inside locked onboarding');
     await page.$eval('#os-default-limit',el=>{el.value='25'});
     await submit('.os-actions button[name="action"][value="save_setup"]');
     await waitText('Лимиты сохранены только в NoSale');
