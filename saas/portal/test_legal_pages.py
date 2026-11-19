@@ -87,6 +87,8 @@ class PublicLegalPagesTests(TestCase):
         self.assertContains(response, "500,00 ₽")
         self.assertContains(response, "990,00 ₽")
         self.assertContains(response, "3 дня")
+        self.assertContains(response, "только после настройки товаров и первого нажатия")
+        self.assertNotContains(response, "после первой успешной загрузки товаров WB")
 
     def test_existing_five_day_trial_is_not_shortened_on_new_three_day_policy(self):
         user = get_user_model().objects.create_user(username="legacy-three-day@example.test")
