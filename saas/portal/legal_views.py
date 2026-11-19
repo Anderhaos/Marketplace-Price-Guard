@@ -22,8 +22,8 @@ LEGAL_OPERATOR = {
     # Dedicated NoSale contact; mailbox delivery must be independently verified.
     "email": "support@nosale.pro",
 }
-LEGAL_EDITION = "1.3"
-LEGAL_EDITION_DATE = "03.11.2026"
+LEGAL_EDITION = "1.4"
+LEGAL_EDITION_DATE = "19.11.2026"
 
 
 def _legal_context():
