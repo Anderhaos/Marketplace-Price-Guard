@@ -8,10 +8,13 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import F
-from django.http import HttpResponseNotAllowed
+from django.core.paginator import Paginator
+from django.db.models import F, Q
+from django.http import HttpResponseNotAllowed, HttpResponseRedirect
 from django.utils import timezone
 from django.shortcuts import redirect, render
+from django.urls import reverse
+from urllib.parse import urlencode
 
 from billing.models import AccessGrant
 from billing.trial import grant_trial_once
@@ -19,23 +22,39 @@ from .forms import DefaultDiscountForm
 from .models import GuardAccount, Product
 
 
-MAX_SETUP_PRODUCTS = 100
+# Bounded forms keep the first-run page fast even for a 10,000-SKU seller.
+# Every active product is reachable using server-side pagination and search.
+SETUP_PAGE_SIZE = 50
 
 
 def render_or_process_setup(request, account, token_can_write, scheduled_wb_due):
     if request.method not in ("GET", "POST"):
         return HttpResponseNotAllowed(["GET", "POST"])
-    products = list(
-        Product.objects.filter(account=account, active=True)
-        .order_by("vendor_code", "nm_id")[:MAX_SETUP_PRODUCTS + 1]
-    )
-    visible = products[:MAX_SETUP_PRODUCTS]
-    more_products = len(products) > MAX_SETUP_PRODUCTS
+
+    state = request.POST if request.method == "POST" else request.GET
+    search = str(state.get("q", "")).strip()[:80]
+    page_input = state.get("page", "1")
+    catalog = Product.objects.filter(account=account, active=True)
+    total_count = catalog.count()
+    if search:
+        selector = Q(title__icontains=search) | Q(vendor_code__icontains=search)
+        if search.isascii() and search.isdecimal() and len(search) <= 18:
+            selector |= Q(nm_id=int(search))
+        catalog = catalog.filter(selector)
+    page = Paginator(catalog.order_by("vendor_code", "nm_id"), SETUP_PAGE_SIZE).get_page(page_input)
+    visible = list(page.object_list)
+    more_products = total_count > SETUP_PAGE_SIZE
+    query_params = {}
+    if search:
+        query_params["q"] = search
+    if page.number > 1:
+        query_params["page"] = page.number
+    page_url = reverse("dashboard") + (("?" + urlencode(query_params)) if query_params else "")
 
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "retry_empty_import":
-            if visible or not settings.SAAS_WB_NETWORK_ENABLED:
+            if total_count or not settings.SAAS_WB_NETWORK_ENABLED:
                 messages.error(request, "Повторная загрузка сейчас недоступна.")
                 return redirect("dashboard")
             with transaction.atomic():
@@ -90,9 +109,12 @@ def render_or_process_setup(request, account, token_can_write, scheduled_wb_due)
             if not settings.SAAS_WB_TOKEN_VALIDATION_ENABLED or not token_can_write:
                 messages.error(request, "Для запуска защиты нужен проверенный токен с правом изменения скидок.")
                 return redirect("dashboard")
-            if not visible:
+            if not total_count:
                 messages.error(request, "Сначала дождитесь появления товаров WB. Пробный период не начался.")
-                return redirect("dashboard")
+                return HttpResponseRedirect(page_url)
+            if more_products and request.POST.get("acknowledge_global_rules") != "1":
+                messages.error(request, "Подтвердите, что общий лимит действует для всех товаров без индивидуальных настроек.")
+                return HttpResponseRedirect(page_url)
 
         # User lock serializes double-submit and concurrent bank grant activity.
         # Onboarding does not import/alter any external WB data.
@@ -144,22 +166,29 @@ def render_or_process_setup(request, account, token_can_write, scheduled_wb_due)
             current.save()
         if action == "start_trial":
             messages.success(request, "Защита включена. Три бесплатных дня начались.")
-        else:
-            messages.success(request, "Лимиты сохранены только в NoSale. WB не изменён.")
-        return redirect("dashboard")
+            return redirect("dashboard")
+        messages.success(request, "Лимиты сохранены только в NoSale. WB не изменён.")
+        return HttpResponseRedirect(page_url)
 
     return render(request, "guard/onboarding_rules.html", {
         "account": account,
         "setup_products": visible,
-        "more_products": more_products,
+        "setup_page": page,
+        "setup_search": search,
+        "setup_matching_count": page.paginator.count,
+        "setup_page_size": SETUP_PAGE_SIZE,
+        "large_catalog_confirmation": more_products,
+        "has_catalog": total_count > 0,
         "retry_empty_import_available": bool(
-            not visible and settings.SAAS_WB_NETWORK_ENABLED
+            not total_count and settings.SAAS_WB_NETWORK_ENABLED
             and account.next_check_at <= timezone.now()
         ),
         "next_retry_at": account.next_check_at,
-        "setup_count": Product.objects.filter(account=account, active=True).count(),
+        "setup_count": total_count,
+        "setup_configured_count": Product.objects.filter(account=account, active=True,
+                                                        allowed_discount_override__isnull=False).count(),
         "can_start_protection": bool(
-            visible and token_can_write and settings.SAAS_WB_NETWORK_ENABLED
+            total_count and token_can_write and settings.SAAS_WB_NETWORK_ENABLED
             and settings.SAAS_WB_TOKEN_VALIDATION_ENABLED
             and not settings.SAAS_WB_READ_ONLY
         ),
