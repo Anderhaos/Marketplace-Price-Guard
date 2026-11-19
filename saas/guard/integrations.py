@@ -93,6 +93,6 @@ def connect_wb_token(account, token):
             "basic_staged_rules_version", "check_requested", "lock_until",
             "rules_version", "last_error", "last_check_at", "initial_sync_completed_at", "next_check_at",
         ])
-        # Trial is issued by the worker after the first complete import.
-        # Merely verifying a token must not burn five free days.
+        # Validation and WB import NEVER issue an AccessGrant. Trial starts
+        # only on the seller's explicit Guard activation after local setup.
     return permissions, None, False
