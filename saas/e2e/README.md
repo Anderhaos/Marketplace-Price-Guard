@@ -9,7 +9,7 @@ fixture, **not** E5 production, preview or any real marketplace account.
 2. First-run WB onboarding; rejects an invalid JWT without issuing a trial.
 3. Accepts a synthetic basic token and runs the real scheduler/model import
    against two patched WB products; never sends discount changes.
-4. Confirms first completed import opens the dashboard and grants Standard trial.
+4. Confirms import opens **locked local rule setup**; only explicit activation issues a one-time 3-day Standard trial. Browser E2E verifies search and mobile layout.
 5. Checks settings, routine-check history, and no false important notification.
 6. Verifies the 390px mobile dashboard has no horizontal overflow.
 7. Logs out and back into the existing seller with their PIN.

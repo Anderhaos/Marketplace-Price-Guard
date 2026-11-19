@@ -32,6 +32,15 @@
   .os-feedback{padding:12px;border-radius:9px;background:#292027;color:#ffd8c7;font-size:12px;margin-bottom:15px}
   .os-foot{color:#a99faa;font-size:11px;line-height:1.5;margin-top:12px}
   .os-togglelink{font-size:12px;display:inline-block;margin-top:10px}
+  .os-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 0}
+  .os-filter input{flex:1;min-width:175px;max-width:100%;min-height:43px;padding:9px 12px;color:#fff;background:#111015;border:1px solid #57505c;border-radius:9px}
+  .os-filter button{min-height:43px;padding:8px 16px}
+  .os-pagination{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:10px;margin-top:12px}
+  .os-pagination a{display:inline-flex;align-items:center;min-height:36px;padding:7px 11px;border:1px solid #55475a;border-radius:9px;font-size:12px}
+  .os-pagination .os-counter{font-size:11px;color:#aca3b1}
+  .os-ack{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #7e5c36;border-radius:10px;background:#28201b;color:#f2decf;font-size:11px;line-height:1.5;margin-top:12px}
+  .os-ack input{margin-top:2px;flex:none}
+  .os-search-empty{padding:12px;border:1px dashed #5e4550;border-radius:10px}
   @media(max-width:720px){.os-grid{grid-template-columns:1fr}.os-hero{padding:19px}.os-card{padding:17px}}
 </style>
 <section class="os-wrap" aria-labelledby="os-title">
@@ -41,17 +50,29 @@
     <p>Товары Wildberries загружены. Укажите, какие скидки допустимы, затем нажмите «Включить защиту». <b>Три бесплатных дня начнутся только после этого действия.</b> Пока никакие скидки в WB не изменяются.</p>
   </header>
   {% if messages %}<div class="os-feedback" role="status">{% for message in messages %}<p>{{ message }}</p>{% endfor %}</div>{% endif %}
+  {% if has_catalog %}
+  <form class="os-filter" method="get" action="{% url 'dashboard' %}" role="search">
+    <label for="os-search">Найти товар</label>
+    <input id="os-search" name="q" value="{{ setup_search }}" maxlength="80" placeholder="Название, артикул или WB ID">
+    <button type="submit" class="secondary">Найти</button>
+    {% if setup_search %}<a href="{% url 'dashboard' %}">Сбросить поиск</a>{% endif %}
+  </form>
+  {% endif %}
   <form method="post" action="{% url 'dashboard' %}" class="os-grid">
     {% csrf_token %}
+    <input type="hidden" name="q" value="{{ setup_search }}">
+    <input type="hidden" name="page" value="{{ setup_page.number }}">
     <div class="os-card">
-      <div class="os-summary"><span>Товары в магазине</span><strong>{{ setup_count }}</strong></div>
+      <div class="os-summary"><span>Активных товаров в магазине</span><strong>{{ setup_count }}</strong></div>
+      {% if has_catalog %}<p class="os-foot">Индивидуальные лимиты заданы для {{ setup_configured_count }} товаров. Остальные используют общий лимит. Вы можете настроить <strong>любой товар до запуска</strong> — через поиск и страницы списка.</p>{% endif %}
       <h2>1. Общий предел скидки</h2>
       <p>Один лимит применяется ко всем товарам, для которых не задан индивидуальный. Это максимальная скидка, которую NoSale будет разрешать.</p>
       <label for="os-default-limit" class="os-form-label">Максимальная скидка для магазина, %</label>
       <input id="os-default-limit" class="os-form-input" type="number" min="0" max="99" step="1" name="default_allowed_discount" value="{{ account.default_allowed_discount }}" required>
       <label class="os-zero"><input type="checkbox" name="confirm_zero_discount" value="1">Подтверждаю: если общий предел — 0%, NoSale будет убирать все скидки у товаров без индивидуального лимита.</label>
       <h2>2. Индивидуальные лимиты</h2>
-      <p>Необязательно. Оставьте поле пустым — для товара будет действовать общий предел; 0% означает запрет скидки именно на этот товар.</p>
+      <p>Необязательно. Оставьте поле пустым — для товара будет действовать общий предел; 0% означает запрет скидки именно на этот товар. Сохраняйте изменения на каждой странице перед переходом к следующей.</p>
+      {% if has_catalog %}<p class="os-foot">Показаны {{ setup_page.start_index }}–{{ setup_page.end_index }} из {{ setup_matching_count }}{% if setup_search %} найденных{% endif %}. На странице не более {{ setup_page_size }} товаров.</p>{% endif %}
       {% if setup_products %}
       <div class="os-products" aria-label="Пределы скидок по товарам">
         {% for product in setup_products %}
@@ -61,15 +82,24 @@
         </div>
         {% endfor %}
       </div>
-      {% if more_products %}<p class="os-foot">Показаны первые 100 товаров. Остальные будут использовать общий предел; изменить их отдельно можно после запуска.</p>{% endif %}
-      {% else %}
+      <nav class="os-pagination" aria-label="Страницы настройки товаров">
+        <span class="os-counter">Страница {{ setup_page.number }} из {{ setup_page.paginator.num_pages }}</span>
+        {% if setup_page.has_previous %}<a href="?page={{ setup_page.previous_page_number }}{% if setup_search %}&amp;q={{ setup_search|urlencode }}{% endif %}">← Предыдущая</a>{% endif %}
+        {% if setup_page.has_next %}<a href="?page={{ setup_page.next_page_number }}{% if setup_search %}&amp;q={{ setup_search|urlencode }}{% endif %}">Следующая →</a>{% endif %}
+      </nav>
+      {% elif not has_catalog %}
       <p class="os-empty">В магазине пока нет активных товаров. Когда товары появятся в Wildberries, повторите загрузку. Три дня не расходуются.</p>
+      {% else %}
+      <p class="os-search-empty">По запросу товаров не найдено. Сбросьте поиск или измените запрос.</p>
       {% endif %}
     </div>
     <aside class="os-card">
       <h2>3. Начать работу</h2>
       <p>Перед запуском проверьте общий лимит и исключения. После активации защита начнёт работать с учётом ограничений API Wildberries.</p>
       <div class="os-note"><strong>До запуска:</strong> вы настраиваете правила без изменений WB.<hr><strong>После запуска:</strong> включается Guard и начинается один пробный период на 3 дня. Повторное подключение токена его не продлит.</div>
+      {% if large_catalog_confirmation %}
+      <label class="os-ack"><input type="checkbox" name="acknowledge_global_rules" value="1"><span>Подтверждаю: для всех товаров, где я не указал индивидуальный лимит, будет действовать общий предел скидки, включая товары на других страницах списка. Я проверил настройки перед запуском.</span></label>
+      {% endif %}
       <div class="os-actions">
         <button type="submit" name="action" value="save_setup" class="secondary">Сохранить настройки</button>
         <button type="submit" name="action" value="start_trial" {% if not can_start_protection %}disabled aria-disabled="true"{% endif %}>Включить защиту · 3 дня бесплатно</button>
@@ -80,7 +110,7 @@
     </aside>
   </form>
 </section>
-{% if not setup_products %}
+{% if not has_catalog %}
 <form method="post" action="{% url 'dashboard' %}" class="os-card" style="margin-top:15px">
   {% csrf_token %}
   <h2>Обновить список товаров</h2>

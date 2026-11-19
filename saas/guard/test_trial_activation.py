@@ -204,6 +204,98 @@ class TrialActivationTests(TestCase):
         self.assertRedirects(self.client.post("/", self.form()), "/")
         self.assertTrue(has_active_access(self.user.pk))
 
+    def test_paginated_large_catalog_can_set_rules_for_any_item_before_trial(self):
+        account = self.import_one()
+        # A seller with 126 SKUs must be able to configure the last page and
+        # search, without a WB write or trial grant.
+        Product.objects.bulk_create([
+            Product(account=account, nm_id=10000 + index, title=f"Товар {index:03}",
+                    vendor_code=f"SKU-{index:03}", current_discount=20)
+            for index in range(125)
+        ])
+        page1 = self.client.get("/")
+        self.assertContains(page1, "Активных товаров в магазине")
+        self.assertContains(page1, "Страница 1 из 3")
+        self.assertContains(page1, "Индивидуальные лимиты заданы для 0 товаров")
+        self.assertEqual(page1.content.decode().count('class="os-item"'), 50)
+        page3 = self.client.get("/?page=3")
+        self.assertContains(page3, "Страница 3 из 3")
+        self.assertEqual(page3.content.decode().count('class="os-item"'), 26)
+        self.assertContains(page3, "limit_10124")
+        second_page = list(
+            Product.objects.filter(account=account, active=True)
+            .order_by("vendor_code", "nm_id")[50:100]
+        )
+        update = {
+            "action": "save_setup", "default_allowed_discount": "18",
+            "page": "2", "q": "",
+        }
+        for product in second_page:
+            update[f"limit_{product.nm_id}"] = "8" if product.pk == second_page[0].pk else ""
+        with patch("guard.monitor.WBClient") as remote:
+            self.assertRedirects(self.client.post("/", update), "/?page=2")
+            remote.assert_not_called()
+        selected = second_page[0]
+        self.assertEqual(Product.objects.get(pk=selected.pk).allowed_discount_override, 8)
+        self.assertIsNone(Product.objects.get(account=account, nm_id=9001).allowed_discount_override)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        search_page = self.client.get("/?q=10124")
+        self.assertContains(search_page, "limit_10124")
+        self.assertEqual(search_page.content.decode().count('class="os-item"'), 1)
+        self.assertNotContains(search_page, "limit_9001")
+        with patch("guard.monitor.WBClient") as remote:
+            self.assertRedirects(self.client.post("/", {
+                "action": "save_setup", "default_allowed_discount": "18",
+                "q": "10124", "page": "1", "limit_10124": "6",
+            }), "/?q=10124")
+            remote.assert_not_called()
+        self.assertEqual(Product.objects.get(account=account, nm_id=10124).allowed_discount_override, 6)
+        self.assertEqual(Product.objects.get(pk=selected.pk).allowed_discount_override, 8)
+        self.assertEqual(account.user.seller_stores.get(pk=account.pk).default_allowed_discount, 18)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        first_page = list(
+            Product.objects.filter(account=account, active=True)
+            .order_by("vendor_code", "nm_id")[:50]
+        )
+        activate = {"action": "start_trial", "default_allowed_discount": "18"}
+        activate.update({f"limit_{p.nm_id}": "" for p in first_page})
+        self.assertRedirects(self.client.post("/", activate), "/")
+        account.refresh_from_db()
+        self.assertFalse(account.enabled)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        activate["acknowledge_global_rules"] = "1"
+        self.assertRedirects(self.client.post("/", activate), "/")
+        account.refresh_from_db()
+        self.assertTrue(account.enabled)
+        self.assertEqual(AccessGrant.objects.filter(user=self.user, source="trial").count(), 1)
+        self.assertEqual(Product.objects.get(account=account, nm_id=10124).allowed_discount_override, 6)
+        self.assertEqual(Product.objects.get(pk=selected.pk).allowed_discount_override, 8)
+
+    def test_search_never_exposes_another_sellers_products(self):
+        account = self.import_one()
+        other_user = User.objects.create_user("seller-other@nomail.test")
+        other_account = GuardAccount.objects.create(user=other_user)
+        Product.objects.create(account=other_account, nm_id=778899, title="Чужой секрет",
+                               vendor_code="FOREIGN-ONLY")
+        response = self.client.get("/?q=Чужой секрет")
+        self.assertContains(response, "По запросу товаров не найдено")
+        self.assertNotContains(response, "FOREIGN-ONLY")
+        self.assertEqual(response.content.decode().count('class="os-item"'), 0)
+        self.assertRedirects(self.client.post("/", {
+            "action": "save_setup", "q": "Чужой секрет", "page": "1",
+            "default_allowed_discount": "16", "limit_778899": "0",
+        }), "/?q=%D0%A7%D1%83%D0%B6%D0%BE%D0%B9+%D1%81%D0%B5%D0%BA%D1%80%D0%B5%D1%82")
+        self.assertIsNone(Product.objects.get(account=other_account).allowed_discount_override)
+        self.assertFalse(AccessGrant.objects.filter(user=self.user).exists())
+        self.assertFalse(GuardAccount.objects.get(pk=account.pk).enabled)
+
+    def test_legal_trial_text_matches_explicit_activation(self):
+        response = self.client.get(reverse("public_offer"))
+        self.assertContains(response, "19.11.2026")
+        self.assertContains(response, "первом явном нажатии «Включить защиту»")
+        self.assertContains(response, "До этого действия пробный период не расходуется")
+        self.assertNotContains(response, "первой успешной загрузки товаров подключённого магазина")
+
     def test_expired_old_grant_does_not_reset_by_setup_or_reconnect(self):
         account = self.import_one()
         self.client.post("/", self.form())
